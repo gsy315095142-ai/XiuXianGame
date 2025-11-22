@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { GameView, Player, MapNode, NodeType, Enemy, GameConfig } from './types';
-import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName } from './constants';
+import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot } from './types';
+import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
 import { CombatView } from './components/CombatView';
@@ -139,7 +139,7 @@ export default function App() {
     setActiveEnemy(null);
   };
 
-  const handleEquip = (item: any) => {
+  const handleEquip = (item: Item) => {
       if (!player) return;
       
       if (player.level < (item.reqLevel || 1)) {
@@ -147,19 +147,54 @@ export default function App() {
           return;
       }
 
-      alert(`装备了 ${item.name} (攻击力 +${item.statBonus?.attack || 0})`);
-      setPlayer(prev => prev ? ({
-          ...prev,
-          stats: {
-              ...prev.stats,
-              attack: prev.stats.attack + (item.statBonus?.attack || 0)
-          },
-          equipment: {
-              ...prev.equipment,
-              weapon: item
-          },
-          inventory: prev.inventory.filter(i => i.id !== item.id)
-      }) : null);
+      if (item.type !== 'EQUIPMENT' && item.type !== 'ARTIFACT') {
+          alert("此物品无法装备！");
+          return;
+      }
+
+      if (!item.slot) {
+          alert("此装备位置未知，无法装备！");
+          return;
+      }
+
+      // Unequip existing item in that slot if any
+      const existingItem = player.equipment[item.slot];
+      let newInventory = player.inventory.filter(i => i.id !== item.id);
+      if (existingItem) {
+          newInventory.push(existingItem);
+      }
+
+      alert(`装备了 ${item.name} 于 [${SLOT_NAMES[item.slot]}]`);
+
+      setPlayer(prev => {
+          if (!prev) return null;
+          
+          // Recalculate base stats adjustment
+          // (Simplified: just add diff. Ideally, recalc total stats from base + all items)
+          
+          const attackDiff = (item.statBonus?.attack || 0) - (existingItem?.statBonus?.attack || 0);
+          const defenseDiff = (item.statBonus?.defense || 0) - (existingItem?.statBonus?.defense || 0);
+          const maxHpDiff = (item.statBonus?.maxHp || 0) - (existingItem?.statBonus?.maxHp || 0);
+          const maxSpiritDiff = (item.statBonus?.maxSpirit || 0) - (existingItem?.statBonus?.maxSpirit || 0);
+          const speedDiff = (item.statBonus?.speed || 0) - (existingItem?.statBonus?.speed || 0);
+
+          return {
+            ...prev,
+            stats: {
+                ...prev.stats,
+                attack: prev.stats.attack + attackDiff,
+                defense: prev.stats.defense + defenseDiff,
+                maxHp: prev.stats.maxHp + maxHpDiff,
+                maxSpirit: prev.stats.maxSpirit + maxSpiritDiff,
+                speed: prev.stats.speed + speedDiff,
+            },
+            equipment: {
+                ...prev.equipment,
+                [item.slot!]: item
+            },
+            inventory: newInventory
+          };
+      });
   };
 
   return (

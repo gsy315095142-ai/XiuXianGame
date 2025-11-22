@@ -1,8 +1,21 @@
 
-import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank } from './types';
+import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot } from './types';
 
 export const MAX_HAND_SIZE = 10;
 export const DRAW_COUNT_PER_TURN = 5;
+
+export const SLOT_NAMES: Record<EquipmentSlot, string> = {
+  mainWeapon: '主武器',
+  offWeapon: '副武器',
+  head: '头部',
+  body: '上身',
+  belt: '腰带',
+  legs: '下身',
+  feet: '鞋子',
+  neck: '项链',
+  accessory: '首饰',
+  ring: '戒指',
+};
 
 export const DEFAULT_REALMS: RealmRank[] = [
   { name: '炼气期', rangeStart: 1, rangeEnd: 9, expReq: 100 },
@@ -84,6 +97,7 @@ export const WOODEN_SWORD: Item = {
   id: 'eq_wood_sword',
   name: '桃木剑',
   type: 'EQUIPMENT',
+  slot: 'mainWeapon',
   statBonus: { attack: 2 },
   description: '一把普通的桃木剑，略微提升攻击力。',
   rarity: 'common',
@@ -94,13 +108,36 @@ export const IRON_SWORD: Item = {
   id: 'eq_iron_sword',
   name: '铁剑',
   type: 'EQUIPMENT',
+  slot: 'mainWeapon',
   statBonus: { attack: 5 },
   description: '凡铁锻造的剑。',
   rarity: 'common',
   reqLevel: 5,
 };
 
-export const INITIAL_ITEMS = [WOODEN_SWORD, IRON_SWORD];
+export const LEATHER_ARMOR: Item = {
+  id: 'eq_leather_armor',
+  name: '皮甲',
+  type: 'EQUIPMENT',
+  slot: 'body',
+  statBonus: { defense: 2 },
+  description: '野兽毛皮制成的护甲。',
+  rarity: 'common',
+  reqLevel: 2,
+};
+
+export const JADE_PENDANT: Item = {
+    id: 'eq_jade',
+    name: '灵玉佩',
+    type: 'ARTIFACT',
+    slot: 'accessory',
+    statBonus: { maxSpirit: 2 },
+    description: '温润的玉佩，能滋养神识。',
+    rarity: 'rare',
+    reqLevel: 3
+};
+
+export const INITIAL_ITEMS = [WOODEN_SWORD, IRON_SWORD, LEATHER_ARMOR, JADE_PENDANT];
 
 export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
   {
@@ -170,14 +207,23 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
     stats: { ...config.playerInitialStats },
     deck: deck,
     inventory: config.items.length > 0 ? [config.items[0]] : [],
-    equipment: { weapon: null, armor: null, accessory: null },
+    equipment: { 
+        mainWeapon: null,
+        offWeapon: null,
+        head: null,
+        body: null,
+        belt: null,
+        legs: null,
+        feet: null,
+        neck: null,
+        accessory: null,
+        ring: null,
+    },
   };
 };
 
 export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig): Enemy => {
   // Filter enemies that match the player's level range (e.g., playerLevel >= minPlayerLevel)
-  // Also add a cap so level 100 players don't fight level 1 boars unless configured otherwise
-  // For now, we'll just filter by minimum requirement.
   let possibleEnemies = config.enemies.filter(e => playerLevel >= e.minPlayerLevel);
   
   // Fallback if no enemies match

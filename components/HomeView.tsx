@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Player, Item, RealmRank } from '../types';
-import { getRealmName } from '../constants';
+import { Player, Item, RealmRank, EquipmentSlot } from '../types';
+import { getRealmName, SLOT_NAMES } from '../constants';
 import { Button } from './Button';
 import { CardItem } from './CardItem';
 
@@ -18,6 +18,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
 
   const realmName = getRealmName(player.level, realms);
   const expPercentage = Math.min(100, (player.exp / player.maxExp) * 100);
+
+  const equipmentSlots: EquipmentSlot[] = [
+    'mainWeapon', 'offWeapon', 
+    'head', 'body', 
+    'belt', 'legs', 
+    'feet', 'neck', 
+    'accessory', 'ring'
+  ];
 
   return (
     <div className="flex flex-col h-screen w-full max-w-7xl mx-auto p-4 space-y-4 animate-fade-in overflow-hidden">
@@ -91,16 +99,21 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                                 {player.inventory.length === 0 && <div className="text-slate-500 col-span-full text-center mt-10">暂无物品</div>}
                                 {player.inventory.map((item, idx) => {
                                     const canEquip = player.level >= item.reqLevel;
+                                    const isEquipable = item.type === 'EQUIPMENT' || (item.type === 'ARTIFACT' && item.slot);
+
                                     return (
                                         <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-600 flex flex-col justify-between">
                                             <div>
                                                 <div className={`font-bold ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
+                                                <div className="text-xs text-slate-500 mb-1">
+                                                    {item.type === 'EQUIPMENT' ? `[装备 - ${item.slot ? SLOT_NAMES[item.slot] : '未知'}]` : item.type === 'ARTIFACT' ? '[法宝]' : '[道具]'}
+                                                </div>
                                                 <div className="text-xs text-slate-400 mt-1">{item.description}</div>
                                                 <div className={`text-xs mt-1 ${canEquip ? 'text-emerald-500' : 'text-red-500'}`}>
                                                     需境界: {getRealmName(item.reqLevel, realms)}
                                                 </div>
                                             </div>
-                                            {item.type === 'EQUIPMENT' && (
+                                            {isEquipable && (
                                                 <Button 
                                                     size="sm" 
                                                     variant={canEquip ? 'outline' : 'secondary'} 
@@ -132,10 +145,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
         </div>
 
         {/* Right: Stats & Equipment */}
-        <div className="w-72 bg-slate-900/90 border border-slate-700 rounded-lg p-4 flex flex-col gap-6 shrink-0 z-10 overflow-y-auto">
+        <div className="w-80 bg-slate-900/90 border border-slate-700 rounded-lg p-4 flex flex-col gap-4 shrink-0 z-10 overflow-y-auto">
             <div>
                 <h3 className="text-emerald-400 font-bold border-b border-emerald-800 pb-2 mb-3">当前状态</h3>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-1 text-sm">
                     <StatRow label="生命" value={`${player.stats.hp}/${player.stats.maxHp}`} />
                     <StatRow label="神识" value={`${player.stats.spirit}/${player.stats.maxSpirit}`} />
                     <StatRow label="攻击" value={player.stats.attack} />
@@ -144,12 +157,12 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                 </div>
             </div>
 
-            <div>
-                <h3 className="text-amber-400 font-bold border-b border-amber-800 pb-2 mb-3">装备槽位</h3>
-                <div className="flex flex-col gap-3">
-                    <EquipSlot label="武器" item={player.equipment.weapon} />
-                    <EquipSlot label="护甲" item={player.equipment.armor} />
-                    <EquipSlot label="法宝" item={player.equipment.accessory} />
+            <div className="flex-1 flex flex-col">
+                <h3 className="text-amber-400 font-bold border-b border-amber-800 pb-2 mb-3">已装备</h3>
+                <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[400px] pr-1">
+                    {equipmentSlots.map(slot => (
+                        <EquipSlot key={slot} label={SLOT_NAMES[slot]} item={player.equipment[slot]} />
+                    ))}
                 </div>
             </div>
         </div>
@@ -189,19 +202,24 @@ const StatRow = ({ label, value }: { label: string, value: string | number }) =>
   </div>
 );
 
-const EquipSlot = ({ label, item }: { label: string, item: Item | null }) => (
-    <div className="flex items-center gap-3 bg-slate-800 p-2 rounded border border-slate-600">
-        <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center border border-slate-700 text-xs text-slate-500">
+const EquipSlot: React.FC<{ label: string; item: Item | null }> = ({ label, item }) => (
+    <div className="flex items-center gap-2 bg-slate-800 p-1.5 rounded border border-slate-600">
+        <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center border border-slate-700 text-[10px] text-slate-500 shrink-0">
             {label}
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-w-0">
             {item ? (
                 <div>
-                    <div className={`font-bold text-sm truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                    <div className="text-[10px] text-slate-400">Lv.{item.reqLevel} | 攻+{item.statBonus?.attack || 0}</div>
+                    <div className={`font-bold text-xs truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
+                    <div className="text-[9px] text-slate-400 truncate">
+                        {item.statBonus?.attack ? `攻+${item.statBonus.attack} ` : ''}
+                        {item.statBonus?.defense ? `防+${item.statBonus.defense} ` : ''}
+                        {item.statBonus?.maxHp ? `血+${item.statBonus.maxHp}` : ''}
+                        {!item.statBonus?.attack && !item.statBonus?.defense && !item.statBonus?.maxHp ? '无属性' : ''}
+                    </div>
                 </div>
             ) : (
-                <div className="text-xs text-slate-500">未装备</div>
+                <div className="text-[10px] text-slate-600">未装备</div>
             )}
         </div>
     </div>

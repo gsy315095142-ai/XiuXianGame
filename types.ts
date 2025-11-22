@@ -28,10 +28,25 @@ export interface RealmRank {
   expReq: number;
 }
 
+export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';
+
+export type EquipmentSlot = 
+  | 'mainWeapon' 
+  | 'offWeapon' 
+  | 'head' 
+  | 'body' 
+  | 'belt' 
+  | 'legs' 
+  | 'feet' 
+  | 'neck' 
+  | 'accessory' 
+  | 'ring';
+
 export interface Item {
   id: string;
   name: string;
-  type: 'EQUIPMENT' | 'CONSUMABLE' | 'MATERIAL';
+  type: ItemType;
+  slot?: EquipmentSlot; // Required for EQUIPMENT, optional for ARTIFACT
   statBonus?: Partial<Stats>;
   description: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
@@ -73,11 +88,7 @@ export interface Player extends Entity {
   gold: number; // Spirit Stones
   deck: Card[];
   inventory: Item[];
-  equipment: {
-    weapon: Item | null;
-    armor: Item | null;
-    accessory: Item | null;
-  };
+  equipment: Record<EquipmentSlot, Item | null>;
 }
 
 export interface Enemy extends Entity {

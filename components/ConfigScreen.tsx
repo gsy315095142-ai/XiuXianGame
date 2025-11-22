@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { GameConfig, Card, Item, EnemyTemplate, CardType, RealmRank } from '../types';
+import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot } from '../types';
+import { SLOT_NAMES } from '../constants';
 import { Button } from './Button';
 
 interface ConfigScreenProps {
@@ -10,10 +11,11 @@ interface ConfigScreenProps {
 }
 
 // Helpers to create empty objects
-const createEmptyItem = (): Item => ({
+const createEmptyItem = (type: ItemType): Item => ({
   id: `item_${Date.now()}`,
   name: '新物品',
-  type: 'MATERIAL',
+  type: type,
+  slot: type === 'EQUIPMENT' ? 'mainWeapon' : undefined,
   description: '描述...',
   rarity: 'common',
   reqLevel: 1,
@@ -41,6 +43,9 @@ const createEmptyEnemy = (): EnemyTemplate => ({
 export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
   const [localConfig, setLocalConfig] = useState<GameConfig>(JSON.parse(JSON.stringify(config)));
   const [activeTab, setActiveTab] = useState<'realms' | 'map' | 'items' | 'enemies' | 'cards' | 'player'>('realms');
+  
+  // Sub-tab for Items
+  const [itemSubTab, setItemSubTab] = useState<ItemType>('EQUIPMENT');
 
   const handleSave = () => {
     onSave(localConfig);
@@ -181,19 +186,50 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
           {activeTab === 'items' && (
             <div className="space-y-4">
+              {/* Sub-tabs for Item Categories */}
+              <div className="flex gap-2 border-b border-slate-700 pb-2 mb-4">
+                  <button 
+                      onClick={() => setItemSubTab('EQUIPMENT')}
+                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'EQUIPMENT' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
+                  >
+                      🗡️ 装备库
+                  </button>
+                  <button 
+                      onClick={() => setItemSubTab('CONSUMABLE')}
+                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'CONSUMABLE' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
+                  >
+                      💊 道具库
+                  </button>
+                  <button 
+                      onClick={() => setItemSubTab('ARTIFACT')}
+                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'ARTIFACT' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
+                  >
+                      ✨ 法宝库
+                  </button>
+              </div>
+
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-200">物品库列表 ({localConfig.items.length})</h3>
-                <Button size="sm" onClick={() => setLocalConfig({...localConfig, items: [...localConfig.items, createEmptyItem()]})}>
-                    + 新增物品
+                <h3 className="text-lg font-bold text-slate-200">
+                    {itemSubTab === 'EQUIPMENT' && '装备列表'}
+                    {itemSubTab === 'CONSUMABLE' && '道具列表'}
+                    {itemSubTab === 'ARTIFACT' && '法宝列表'}
+                </h3>
+                <Button size="sm" onClick={() => setLocalConfig({...localConfig, items: [...localConfig.items, createEmptyItem(itemSubTab)]})}>
+                    + 新增{itemSubTab === 'EQUIPMENT' ? '装备' : itemSubTab === 'CONSUMABLE' ? '道具' : '法宝'}
                 </Button>
               </div>
+
               <div className="grid gap-4">
-                {localConfig.items.map((item, idx) => (
-                   <div key={item.id + idx} className="bg-slate-800 p-4 rounded border border-slate-700 flex gap-4 items-start relative group">
+                {localConfig.items.filter(i => i.type === itemSubTab).map((item) => {
+                   // Find the actual index in the main array to update correctly
+                   const realIndex = localConfig.items.findIndex(i => i.id === item.id);
+                   
+                   return (
+                   <div key={item.id + realIndex} className="bg-slate-800 p-4 rounded border border-slate-700 flex gap-4 items-start relative group">
                       <button 
-                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded"
+                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
                         onClick={() => {
-                            const newItems = localConfig.items.filter((_, i) => i !== idx);
+                            const newItems = localConfig.items.filter((_, i) => i !== realIndex);
                             setLocalConfig({...localConfig, items: newItems});
                         }}
                       >
@@ -206,12 +242,40 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               value={item.name}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
-                                newItems[idx].name = e.target.value;
+                                newItems[realIndex].name = e.target.value;
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                             />
                           </div>
+                          
+                          {/* Slot Selector for Equipment/Artifact */}
+                          {(itemSubTab === 'EQUIPMENT' || itemSubTab === 'ARTIFACT') && (
+                              <div>
+                                <label className="text-xs text-amber-500 font-bold">佩戴部位</label>
+                                <select 
+                                    value={item.slot || 'mainWeapon'}
+                                    onChange={(e) => {
+                                        const newItems = [...localConfig.items];
+                                        newItems[realIndex].slot = e.target.value as EquipmentSlot;
+                                        setLocalConfig({...localConfig, items: newItems});
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-amber-300"
+                                >
+                                    {Object.entries(SLOT_NAMES).map(([key, label]) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
+                              </div>
+                          )}
+                          
+                          {itemSubTab === 'CONSUMABLE' && (
+                              <div>
+                                <label className="text-xs text-slate-500">类型</label>
+                                <div className="text-sm text-slate-400 pt-1">消耗品</div>
+                              </div>
+                          )}
+
                           <div>
                             <label className="text-xs text-slate-500">需求等级</label>
                             <input 
@@ -219,12 +283,14 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               value={item.reqLevel || 1}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
-                                newItems[idx].reqLevel = parseInt(e.target.value);
+                                newItems[realIndex].reqLevel = parseInt(e.target.value);
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                             />
                           </div>
+                          
+                          {/* Stats Configuration */}
                           <div>
                             <label className="text-xs text-slate-500">攻击加成</label>
                             <input 
@@ -232,19 +298,46 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               value={item.statBonus?.attack || 0}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
-                                newItems[idx].statBonus = { ...newItems[idx].statBonus, attack: parseInt(e.target.value) };
+                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, attack: parseInt(e.target.value) };
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                             />
                           </div>
+                          <div>
+                            <label className="text-xs text-slate-500">防御加成</label>
+                            <input 
+                              type="number"
+                              value={item.statBonus?.defense || 0}
+                              onChange={(e) => {
+                                const newItems = [...localConfig.items];
+                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, defense: parseInt(e.target.value) };
+                                setLocalConfig({...localConfig, items: newItems});
+                              }}
+                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                            />
+                          </div>
+                           <div>
+                            <label className="text-xs text-slate-500">HP加成</label>
+                            <input 
+                              type="number"
+                              value={item.statBonus?.maxHp || 0}
+                              onChange={(e) => {
+                                const newItems = [...localConfig.items];
+                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, maxHp: parseInt(e.target.value) };
+                                setLocalConfig({...localConfig, items: newItems});
+                              }}
+                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                            />
+                          </div>
+
                           <div className="col-span-3">
                             <label className="text-xs text-slate-500">描述</label>
                             <input 
                               value={item.description}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
-                                newItems[idx].description = e.target.value;
+                                newItems[realIndex].description = e.target.value;
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
@@ -252,7 +345,10 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                           </div>
                       </div>
                    </div>
-                ))}
+                )})}
+                {localConfig.items.filter(i => i.type === itemSubTab).length === 0 && (
+                    <div className="text-slate-500 text-center py-8">暂无此分类物品</div>
+                )}
               </div>
             </div>
           )}
