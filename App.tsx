@@ -90,21 +90,33 @@ export default function App() {
         
         if (levelUp) {
             const newLevel = prev.level + 1;
-            alert(`恭喜！你的境界突破到了 ${getRealmName(newLevel)}!`);
+            const realmName = getRealmName(newLevel, config.realms);
+            alert(`恭喜！你的境界突破到了 ${realmName}!`);
+
+            // Calculate new maxExp based on configured realms
+            const currentRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd);
+            // Default fallbacks if realm config is incomplete
+            const nextMaxExp = currentRealm ? currentRealm.expReq : Math.floor(prev.maxExp * 1.5);
+
+            return {
+                ...prev,
+                exp: newExp - prev.maxExp,
+                level: newLevel,
+                maxExp: nextMaxExp,
+                gold: prev.gold + rewards.gold,
+                stats: {
+                    ...prev.stats,
+                    maxHp: prev.stats.maxHp + 10,
+                    hp: prev.stats.maxHp + 10, // Full heal on level up
+                    attack: prev.stats.attack + 2
+                }
+            };
         }
 
         return {
             ...prev,
-            exp: levelUp ? newExp - prev.maxExp : newExp,
-            level: levelUp ? prev.level + 1 : prev.level,
-            maxExp: levelUp ? Math.floor(prev.maxExp * 1.5) : prev.maxExp,
-            gold: prev.gold + rewards.gold,
-            stats: levelUp ? {
-                ...prev.stats,
-                maxHp: prev.stats.maxHp + 10,
-                hp: prev.stats.maxHp + 10, // Full heal on level up
-                attack: prev.stats.attack + 2
-            } : prev.stats
+            exp: newExp,
+            gold: prev.gold + rewards.gold
         };
     });
     
@@ -131,7 +143,7 @@ export default function App() {
       if (!player) return;
       
       if (player.level < (item.reqLevel || 1)) {
-          alert(`你的境界不足，无法驾驭此宝物！(需要: ${getRealmName(item.reqLevel || 1)})`);
+          alert(`你的境界不足，无法驾驭此宝物！(需要: ${getRealmName(item.reqLevel || 1, config.realms)})`);
           return;
       }
 
@@ -174,6 +186,7 @@ export default function App() {
       {view === GameView.HOME && player && (
         <HomeView 
           player={player} 
+          realms={config.realms}
           onStartAdventure={startAdventure} 
           onEquipItem={handleEquip}
           onEndGame={() => {

@@ -1,16 +1,24 @@
 
-import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate } from './types';
+import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank } from './types';
 
 export const MAX_HAND_SIZE = 10;
 export const DRAW_COUNT_PER_TURN = 5;
 
+export const DEFAULT_REALMS: RealmRank[] = [
+  { name: '炼气期', rangeStart: 1, rangeEnd: 9, expReq: 100 },
+  { name: '筑基期', rangeStart: 10, rangeEnd: 19, expReq: 500 },
+  { name: '金丹期', rangeStart: 20, rangeEnd: 29, expReq: 2000 },
+  { name: '元婴期', rangeStart: 30, rangeEnd: 39, expReq: 10000 },
+  { name: '化神期', rangeStart: 40, rangeEnd: 99, expReq: 50000 },
+];
+
 // Helper for Realms
-export const getRealmName = (level: number): string => {
-    if (level <= 9) return `炼气期 ${level}层`;
-    if (level <= 19) return `筑基期 ${level - 9}层`;
-    if (level <= 29) return `金丹期 ${level - 19}层`;
-    if (level <= 39) return `元婴期 ${level - 29}层`;
-    return `化神期 ${level - 39}层`;
+export const getRealmName = (level: number, realms: RealmRank[] = DEFAULT_REALMS): string => {
+    const realm = realms.find(r => level >= r.rangeStart && level <= r.rangeEnd);
+    if (realm) {
+        return `${realm.name} ${level - realm.rangeStart + 1}层`;
+    }
+    return `未知境界 Lv.${level}`;
 };
 
 // Initial Cards
@@ -127,6 +135,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   items: INITIAL_ITEMS,
   cards: INITIAL_CARDS,
   enemies: INITIAL_ENEMY_TEMPLATES,
+  realms: DEFAULT_REALMS,
   playerInitialDeckIds: ['c_strike', 'c_strike', 'c_strike', 'c_defend', 'c_defend', 'c_meditate', 'c_fireball', 'c_heal'],
   playerInitialStats: {
     maxHp: 100,
@@ -140,18 +149,27 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 };
 
 export const generatePlayerFromConfig = (config: GameConfig): Player => {
-  const deck = config.playerInitialDeckIds.map(id => config.cards.find(c => c.id === id)!).filter(Boolean);
+  // Safe filter in case a card was deleted from config
+  const deck = config.playerInitialDeckIds
+    .map(id => config.cards.find(c => c.id === id))
+    .filter((c): c is Card => !!c);
+
+  // Fallback if deck is empty
+  if (deck.length === 0 && config.cards.length > 0) {
+      deck.push(config.cards[0]);
+  }
+
   return {
     id: 'player_1',
     name: '郭郭',
     level: 1,
     avatarUrl: 'https://picsum.photos/seed/cultivator/200/200',
     exp: 0,
-    maxExp: 100,
+    maxExp: config.realms[0]?.expReq || 100,
     gold: 0,
     stats: { ...config.playerInitialStats },
     deck: deck,
-    inventory: [WOODEN_SWORD],
+    inventory: config.items.length > 0 ? [config.items[0]] : [],
     equipment: { weapon: null, armor: null, accessory: null },
   };
 };
@@ -165,7 +183,14 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   // Fallback if no enemies match
   if (possibleEnemies.length === 0) {
      // Try to find lowest level enemy
-     possibleEnemies = config.enemies.sort((a,b) => a.minPlayerLevel - b.minPlayerLevel).slice(0,1);
+     if (config.enemies.length > 0) {
+        possibleEnemies = config.enemies.sort((a,b) => a.minPlayerLevel - b.minPlayerLevel).slice(0,1);
+     } else {
+         // Total emergency fallback if config is empty
+         return {
+             id: 'dummy', name: '影子', level: 1, avatarUrl: '', stats: {hp: 10, maxHp:10, spirit:0, maxSpirit:0, attack:1, defense:0, speed:1}, dropExp:0, dropGold:0, difficulty:1, deck:[]
+         }
+     }
   }
   
   // Prefer enemies closer to player level for better balance if list is large
@@ -173,9 +198,15 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   
   const difficultyMultiplier = 1 + (playerLevel * 0.2);
   
-  // Build enemy deck
-  const enemyDeck = template.cardIds.map(id => config.cards.find(c => c.id === id)).filter(c => c !== undefined) as Card[];
-  if (enemyDeck.length === 0) enemyDeck.push(BASIC_STRIKE);
+  // Build enemy deck safely
+  const enemyDeck = template.cardIds
+    .map(id => config.cards.find(c => c.id === id))
+    .filter((c): c is Card => !!c);
+    
+  if (enemyDeck.length === 0 && config.cards.length > 0) {
+      // Give them a random card if their configured cards are missing
+      enemyDeck.push(config.cards[0]);
+  }
 
   return {
     id: `enemy_${Date.now()}`,

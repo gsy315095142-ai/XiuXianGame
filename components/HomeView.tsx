@@ -1,21 +1,22 @@
 
 import React, { useState } from 'react';
-import { Player, Item } from '../types';
+import { Player, Item, RealmRank } from '../types';
 import { getRealmName } from '../constants';
 import { Button } from './Button';
 import { CardItem } from './CardItem';
 
 interface HomeViewProps {
   player: Player;
+  realms: RealmRank[];
   onStartAdventure: () => void;
   onEquipItem: (item: Item) => void;
   onEndGame: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ player, onStartAdventure, onEquipItem, onEndGame }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onEndGame }) => {
   const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck'>('none');
 
-  const realmName = getRealmName(player.level);
+  const realmName = getRealmName(player.level, realms);
   const expPercentage = Math.min(100, (player.exp / player.maxExp) * 100);
 
   return (
@@ -96,7 +97,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, onStartAdventure, on
                                                 <div className={`font-bold ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
                                                 <div className="text-xs text-slate-400 mt-1">{item.description}</div>
                                                 <div className={`text-xs mt-1 ${canEquip ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    需境界: {getRealmName(item.reqLevel)}
+                                                    需境界: {getRealmName(item.reqLevel, realms)}
                                                 </div>
                                             </div>
                                             {item.type === 'EQUIPMENT' && (

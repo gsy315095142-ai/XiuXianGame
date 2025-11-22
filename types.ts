@@ -21,6 +21,13 @@ export enum NodeType {
   BOSS = '领主',
 }
 
+export interface RealmRank {
+  name: string;
+  rangeStart: number;
+  rangeEnd: number;
+  expReq: number;
+}
+
 export interface Item {
   id: string;
   name: string;
@@ -28,7 +35,7 @@ export interface Item {
   statBonus?: Partial<Stats>;
   description: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  reqLevel: number; // Added requirement
+  reqLevel: number;
 }
 
 export interface Card {
@@ -39,7 +46,7 @@ export interface Card {
   value: number; // Damage or Heal amount
   description: string;
   rarity: 'common' | 'rare' | 'epic';
-  reqLevel: number; // Added requirement
+  reqLevel: number;
 }
 
 export interface Stats {
@@ -102,6 +109,7 @@ export interface GameConfig {
   items: Item[];
   cards: Card[];
   enemies: EnemyTemplate[];
+  realms: RealmRank[];
   playerInitialDeckIds: string[];
   playerInitialStats: Stats;
 }
