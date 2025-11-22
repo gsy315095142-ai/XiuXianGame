@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig } from './types';
-import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig } from './constants';
+import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
 import { CombatView } from './components/CombatView';
@@ -64,7 +64,8 @@ export default function App() {
 
     // Process Node Event
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
-      const enemy = getRandomEnemyFromConfig(player.level + (node.type === NodeType.BOSS ? 2 : 0), config);
+      // Use player level to determine enemy
+      const enemy = getRandomEnemyFromConfig(player.level, config);
       setActiveEnemy(enemy);
       setView(GameView.COMBAT);
     } else if (node.type === NodeType.TREASURE) {
@@ -86,6 +87,12 @@ export default function App() {
         if (!prev) return null;
         const newExp = prev.exp + rewards.exp;
         const levelUp = newExp >= prev.maxExp;
+        
+        if (levelUp) {
+            const newLevel = prev.level + 1;
+            alert(`恭喜！你的境界突破到了 ${getRealmName(newLevel)}!`);
+        }
+
         return {
             ...prev,
             exp: levelUp ? newExp - prev.maxExp : newExp,
@@ -122,6 +129,12 @@ export default function App() {
 
   const handleEquip = (item: any) => {
       if (!player) return;
+      
+      if (player.level < (item.reqLevel || 1)) {
+          alert(`你的境界不足，无法驾驭此宝物！(需要: ${getRealmName(item.reqLevel || 1)})`);
+          return;
+      }
+
       alert(`装备了 ${item.name} (攻击力 +${item.statBonus?.attack || 0})`);
       setPlayer(prev => prev ? ({
           ...prev,

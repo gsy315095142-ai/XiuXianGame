@@ -4,6 +4,15 @@ import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate } from '
 export const MAX_HAND_SIZE = 10;
 export const DRAW_COUNT_PER_TURN = 5;
 
+// Helper for Realms
+export const getRealmName = (level: number): string => {
+    if (level <= 9) return `炼气期 ${level}层`;
+    if (level <= 19) return `筑基期 ${level - 9}层`;
+    if (level <= 29) return `金丹期 ${level - 19}层`;
+    if (level <= 39) return `元婴期 ${level - 29}层`;
+    return `化神期 ${level - 39}层`;
+};
+
 // Initial Cards
 export const BASIC_STRIKE: Card = {
   id: 'c_strike',
@@ -13,6 +22,7 @@ export const BASIC_STRIKE: Card = {
   value: 8,
   description: '造成8点伤害',
   rarity: 'common',
+  reqLevel: 1,
 };
 
 export const BASIC_DEFEND: Card = {
@@ -23,6 +33,7 @@ export const BASIC_DEFEND: Card = {
   value: 5,
   description: '获得5点护甲',
   rarity: 'common',
+  reqLevel: 1,
 };
 
 export const MEDITATE: Card = {
@@ -33,6 +44,7 @@ export const MEDITATE: Card = {
   value: 2,
   description: '恢复2点神识',
   rarity: 'common',
+  reqLevel: 1,
 };
 
 export const FIREBALL: Card = {
@@ -43,6 +55,7 @@ export const FIREBALL: Card = {
   value: 20,
   description: '造成20点大量伤害',
   rarity: 'rare',
+  reqLevel: 3,
 };
 
 export const HEAL_SPELL: Card = {
@@ -53,6 +66,7 @@ export const HEAL_SPELL: Card = {
   value: 10,
   description: '恢复10点生命值',
   rarity: 'rare',
+  reqLevel: 2,
 };
 
 export const INITIAL_CARDS = [BASIC_STRIKE, BASIC_DEFEND, MEDITATE, FIREBALL, HEAL_SPELL];
@@ -65,6 +79,7 @@ export const WOODEN_SWORD: Item = {
   statBonus: { attack: 2 },
   description: '一把普通的桃木剑，略微提升攻击力。',
   rarity: 'common',
+  reqLevel: 1,
 };
 
 export const IRON_SWORD: Item = {
@@ -74,6 +89,7 @@ export const IRON_SWORD: Item = {
   statBonus: { attack: 5 },
   description: '凡铁锻造的剑。',
   rarity: 'common',
+  reqLevel: 5,
 };
 
 export const INITIAL_ITEMS = [WOODEN_SWORD, IRON_SWORD];
@@ -83,16 +99,25 @@ export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
     name: '野猪',
     baseStats: { maxHp: 60, hp: 60, maxSpirit: 10, spirit: 10, attack: 6, defense: 0, speed: 8 },
     cardIds: ['c_strike'],
+    minPlayerLevel: 1,
   },
   {
     name: '青蛇',
     baseStats: { maxHp: 50, hp: 50, maxSpirit: 10, spirit: 10, attack: 8, defense: 0, speed: 12 },
     cardIds: ['c_strike', 'c_strike'],
+    minPlayerLevel: 1,
   },
   {
     name: '魔修',
     baseStats: { maxHp: 80, hp: 80, maxSpirit: 10, spirit: 10, attack: 10, defense: 2, speed: 10 },
     cardIds: ['c_strike', 'c_defend', 'c_fireball'],
+    minPlayerLevel: 3,
+  },
+  {
+    name: '筑基妖兽',
+    baseStats: { maxHp: 200, hp: 200, maxSpirit: 20, spirit: 20, attack: 20, defense: 10, speed: 15 },
+    cardIds: ['c_fireball', 'c_fireball'],
+    minPlayerLevel: 10,
   },
 ];
 
@@ -132,18 +157,30 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
 };
 
 export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig): Enemy => {
-  const template = config.enemies[Math.floor(Math.random() * config.enemies.length)];
+  // Filter enemies that match the player's level range (e.g., playerLevel >= minPlayerLevel)
+  // Also add a cap so level 100 players don't fight level 1 boars unless configured otherwise
+  // For now, we'll just filter by minimum requirement.
+  let possibleEnemies = config.enemies.filter(e => playerLevel >= e.minPlayerLevel);
+  
+  // Fallback if no enemies match
+  if (possibleEnemies.length === 0) {
+     // Try to find lowest level enemy
+     possibleEnemies = config.enemies.sort((a,b) => a.minPlayerLevel - b.minPlayerLevel).slice(0,1);
+  }
+  
+  // Prefer enemies closer to player level for better balance if list is large
+  const template = possibleEnemies[Math.floor(Math.random() * possibleEnemies.length)];
+  
   const difficultyMultiplier = 1 + (playerLevel * 0.2);
   
   // Build enemy deck
   const enemyDeck = template.cardIds.map(id => config.cards.find(c => c.id === id)).filter(c => c !== undefined) as Card[];
-  // Fallback if deck is empty
   if (enemyDeck.length === 0) enemyDeck.push(BASIC_STRIKE);
 
   return {
     id: `enemy_${Date.now()}`,
     name: template.name,
-    level: playerLevel,
+    level: playerLevel, // Scale enemy to player level visually, though stats come from base + multiplier
     avatarUrl: `https://picsum.photos/seed/${template.name}/200/200`,
     stats: {
       maxHp: Math.floor(template.baseStats.maxHp * difficultyMultiplier),

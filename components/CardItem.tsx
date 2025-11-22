@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardType } from '../types';
 
@@ -6,9 +7,10 @@ interface CardItemProps {
   onClick?: () => void;
   disabled?: boolean;
   isPlayable?: boolean;
+  playerLevel?: number; // Optional, to check reqLevel
 }
 
-export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true }) => {
+export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel }) => {
   
   const typeColors = {
     [CardType.ATTACK]: 'border-red-500/50 bg-gradient-to-b from-red-900/80 to-slate-900',
@@ -24,14 +26,17 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
     [CardType.BUFF]: 'text-amber-200',
   };
 
+  const levelMet = playerLevel ? playerLevel >= card.reqLevel : true;
+  const isDisabled = disabled || !levelMet;
+
   return (
     <div 
-      onClick={!disabled && isPlayable ? onClick : undefined}
+      onClick={!isDisabled && isPlayable ? onClick : undefined}
       className={`
         relative w-32 h-48 border-2 rounded-xl p-2 flex flex-col select-none transition-transform duration-200
         ${typeColors[card.type]}
-        ${disabled ? 'opacity-40 cursor-not-allowed scale-95' : 'cursor-pointer hover:-translate-y-4 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] shadow-lg'}
-        ${!isPlayable && !disabled ? 'opacity-70' : ''}
+        ${isDisabled ? 'opacity-40 cursor-not-allowed scale-95 grayscale-[0.5]' : 'cursor-pointer hover:-translate-y-4 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] shadow-lg'}
+        ${!isPlayable && !isDisabled ? 'opacity-70' : ''}
       `}
     >
       {/* Cost Badge */}
@@ -43,7 +48,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
         {card.name}
       </div>
       
-      <div className="flex-grow flex items-center justify-center">
+      <div className="flex-grow flex items-center justify-center relative">
         {/* Placeholder for card art */}
         <div className={`text-4xl ${textColor[card.type]} opacity-80`}>
             {card.type === CardType.ATTACK && '⚔️'}
@@ -51,14 +56,21 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
             {card.type === CardType.HEAL && '💊'}
             {card.type === CardType.BUFF && '✨'}
         </div>
+        
+        {!levelMet && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-red-500 font-bold rotate-12 text-sm border border-red-500 p-1 rounded">
+                需 Lv.{card.reqLevel}
+            </div>
+        )}
       </div>
 
       <div className="text-xs text-center text-gray-300 leading-tight h-12 overflow-hidden flex items-center justify-center">
         {card.description}
       </div>
 
-      <div className="mt-1 text-[10px] text-center text-white/40 uppercase tracking-widest">
-        {card.type}
+      <div className="mt-1 flex justify-between items-center text-[10px] text-white/40 uppercase tracking-widest">
+        <span>{card.type}</span>
+        {card.reqLevel > 1 && <span>Lv.{card.reqLevel}</span>}
       </div>
     </div>
   );

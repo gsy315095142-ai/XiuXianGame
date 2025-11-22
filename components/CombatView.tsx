@@ -160,6 +160,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     if (turn !== 'PLAYER') return;
     const card = hand[cardIndex];
 
+    // Check Level Requirement
+    if (initialPlayer.level < (card.reqLevel || 1)) {
+        addLog(`境界不足，无法使用此卡(需Lv.${card.reqLevel})`);
+        return;
+    }
+
     if (playerSpirit < card.cost) {
       addLog('神识不足！');
       return;
@@ -187,31 +193,42 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     setEnemySpirit(initialEnemy.stats.maxSpirit);
     setEnemyBlock(0);
     
-    // Simple Enemy AI: Pick a random card from their deck that they can afford
-    // If they have a deck.
     const enemyDeck = initialEnemy.deck && initialEnemy.deck.length > 0 ? initialEnemy.deck : [];
     
     if (enemyDeck.length > 0) {
         // Try to play 1-2 cards
-        let currentSpirit = initialEnemy.stats.maxSpirit; // Assume full refresh
-        let actions = 0;
+        let currentSpirit = initialEnemy.stats.maxSpirit; 
         const maxActions = 2;
+        let actions = 0;
 
-        // Pick random card
-        const availableCards = enemyDeck.filter(c => c.cost <= currentSpirit);
-        
-        if (availableCards.length > 0) {
-            const card = availableCards[Math.floor(Math.random() * availableCards.length)];
-            resolveCardEffect(card, 'ENEMY');
-        } else {
-            // Default basic attack if no cards playable or deck empty logic failed
-            let dmg = Math.max(0, initialEnemy.stats.attack);
-            const blocked = Math.min(dmg, playerBlock);
-            dmg -= blocked;
-            setPlayerBlock(prev => prev - blocked);
-            setPlayerHp(prev => prev - dmg);
-            addLog(`${initialEnemy.name} 普通攻击，造成 ${dmg} 伤害`);
+        const performAction = () => {
+            if (actions >= maxActions || currentSpirit <= 0) return;
+
+            const availableCards = enemyDeck.filter(c => c.cost <= currentSpirit);
+            if (availableCards.length > 0) {
+                const card = availableCards[Math.floor(Math.random() * availableCards.length)];
+                resolveCardEffect(card, 'ENEMY');
+                currentSpirit -= card.cost;
+                actions++;
+            } else {
+                // Basic attack fallback if spirit allows, but usually we stop here
+            }
         }
+        
+        performAction();
+        // Maybe do a second action if spirit allows
+        if (currentSpirit > 0) performAction();
+        
+        if (actions === 0) {
+             // Fallback basic attack
+             let dmg = Math.max(0, initialEnemy.stats.attack);
+             const blocked = Math.min(dmg, playerBlock);
+             dmg -= blocked;
+             setPlayerBlock(prev => prev - blocked);
+             setPlayerHp(prev => prev - dmg);
+             addLog(`${initialEnemy.name} 普通攻击，造成 ${dmg} 伤害`);
+        }
+
     } else {
         // Fallback old logic
         let dmg = initialEnemy.stats.attack;
@@ -323,6 +340,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                              <CardItem 
                                 card={card} 
                                 isPlayable={turn === 'PLAYER' && playerSpirit >= card.cost}
+                                playerLevel={initialPlayer.level}
                                 onClick={() => playCard(idx)}
                              />
                         </div>

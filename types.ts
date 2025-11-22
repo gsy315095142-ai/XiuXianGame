@@ -28,6 +28,7 @@ export interface Item {
   statBonus?: Partial<Stats>;
   description: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  reqLevel: number; // Added requirement
 }
 
 export interface Card {
@@ -38,6 +39,7 @@ export interface Card {
   value: number; // Damage or Heal amount
   description: string;
   rarity: 'common' | 'rare' | 'epic';
+  reqLevel: number; // Added requirement
 }
 
 export interface Stats {
@@ -91,6 +93,7 @@ export interface EnemyTemplate {
   name: string;
   baseStats: Stats;
   cardIds: string[]; // IDs of cards this enemy uses
+  minPlayerLevel: number; // Minimum player level to encounter this enemy
 }
 
 export interface GameConfig {

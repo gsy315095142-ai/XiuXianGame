@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType } from '../types';
 import { Button } from './Button';
+import { getRealmName } from '../constants';
 
 interface ConfigScreenProps {
   config: GameConfig;
@@ -41,10 +42,10 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           </div>
         </div>
 
-        <div className="flex border-b border-slate-700 bg-slate-950 px-4 pt-2 gap-1">
+        <div className="flex border-b border-slate-700 bg-slate-950 px-4 pt-2 gap-1 overflow-x-auto">
           {renderTabButton('map', '🌍 地图与掉落')}
           {renderTabButton('items', '💎 物品库')}
-          {renderTabButton('enemies', '👿 敌人属性')}
+          {renderTabButton('enemies', '👿 敌人配置')}
           {renderTabButton('cards', '🎴 卡牌库')}
           {renderTabButton('player', '🧘 玩家初始')}
         </div>
@@ -86,7 +87,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               <div className="grid gap-4">
                 {localConfig.items.map((item, idx) => (
                    <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 flex gap-4 items-start">
-                      <div className="flex-1 grid grid-cols-2 gap-4">
+                      <div className="flex-1 grid grid-cols-3 gap-4">
                           <div>
                             <label className="text-xs text-slate-500">名称</label>
                             <input 
@@ -94,6 +95,19 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
                                 newItems[idx].name = e.target.value;
+                                setLocalConfig({...localConfig, items: newItems});
+                              }}
+                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-500">需求等级</label>
+                            <input 
+                              type="number"
+                              value={item.reqLevel || 1}
+                              onChange={(e) => {
+                                const newItems = [...localConfig.items];
+                                newItems[idx].reqLevel = parseInt(e.target.value);
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
@@ -112,7 +126,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                             />
                           </div>
-                          <div className="col-span-2">
+                          <div className="col-span-3">
                             <label className="text-xs text-slate-500">描述</label>
                             <input 
                               value={item.description}
@@ -135,7 +149,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             <div className="space-y-6">
               {localConfig.enemies.map((enemy, idx) => (
                 <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700">
-                  <div className="flex flex-wrap gap-4 mb-4">
+                  <div className="flex flex-wrap gap-4 mb-4 items-end">
                     <div>
                       <label className="text-xs text-slate-500">敌人名称</label>
                       <input 
@@ -146,6 +160,19 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                           setLocalConfig({...localConfig, enemies: newEnemies});
                         }}
                         className="block bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-40"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-emerald-500 font-bold">出现需求(玩家等级)</label>
+                      <input 
+                        type="number"
+                        value={enemy.minPlayerLevel || 1}
+                        onChange={(e) => {
+                          const newEnemies = [...localConfig.enemies];
+                          newEnemies[idx].minPlayerLevel = parseInt(e.target.value);
+                          setLocalConfig({...localConfig, enemies: newEnemies});
+                        }}
+                        className="block bg-slate-900 border border-emerald-600 rounded px-2 py-1 text-sm w-40"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -200,7 +227,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {localConfig.cards.map((card, idx) => (
                   <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-700 flex flex-col gap-2">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-2">
                        <input 
                           value={card.name} 
                           onChange={(e) => {
@@ -208,7 +235,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                             newCards[idx].name = e.target.value;
                             setLocalConfig({...localConfig, cards: newCards});
                           }}
-                          className="bg-slate-900 font-bold text-emerald-300 border-none rounded px-1 w-1/2"
+                          className="bg-slate-900 font-bold text-emerald-300 border-none rounded px-1 w-1/3"
                        />
                        <select 
                           value={card.type}
@@ -217,10 +244,23 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                             newCards[idx].type = e.target.value as CardType;
                             setLocalConfig({...localConfig, cards: newCards});
                           }}
-                          className="bg-slate-900 text-xs text-slate-300 rounded"
+                          className="bg-slate-900 text-xs text-slate-300 rounded w-1/4"
                        >
                           {Object.values(CardType).map(t => <option key={t} value={t}>{t}</option>)}
                        </select>
+                       <div className="flex items-center gap-1 w-1/3 justify-end">
+                            <span className="text-[10px] text-slate-400 whitespace-nowrap">Req Lv</span>
+                            <input 
+                              type="number"
+                              value={card.reqLevel || 1}
+                              onChange={(e) => {
+                                const newCards = [...localConfig.cards];
+                                newCards[idx].reqLevel = parseInt(e.target.value);
+                                setLocalConfig({...localConfig, cards: newCards});
+                              }}
+                              className="w-10 bg-slate-900 rounded px-1 text-xs"
+                            />
+                       </div>
                     </div>
                     <div className="flex gap-2 text-xs">
                        <div className="flex items-center gap-1">
