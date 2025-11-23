@@ -64,6 +64,21 @@ export const createZeroElementStats = (): Record<ElementType, number> => ({
     [ElementType.SWORD]: 0,
 });
 
+// Helper to generate Skill Books
+export const generateSkillBook = (level: number, element: ElementType): Item => {
+    // Find realm based on level
+    const realm = DEFAULT_REALMS.find(r => level >= r.rangeStart && level <= r.rangeEnd) || DEFAULT_REALMS[0];
+    return {
+        id: `book_${element}_${level}_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+        name: `《${element}·${realm.name}心法》`,
+        type: 'CONSUMABLE',
+        description: `使用后领悟一张${realm.name}${element}属性卡牌。`,
+        rarity: 'rare',
+        reqLevel: realm.rangeStart,
+        statBonus: { elementalAffinities: createZeroElementStats() }
+    };
+};
+
 // --- Initial Manual Content (Starters) ---
 
 export const BASIC_STRIKE: Card = {

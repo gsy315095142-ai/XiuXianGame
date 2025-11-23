@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType } from './types';
-import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats } from './constants';
+import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
 import { CombatView } from './components/CombatView';
@@ -68,9 +68,21 @@ export default function App() {
       setActiveEnemy(enemy);
       setView(GameView.COMBAT);
     } else if (node.type === NodeType.TREASURE) {
-      // Use Configured Items/Rates
+      // Exploration Reward Logic: Prioritize Realm Items
       if (Math.random() < config.itemDropRate && config.items.length > 0) {
-        const item = config.items[Math.floor(Math.random() * config.items.length)];
+        // Filter items that match player's realm (approx level range)
+        const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
+        let validItems: Item[] = [];
+        
+        if (currentRealm) {
+            validItems = config.items.filter(i => i.reqLevel >= currentRealm.rangeStart && i.reqLevel <= currentRealm.rangeEnd);
+        }
+        
+        // If no items in realm found, fallback to all items
+        if (validItems.length === 0) validItems = config.items;
+        
+        const item = validItems[Math.floor(Math.random() * validItems.length)];
+        
         alert(`你发现了一个宝箱，里面是: ${item.name}!`);
         setPlayer(prev => prev ? ({ ...prev, inventory: [...prev.inventory, item] }) : null);
       } else {
@@ -87,36 +99,48 @@ export default function App() {
         const newExp = prev.exp + rewards.exp;
         const levelUp = newExp >= prev.maxExp;
         
+        let updatedPlayer = { ...prev };
+
         if (levelUp) {
             const newLevel = prev.level + 1;
             const realmName = getRealmName(newLevel, config.realms);
             alert(`恭喜！你的境界突破到了 ${realmName}!`);
 
-            // Calculate new maxExp based on configured realms
             const currentRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd);
-            // Default fallbacks if realm config is incomplete
             const nextMaxExp = currentRealm ? currentRealm.expReq : Math.floor(prev.maxExp * 1.5);
 
-            return {
-                ...prev,
+            updatedPlayer = {
+                ...updatedPlayer,
                 exp: newExp - prev.maxExp,
                 level: newLevel,
                 maxExp: nextMaxExp,
-                gold: prev.gold + rewards.gold,
                 stats: {
                     ...prev.stats,
                     maxHp: prev.stats.maxHp + 10,
-                    hp: prev.stats.maxHp + 10, // Full heal on level up
+                    hp: prev.stats.maxHp + 10,
                     attack: prev.stats.attack + 2
                 }
             };
+        } else {
+            updatedPlayer = {
+                ...updatedPlayer,
+                exp: newExp,
+            };
         }
 
-        return {
-            ...prev,
-            exp: newExp,
-            gold: prev.gold + rewards.gold
-        };
+        updatedPlayer.gold += rewards.gold;
+
+        // Drop Logic: Skill Book (Heart Method Manual)
+        // 30% chance to get a manual
+        if (Math.random() < 0.3) {
+            const elements = Object.values(ElementType);
+            const randElem = elements[Math.floor(Math.random() * elements.length)];
+            const book = generateSkillBook(updatedPlayer.level, randElem);
+            updatedPlayer.inventory = [...updatedPlayer.inventory, book];
+            setTimeout(() => alert(`战斗胜利！你意外获得了一本: ${book.name}`), 500);
+        }
+
+        return updatedPlayer;
     });
     
     if (activeEnemy?.name.includes('领主') || (currentNode !== null && currentNode === mapNodes.length - 1)) {
@@ -136,6 +160,59 @@ export default function App() {
     }) : null);
     setView(GameView.HOME);
     setActiveEnemy(null);
+  };
+
+  const handleUseItem = (item: Item) => {
+      if (!player) return;
+
+      if (item.type !== 'CONSUMABLE') return;
+
+      // Logic for Skill Books
+      // Check ID format: book_{element}_{level}_...
+      const parts = item.id.split('_');
+      if (parts[0] === 'book') {
+          const elem = parts[1] as ElementType;
+          const bookLevel = parseInt(parts[2]);
+
+          // Find realm for this book level
+          const realm = config.realms.find(r => bookLevel >= r.rangeStart && bookLevel <= r.rangeEnd);
+          
+          if (!realm) {
+              alert("这本心法残缺不全，无法领悟！");
+              return;
+          }
+
+          // Find valid cards in config: Matching Element AND Realm Level Range
+          // Allowing cards slightly higher level (e.g. within realm + 5)
+          const validCards = config.cards.filter(c => 
+              c.element === elem && 
+              c.reqLevel >= realm.rangeStart &&
+              c.reqLevel <= realm.rangeEnd + 5
+          );
+
+          if (validCards.length > 0) {
+              const newCard = validCards[Math.floor(Math.random() * validCards.length)];
+              
+              setPlayer(prev => {
+                  if (!prev) return null;
+                  return {
+                      ...prev,
+                      deck: [...prev.deck, newCard],
+                      inventory: prev.inventory.filter(i => i.id !== item.id) // Consume item
+                  };
+              });
+
+              alert(`你研读了${item.name}，顿悟了招式: [${newCard.name}]！`);
+          } else {
+              alert(`你研读了${item.name}，却发现书中记载的法术早已失传... (配置中无对应卡牌)`);
+              // Still consume it? Or keep it? Let's consume it to avoid frustration loop, but maybe refund gold? 
+              // For now just consume.
+              setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
+          }
+      } else {
+          // Other consumables logic can go here (potions etc)
+          alert("此物品暂无使用效果。");
+      }
   };
 
   const handleEquip = (item: Item) => {
@@ -237,6 +314,7 @@ export default function App() {
           realms={config.realms}
           onStartAdventure={startAdventure} 
           onEquipItem={handleEquip}
+          onUseItem={handleUseItem}
           onEndGame={() => {
             setPlayer(null);
             setView(GameView.START);

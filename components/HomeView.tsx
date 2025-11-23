@@ -9,10 +9,11 @@ interface HomeViewProps {
   realms: RealmRank[];
   onStartAdventure: () => void;
   onEquipItem: (item: Item) => void;
+  onUseItem: (item: Item) => void;
   onEndGame: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onEndGame }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onUseItem, onEndGame }) => {
   const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck'>('none');
 
   const realmName = getRealmName(player.level, realms);
@@ -99,6 +100,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                                 {player.inventory.map((item, idx) => {
                                     const canEquip = player.level >= item.reqLevel;
                                     const isEquipable = item.type === 'EQUIPMENT' || (item.type === 'ARTIFACT' && item.slot);
+                                    const isConsumable = item.type === 'CONSUMABLE';
                                     
                                     // Collect stats description including elements
                                     const statsDesc = [];
@@ -125,17 +127,30 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                                                     需境界: {getRealmName(item.reqLevel, realms)}
                                                 </div>
                                             </div>
-                                            {isEquipable && (
-                                                <Button 
-                                                    size="sm" 
-                                                    variant={canEquip ? 'outline' : 'secondary'} 
-                                                    className="mt-2" 
-                                                    onClick={() => onEquipItem(item)}
-                                                    disabled={!canEquip}
-                                                >
-                                                    {canEquip ? '装备' : '境界不足'}
-                                                </Button>
-                                            )}
+                                            
+                                            <div className="flex gap-2 mt-2">
+                                                {isEquipable && (
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant={canEquip ? 'outline' : 'secondary'} 
+                                                        className="flex-1"
+                                                        onClick={() => onEquipItem(item)}
+                                                        disabled={!canEquip}
+                                                    >
+                                                        {canEquip ? '装备' : '境界不足'}
+                                                    </Button>
+                                                )}
+                                                {isConsumable && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="primary"
+                                                        className="flex-1"
+                                                        onClick={() => onUseItem(item)}
+                                                    >
+                                                        使用
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}

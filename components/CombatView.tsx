@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType } from '../types';
-import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, createZeroElementStats } from '../constants';
+import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG } from '../constants';
 import { CardItem } from './CardItem';
 import { Button } from './Button';
 
@@ -32,6 +33,17 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   const [turn, setTurn] = useState<Turn>('PLAYER');
   const [combatLog, setCombatLog] = useState<string[]>(['战斗开始!']);
+
+  // UI State for Enemy Move
+  const [activeEnemyCard, setActiveEnemyCard] = useState<Card | null>(null);
+  
+  // Logic Refs (Source of Truth for async sequences)
+  const statsRef = useRef({
+      playerHp: initialPlayer.stats.hp,
+      playerBlock: 0,
+      enemyHp: initialEnemy.stats.hp,
+      enemyBlock: 0
+  });
   
   // Helper to add logs
   const addLog = (msg: string) => {
@@ -55,6 +67,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   // Win/Loss Check
   useEffect(() => {
+    // We check state here for final triggers, but logic mostly happens in refs/handlers
     if (enemyHp <= 0) {
       addLog('敌人倒下了！胜利！');
       setTimeout(() => onWin({ exp: initialEnemy.dropExp, gold: initialEnemy.dropGold }), 1500);
@@ -70,6 +83,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // Unified effect resolver
   const resolveCardEffect = (card: Card, source: 'PLAYER' | 'ENEMY') => {
       const isPierce = card.tags?.includes('PIERCE');
+      const stats = statsRef.current;
 
       if (source === 'PLAYER') {
           switch (card.type) {
@@ -77,21 +91,25 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 let dmg = Math.max(0, card.value + initialPlayer.stats.attack);
                 let blocked = 0;
                 if (!isPierce) {
-                    blocked = Math.min(dmg, enemyBlock);
+                    blocked = Math.min(dmg, stats.enemyBlock);
                     dmg -= blocked;
-                    setEnemyBlock(prev => prev - blocked);
+                    stats.enemyBlock -= blocked;
+                    setEnemyBlock(stats.enemyBlock);
                 } else {
                     addLog('>>> 穿刺攻击！无视护盾！');
                 }
-                setEnemyHp(prev => prev - dmg);
+                stats.enemyHp -= dmg;
+                setEnemyHp(stats.enemyHp);
                 addLog(`你使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
             case CardType.HEAL:
-                setPlayerHp(prev => Math.min(initialPlayer.stats.maxHp, prev + card.value));
+                stats.playerHp = Math.min(initialPlayer.stats.maxHp, stats.playerHp + card.value);
+                setPlayerHp(stats.playerHp);
                 addLog(`你使用 ${card.name}，恢复 ${card.value} 生命`);
                 break;
             case CardType.DEFEND:
-                setPlayerBlock(prev => prev + card.value);
+                stats.playerBlock += card.value;
+                setPlayerBlock(stats.playerBlock);
                 addLog(`你使用 ${card.name}，增加 ${card.value} 护盾`);
                 break;
             case CardType.BUFF:
@@ -108,21 +126,25 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 let dmg = Math.max(0, card.value + initialEnemy.stats.attack);
                 let blocked = 0;
                 if (!isPierce) {
-                     blocked = Math.min(dmg, playerBlock);
+                     blocked = Math.min(dmg, stats.playerBlock);
                      dmg -= blocked;
-                     setPlayerBlock(prev => prev - blocked);
+                     stats.playerBlock -= blocked;
+                     setPlayerBlock(stats.playerBlock);
                 } else {
                      addLog('>>> 敌人穿刺攻击！无视你的护盾！');
                 }
-                setPlayerHp(prev => prev - dmg);
+                stats.playerHp -= dmg;
+                setPlayerHp(stats.playerHp);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
             case CardType.HEAL:
-                setEnemyHp(prev => Math.min(initialEnemy.stats.maxHp, prev + card.value));
+                stats.enemyHp = Math.min(initialEnemy.stats.maxHp, stats.enemyHp + card.value);
+                setEnemyHp(stats.enemyHp);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，恢复 ${card.value} 生命`);
                 break;
             case CardType.DEFEND:
-                setEnemyBlock(prev => prev + card.value);
+                stats.enemyBlock += card.value;
+                setEnemyBlock(stats.enemyBlock);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，增加 ${card.value} 护盾`);
                 break;
             case CardType.BUFF:
@@ -165,7 +187,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     setTurn('PLAYER');
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
     setPlayerElements({...initialPlayer.stats.elementalAffinities}); // Refill elements
+    
+    // Reset Player Block at start of turn (Standard RPG rule? Or keep it? Usually block expires)
+    statsRef.current.playerBlock = 0;
     setPlayerBlock(0);
+    
     drawCards(DRAW_COUNT_PER_TURN); 
   };
 
@@ -211,24 +237,26 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   // --- Enemy Mechanics ---
 
-  const executeEnemyTurn = () => {
-    if (enemyHp <= 0) return;
+  const executeEnemyTurn = async () => {
+    if (statsRef.current.enemyHp <= 0) return;
+
+    // Reset Enemy Block at start of their turn
+    statsRef.current.enemyBlock = 0;
+    setEnemyBlock(0);
 
     setEnemySpirit(initialEnemy.stats.maxSpirit);
     setEnemyElements({...initialEnemy.stats.elementalAffinities});
-    setEnemyBlock(0);
     
     const enemyDeck = initialEnemy.deck && initialEnemy.deck.length > 0 ? initialEnemy.deck : [];
     
+    // Choose actions
+    const actionsToPlay: Card[] = [];
     if (enemyDeck.length > 0) {
         let currentSpirit = initialEnemy.stats.maxSpirit; 
         let currentElements = {...initialEnemy.stats.elementalAffinities};
-        const maxActions = 2;
-        let actions = 0;
+        const maxActions = 2; // AI attempts to play up to 2 cards
 
-        const performAction = () => {
-            if (actions >= maxActions || currentSpirit <= 0) return;
-
+        for (let i = 0; i < maxActions; i++) {
             // Filter cards that can be paid for
             const availableCards = enemyDeck.filter(c => 
                 c.cost <= currentSpirit && (currentElements[c.element] || 0) >= c.elementCost
@@ -236,52 +264,81 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
             if (availableCards.length > 0) {
                 const card = availableCards[Math.floor(Math.random() * availableCards.length)];
-                resolveCardEffect(card, 'ENEMY');
+                actionsToPlay.push(card);
                 currentSpirit -= card.cost;
                 currentElements[card.element] -= card.elementCost;
-                setEnemyElements({...currentElements}); // Update UI state if we visualized enemy elements
-                actions++;
             }
         }
-        
-        performAction();
-        if (currentSpirit > 0) performAction();
-        
-        if (actions === 0) {
-             let dmg = Math.max(0, initialEnemy.stats.attack);
-             const blocked = Math.min(dmg, playerBlock);
-             dmg -= blocked;
-             setPlayerBlock(prev => prev - blocked);
-             setPlayerHp(prev => prev - dmg);
-             addLog(`${initialEnemy.name} 普通攻击，造成 ${dmg} 伤害`);
-        }
-
-    } else {
-        let dmg = initialEnemy.stats.attack;
-        const blockedDmg = Math.max(0, dmg - playerBlock);
-        const blockUsed = dmg - blockedDmg;
-        setPlayerBlock(prev => Math.max(0, prev - blockUsed));
-        setPlayerHp(prev => prev - blockedDmg);
-        addLog(`${initialEnemy.name} 猛扑过来，造成 ${blockedDmg} 伤害!`);
     }
 
-    setTimeout(startPlayerTurn, 2000);
+    if (actionsToPlay.length > 0) {
+        for (const card of actionsToPlay) {
+            // 1. Show Card
+            setActiveEnemyCard(card);
+            await new Promise(r => setTimeout(r, 2000)); // Display time: 2 seconds
+
+            // 2. Resolve Effect
+            resolveCardEffect(card, 'ENEMY');
+            
+            // 3. Hide Card
+            setActiveEnemyCard(null);
+            await new Promise(r => setTimeout(r, 500)); // Pause between cards
+        }
+    } else {
+        // Fallback Attack
+        let dmg = initialEnemy.stats.attack;
+        const blockedDmg = Math.min(dmg, statsRef.current.playerBlock);
+        dmg -= blockedDmg;
+        
+        statsRef.current.playerBlock -= blockedDmg;
+        setPlayerBlock(statsRef.current.playerBlock);
+        
+        statsRef.current.playerHp -= dmg;
+        setPlayerHp(statsRef.current.playerHp);
+        
+        addLog(`${initialEnemy.name} 猛扑过来，造成 ${dmg} 伤害!`);
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    startPlayerTurn();
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900 flex flex-col z-50">
+    <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
+        
+        {/* Overlay: Active Enemy Card */}
+        {activeEnemyCard && (
+            <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+                <div className="transform scale-125 shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+                    <CardItem card={activeEnemyCard} isPlayable={false} />
+                    <div className="text-center mt-4 text-2xl font-bold text-red-500 animate-pulse text-shadow-lg">
+                        {initialEnemy.name} 使用了这张卡!
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Top: Enemy Area */}
-        <div className="flex-1 bg-[url('https://picsum.photos/seed/dungeon/1920/600')] bg-cover bg-center relative flex flex-col items-center justify-center p-4">
+        <div className="h-[40vh] bg-[url('https://picsum.photos/seed/dungeon/1920/600')] bg-cover bg-center relative flex flex-col items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60"></div>
             
+            {/* Combat Log Overlay (Center Right) */}
+            <div className="absolute top-1/2 right-4 -translate-y-1/2 w-64 text-right z-10 pointer-events-none">
+                {combatLog.map((log, i) => (
+                    <div key={i} className="text-sm text-slate-300 drop-shadow-md animate-fade-in bg-black/30 p-1 mb-1 rounded inline-block">
+                        {log}
+                    </div>
+                ))}
+            </div>
+
             <div className="relative z-10 flex flex-col items-center animate-bounce-slight">
-                <div className="relative">
-                    <img src={initialEnemy.avatarUrl} className="w-32 h-32 rounded-full border-4 border-red-800 shadow-[0_0_20px_rgba(220,38,38,0.6)]" alt="Enemy" />
+                <div className="relative group">
+                    <img src={initialEnemy.avatarUrl} className="w-32 h-32 rounded-full border-4 border-red-800 shadow-[0_0_20px_rgba(220,38,38,0.6)] transition-transform group-hover:scale-105" alt="Enemy" />
                     <div className="absolute -bottom-3 -right-3 bg-red-700 text-white text-xs px-2 py-1 rounded border border-red-400">
                         Lv.{initialEnemy.level}
                     </div>
                     {enemyBlock > 0 && (
-                        <div className="absolute -top-2 -right-8 flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/80 z-20 shadow-lg">
+                        <div className="absolute -top-2 -right-8 flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/80 z-20 shadow-lg animate-pulse">
                             🛡️ {enemyBlock}
                         </div>
                     )}
@@ -289,7 +346,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 <h3 className="text-2xl font-bold text-red-200 mt-4 text-shadow">{initialEnemy.name}</h3>
                 
                 {/* Enemy HP Bar */}
-                <div className="w-64 h-4 bg-gray-700 rounded-full mt-2 border border-gray-600 overflow-hidden relative">
+                <div className="w-64 h-4 bg-gray-700 rounded-full mt-2 border border-gray-600 overflow-hidden relative shadow-lg">
                     <div 
                         className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" 
                         style={{ width: `${Math.max(0, (enemyHp / initialEnemy.stats.maxHp) * 100)}%` }}
@@ -301,85 +358,25 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             </div>
         </div>
 
-        {/* Middle: Combat Info & Turn Indicator */}
-        <div className="h-16 bg-slate-800 border-y border-slate-600 flex items-center justify-between px-6 relative">
-            <div className="text-slate-400 text-sm">
-                {combatLog.map((log, i) => (
-                    <div key={i} className="opacity-70 animate-fade-in">{log}</div>
-                ))}
-            </div>
-            <div className="absolute left-1/2 -translate-x-1/2 -top-5">
-                <div className={`
-                    px-6 py-2 rounded-full font-bold text-lg border-2 shadow-lg transition-all duration-300
+        {/* Turn Indicator */}
+        <div className="absolute top-[38vh] left-1/2 -translate-x-1/2 z-20">
+             <div className={`
+                    px-8 py-2 rounded-full font-bold text-lg border-2 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex items-center gap-2
                     ${turn === 'PLAYER' ? 'bg-emerald-600 border-emerald-400 text-white scale-110' : 'bg-red-900 border-red-700 text-gray-300'}
                 `}>
-                    {turn === 'PLAYER' ? '你的回合' : '敌方回合'}
-                </div>
-            </div>
-            <Button 
-                onClick={endTurn} 
-                disabled={turn !== 'PLAYER'}
-                variant="danger"
-            >
-                结束回合
-            </Button>
+                    {turn === 'PLAYER' ? '🟢 你的回合' : '🔴 敌方回合'}
+                    {turn === 'PLAYER' && <Button size="sm" variant="danger" onClick={endTurn} className="ml-4 py-0.5 text-xs">结束</Button>}
+             </div>
         </div>
 
-        {/* Bottom: Player Hand & Stats */}
-        <div className="flex-1 bg-slate-900 p-4 flex flex-col justify-end relative overflow-hidden">
+        {/* Bottom: Player Area */}
+        <div className="flex-1 bg-gradient-to-t from-slate-900 to-slate-800 relative overflow-hidden flex flex-col justify-end">
             
-            {/* Player Stats Bar */}
-            <div className="absolute top-2 left-4 right-4 bg-slate-800/80 p-2 rounded-lg backdrop-blur flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-emerald-400 font-bold uppercase">HP</span>
-                            <div className="w-32 h-3 bg-gray-700 rounded-full border border-gray-600 overflow-hidden relative">
-                                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
-                                <span className="absolute inset-0 flex items-center justify-center text-[8px]">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-blue-400 font-bold uppercase">Spirit</span>
-                            <div className="flex gap-1">
-                                {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
-                                    <div key={i} className={`w-3 h-3 rounded-full border border-blue-400 ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_5px_blue]' : 'bg-transparent'}`}></div>
-                                ))}
-                            </div>
-                        </div>
-                        {playerBlock > 0 && (
-                            <div className="flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/50 shadow-lg">
-                                🛡️ {playerBlock}
-                            </div>
-                        )}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                        牌库: {deck.length} | 弃牌: {discardPile.length}
-                    </div>
-                </div>
-
-                {/* Elemental Pool Display */}
-                <div className="flex gap-2 overflow-x-auto pb-1 items-center">
-                    <span className="text-[10px] text-amber-400 font-bold uppercase shrink-0">五行:</span>
-                    {Object.entries(playerElements).map(([elem, val]) => {
-                        const v = val as number;
-                        if (v <= 0 && initialPlayer.stats.elementalAffinities[elem as ElementType] <= 0) return null; // Hide totally irrelevant elements
-                        const config = ELEMENT_CONFIG[elem as ElementType];
-                        return (
-                            <div key={elem} className={`flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-600 ${config.bg} bg-opacity-50 min-w-[30px] justify-center`}>
-                                <span className="text-xs">{config.icon}</span>
-                                <span className={`text-xs font-bold ${config.color}`}>{v}</span>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {/* Hand Cards */}
-            <div className="flex justify-center items-end gap-[-40px] pb-4 overflow-x-auto min-h-[220px]">
-                <div className="flex -space-x-8 hover:space-x-2 transition-all duration-300 px-10">
+            {/* Hand Cards Area - Middle Lower */}
+            <div className="flex-1 flex items-end justify-center pb-32 overflow-visible z-10 pointer-events-none">
+                 <div className="flex -space-x-8 hover:space-x-2 transition-all duration-300 px-10 pointer-events-auto items-end h-[220px]">
                     {hand.map((card, idx) => (
-                        <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-6 transition-transform origin-bottom">
+                        <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-10 transition-transform origin-bottom hover:z-20 hover:scale-110">
                              <CardItem 
                                 card={card} 
                                 isPlayable={turn === 'PLAYER' && playerSpirit >= card.cost}
@@ -390,6 +387,58 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         </div>
                     ))}
                 </div>
+            </div>
+
+            {/* Stats Panel - Bottom Center */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-slate-900/95 border border-slate-600 rounded-2xl p-4 flex flex-col md:flex-row gap-6 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] z-20 backdrop-blur-md items-center justify-between">
+                
+                {/* Left: HP & Block */}
+                <div className="flex flex-col gap-1 w-full md:w-1/3">
+                    <div className="flex justify-between items-end">
+                         <span className="text-xs text-emerald-400 font-bold uppercase">生命值</span>
+                         <span className="text-xs text-slate-400">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
+                    </div>
+                    <div className="h-4 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
+                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
+                    </div>
+                     {playerBlock > 0 && (
+                        <div className="flex items-center justify-center gap-1 text-blue-300 font-bold text-sm bg-blue-900/50 border border-blue-500/50 rounded py-0.5 mt-1">
+                            🛡️ 护盾: {playerBlock}
+                        </div>
+                    )}
+                </div>
+
+                {/* Center: Spirit */}
+                <div className="flex flex-col items-center gap-1 w-full md:w-1/3 border-x border-slate-700/50 px-4">
+                     <span className="text-xs text-blue-400 font-bold uppercase">神识 (Mana)</span>
+                     <div className="flex flex-wrap justify-center gap-1">
+                        {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
+                            <div key={i} className={`w-3 h-3 md:w-4 md:h-4 rounded-full border border-blue-400 transition-all duration-300 ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_8px_blue] scale-110' : 'bg-transparent opacity-30'}`}></div>
+                        ))}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">牌库: {deck.length} | 弃牌: {discardPile.length}</div>
+                </div>
+
+                {/* Right: Elements */}
+                <div className="flex flex-col gap-1 w-full md:w-1/3">
+                    <span className="text-xs text-amber-400 font-bold uppercase mb-1">五行灵力</span>
+                    <div className="flex flex-wrap gap-2 justify-end">
+                        {Object.entries(playerElements).map(([elem, val]) => {
+                            const v = val as number;
+                            // Only show elements that are relevant (have value or max affinity > 0)
+                            if (v <= 0 && initialPlayer.stats.elementalAffinities[elem as ElementType] <= 0) return null;
+                            
+                            const config = ELEMENT_CONFIG[elem as ElementType];
+                            return (
+                                <div key={elem} className={`flex items-center gap-1 px-2 py-1 rounded border border-slate-600 ${config.bg} bg-opacity-40 min-w-[40px] justify-center transition-all hover:scale-110 select-none`} title={`${elem}灵力: ${v}`}>
+                                    <span className="text-xs">{config.icon}</span>
+                                    <span className={`text-xs font-bold ${config.color}`}>{v}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
