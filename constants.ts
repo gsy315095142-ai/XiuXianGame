@@ -20,11 +20,11 @@ export const SLOT_NAMES: Record<EquipmentSlot, string> = {
 
 // UI Config for Elements
 export const ELEMENT_CONFIG: Record<ElementType, { color: string, icon: string, bg: string }> = {
-    [ElementType.METAL]: { color: 'text-gray-300', icon: '⚙️', bg: 'bg-gray-700' },
+    [ElementType.METAL]: { color: 'text-yellow-400', icon: '⚙️', bg: 'bg-yellow-900' },
     [ElementType.WOOD]: { color: 'text-green-400', icon: '🌲', bg: 'bg-green-800' },
     [ElementType.WATER]: { color: 'text-blue-400', icon: '💧', bg: 'bg-blue-800' },
     [ElementType.FIRE]: { color: 'text-red-500', icon: '🔥', bg: 'bg-red-900' },
-    [ElementType.EARTH]: { color: 'text-amber-600', icon: '⛰️', bg: 'bg-amber-900' },
+    [ElementType.EARTH]: { color: 'text-[#8B4513]', icon: '⛰️', bg: 'bg-[#3E2723]' }, // Coffee/Brown
     [ElementType.LIGHT]: { color: 'text-yellow-200', icon: '☀️', bg: 'bg-yellow-700' },
     [ElementType.DARK]: { color: 'text-purple-400', icon: '🌑', bg: 'bg-purple-900' },
     [ElementType.WIND]: { color: 'text-teal-300', icon: '💨', bg: 'bg-teal-800' },
@@ -71,6 +71,7 @@ export const generateSkillBook = (level: number, element: ElementType): Item => 
     return {
         id: `book_${element}_${level}_${Date.now()}_${Math.floor(Math.random()*1000)}`,
         name: `《${element}·${realm.name}心法》`,
+        icon: '📖',
         type: 'CONSUMABLE',
         description: `使用后随机领悟一张${realm.name}${element}属性卡牌。`,
         rarity: 'rare',
@@ -165,6 +166,7 @@ const MANUAL_CARDS = [BASIC_STRIKE, BASIC_DEFEND, MEDITATE, FIREBALL, HEAL_SPELL
 export const WOODEN_SWORD: Item = {
   id: 'eq_wood_sword',
   name: '桃木剑',
+  icon: '🗡️',
   type: 'EQUIPMENT',
   slot: 'mainWeapon',
   statBonus: { attack: 2, elementalAffinities: { ...createZeroElementStats(), [ElementType.SWORD]: 1, [ElementType.WOOD]: 1 } },
@@ -176,6 +178,7 @@ export const WOODEN_SWORD: Item = {
 export const IRON_SWORD: Item = {
   id: 'eq_iron_sword',
   name: '铁剑',
+  icon: '⚔️',
   type: 'EQUIPMENT',
   slot: 'mainWeapon',
   statBonus: { attack: 5, elementalAffinities: { ...createZeroElementStats(), [ElementType.SWORD]: 2, [ElementType.METAL]: 1 } },
@@ -187,6 +190,7 @@ export const IRON_SWORD: Item = {
 export const LEATHER_ARMOR: Item = {
   id: 'eq_leather_armor',
   name: '皮甲',
+  icon: '🧥',
   type: 'EQUIPMENT',
   slot: 'body',
   statBonus: { defense: 2, elementalAffinities: { ...createZeroElementStats(), [ElementType.EARTH]: 1 } },
@@ -198,6 +202,7 @@ export const LEATHER_ARMOR: Item = {
 export const JADE_PENDANT: Item = {
     id: 'eq_jade',
     name: '灵玉佩',
+    icon: '🧿',
     type: 'ARTIFACT',
     slot: 'accessory',
     statBonus: { maxSpirit: 2, elementalAffinities: { ...createZeroElementStats(), [ElementType.WATER]: 1, [ElementType.WOOD]: 1 } },
@@ -236,11 +241,24 @@ const EQUIP_NAMES: Record<EquipmentSlot, string[]> = {
     ring: ['指环', '戒', '扳指']
 };
 
+const ICON_POOLS: Record<EquipmentSlot, string[]> = {
+    mainWeapon: ['⚔️', '🗡️', '🪓', '🏹', '🪄', '📏', '🥢'],
+    offWeapon: ['🛡️', '📛', '📜', '🏺'],
+    head: ['🪖', '👑', '🧢', '🎩', '⛑️'],
+    body: ['👕', '🥋', '🎽', '🧥', '👚'],
+    legs: ['👖', '🩳', '👗'],
+    feet: ['👞', '👢', '👟', '👡'],
+    neck: ['📿', '🏅', '🎖️'],
+    accessory: ['🧿', '🔮', '🏮', '🪞', '🔔'],
+    ring: ['💍', '💎'],
+    belt: ['🎗️', '🥋']
+};
+
 const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randPick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
-    // 1. Generate 10 Cards per Realm
+    // 1. Generate 10 Standard Cards per Realm
     for (let i = 0; i < 10; i++) {
         // Guarantee at least some cards are Attack type (first 3) to ensure enemies have weapons
         let type;
@@ -289,10 +307,29 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         });
     }
 
-    // 2. Generate 10 Items per Realm
+    // 2. Generate Growth Cards (New Feature): 1 for each Element per Realm
+    Object.values(ElementType).forEach((element, idx) => {
+        const val = Math.max(1, Math.floor(realm.limit * 0.2)); // Roughly 20% of stat limit for this realm
+        GENERATED_CARDS.push({
+            id: `gen_c_growth_${realm.level}_${element}`,
+            name: `${realm.prefix}·${element}源`,
+            cost: 1,
+            element: element,
+            elementCost: 1, // Cheap to cast, but uses the resource it boosts
+            type: CardType.GROWTH,
+            value: val,
+            description: `本场战斗中，${element}属性上限增加${val}点，并恢复等量属性。`,
+            rarity: 'rare',
+            reqLevel: realm.level,
+            tags: []
+        });
+    });
+
+    // 3. Generate 10 Items per Realm
     for (let i = 0; i < 10; i++) {
         const slot = EQUIP_SLOTS_LIST[i % EQUIP_SLOTS_LIST.length]; 
         const slotName = randPick(EQUIP_NAMES[slot]);
+        const icon = randPick(ICON_POOLS[slot]);
         
         const statBonus: Partial<Stats> = { elementalAffinities: createZeroElementStats() };
         
@@ -323,6 +360,7 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         GENERATED_ITEMS.push({
             id: `gen_eq_${realm.level}_${i}`,
             name: itemName,
+            icon: icon,
             type: 'EQUIPMENT',
             slot: slot,
             statBonus: statBonus,
@@ -332,7 +370,7 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         });
     }
 
-    // 3. Generate Skill Books (One for each element for this realm)
+    // 4. Generate Skill Books (One for each element for this realm)
     Object.values(ElementType).forEach(elem => {
         GENERATED_BOOKS.push(generateSkillBook(realm.level, elem));
     });
@@ -461,19 +499,19 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     attack: 5,
     defense: 0,
     speed: 10,
-    // Basic affinity so players can use starter cards
+    // Basic affinity set to 1 for all as requested
     elementalAffinities: {
-        [ElementType.METAL]: 5,
-        [ElementType.WOOD]: 5,
-        [ElementType.WATER]: 5,
-        [ElementType.FIRE]: 5,
-        [ElementType.EARTH]: 5,
+        [ElementType.METAL]: 1,
+        [ElementType.WOOD]: 1,
+        [ElementType.WATER]: 1,
+        [ElementType.FIRE]: 1,
+        [ElementType.EARTH]: 1,
         [ElementType.LIGHT]: 1,
         [ElementType.DARK]: 1,
         [ElementType.WIND]: 1,
         [ElementType.THUNDER]: 1,
         [ElementType.ICE]: 1,
-        [ElementType.SWORD]: 10,
+        [ElementType.SWORD]: 1,
     }
   },
 };
@@ -517,12 +555,6 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
 };
 
 export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig): Enemy => {
-  // Find enemies within a reasonable level range (e.g., playerLevel - 2 to playerLevel + 5)
-  // But also include low level enemies if no high level ones exist yet, or just strictly check minPlayerLevel
-  // The current logic uses minPlayerLevel. Let's make it a bit more dynamic.
-  
-  // Filter enemies that have minPlayerLevel <= playerLevel + 1 (so you can fight slightly stronger ones)
-  // And minPlayerLevel >= playerLevel - 15 (so you don't fight level 1 boars at level 50)
   
   let possibleEnemies = config.enemies.filter(e => 
       e.minPlayerLevel <= playerLevel + 1 && 
@@ -607,4 +639,3 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
     deck: enemyDeck
   };
 };
-

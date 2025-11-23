@@ -16,6 +16,7 @@ interface ConfigScreenProps {
 const createEmptyItem = (type: ItemType): Item => ({
   id: `item_${Date.now()}`,
   name: '新物品',
+  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : '🏺', // Default icon
   type: type,
   slot: type === 'EQUIPMENT' ? 'mainWeapon' : undefined,
   description: '描述...',
@@ -84,6 +85,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             const row: any = {
                 id: item.id,
                 name: item.name,
+                icon: item.icon || '📦', // Export icon
                 type: item.type,
                 slot: item.slot || '',
                 description: item.description,
@@ -133,7 +135,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             defense: e.baseStats.defense,
             speed: e.baseStats.speed,
             cardIds: e.cardIds.join(','),
-             // NOTE: Not exporting enemy affinities for simplicity in this version to avoid huge columns, relying on defaults if re-imported without them
         }));
         const wsEnemies = XLSX.utils.json_to_sheet(enemiesData);
         XLSX.utils.book_append_sheet(wb, wsEnemies, "Enemies");
@@ -215,6 +216,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       return {
                         id: r.id,
                         name: r.name,
+                        icon: r.icon || '📦', // Import icon
                         type: r.type,
                         slot: r.slot || undefined,
                         description: r.description,
@@ -338,6 +340,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
           
+          {/* ... (Other Tabs Omitted for Brevity, Unchanged) ... */}
           {activeTab === 'realms' && (
             <div className="space-y-4">
                <div className="flex justify-between items-center mb-2">
@@ -493,7 +496,19 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       >
                           🗑️
                       </button>
-                      <div className="flex gap-4">
+                      <div className="flex gap-4 items-center">
+                          {/* Icon Input */}
+                          <input 
+                              value={item.icon}
+                              onChange={(e) => {
+                                const newItems = [...localConfig.items];
+                                newItems[realIndex].icon = e.target.value;
+                                setLocalConfig({...localConfig, items: newItems});
+                              }}
+                              className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xl w-12 text-center"
+                              title="物品图标"
+                          />
+
                           <input 
                               value={item.name}
                               onChange={(e) => {
@@ -579,7 +594,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               </div>
             </div>
           )}
-
+          
+          {/* Other tabs are identical to previous version, just ensuring the file ends correctly with closing tags for the component */}
+          
           {activeTab === 'enemies' && (
              <div className="space-y-4">
                 <div className="flex justify-between items-center mb-2">
@@ -629,7 +646,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                     />
                                 </div>
                             </div>
-
+                            {/* ... omitted rest of enemy config for brevity as it is unchanged ... */}
                             <div className="bg-slate-900/50 p-2 rounded mb-4">
                                 <h5 className="text-xs text-slate-400 mb-2 font-bold">基础属性</h5>
                                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -644,7 +661,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                                     const newEnemies = [...localConfig.enemies];
                                                     // @ts-ignore
                                                     newEnemies[idx].baseStats = { ...newEnemies[idx].baseStats, [stat]: parseInt(e.target.value) };
-                                                    // Sync hp/spirit
                                                     if(stat === 'maxHp') newEnemies[idx].baseStats.hp = parseInt(e.target.value);
                                                     if(stat === 'maxSpirit') newEnemies[idx].baseStats.spirit = parseInt(e.target.value);
                                                     setLocalConfig({...localConfig, enemies: newEnemies});

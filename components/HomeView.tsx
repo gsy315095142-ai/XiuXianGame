@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -26,6 +28,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
     'feet', 'neck', 
     'accessory', 'ring'
   ];
+
+  const primaryElements = [ElementType.METAL, ElementType.WOOD, ElementType.WATER, ElementType.FIRE, ElementType.EARTH];
+  const secondaryElements = [ElementType.LIGHT, ElementType.DARK, ElementType.WIND, ElementType.THUNDER, ElementType.ICE, ElementType.SWORD];
 
   return (
     <div className="flex flex-col h-screen w-full max-w-7xl mx-auto p-4 space-y-4 animate-fade-in overflow-hidden">
@@ -76,10 +81,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
             <img src="https://picsum.photos/seed/dongfu_bg/1200/800" alt="Dongfu" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/50"></div>
             
-            <div className="relative z-10 flex flex-col items-center animate-bounce-slight">
-                <img src={player.avatarUrl} alt="Player" className="w-64 h-64 object-cover rounded-full border-4 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.4)]" />
-                <div className="mt-4 bg-black/60 px-6 py-2 rounded-full border border-emerald-500 text-emerald-200 text-xl font-bold backdrop-blur-md">
-                    {realmName}
+            <div className="relative z-10 flex flex-col items-center animate-bounce-slight w-full max-w-md px-4">
+                <img src={player.avatarUrl} alt="Player" className="w-56 h-56 object-cover rounded-full border-4 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.4)] mb-6" />
+                
+                <div className="bg-black/60 rounded-xl border border-emerald-500/50 backdrop-blur-md w-full p-4 flex flex-col items-center gap-2">
+                    <div className="text-emerald-200 text-2xl font-bold tracking-widest text-shadow">
+                        {realmName}
+                    </div>
+                    
+                    {/* Progress Bar Moved Here */}
+                    <div className="w-full relative h-4 bg-slate-800 rounded-full border border-slate-600 overflow-hidden group mt-1">
+                        <div 
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-900 via-emerald-600 to-emerald-400 transition-all duration-1000"
+                            style={{ width: `${expPercentage}%` }}
+                        ></div>
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white shadow-black drop-shadow-md z-10">
+                            {player.exp} / {player.maxExp}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -116,15 +135,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
 
                                     return (
                                         <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-600 flex flex-col justify-between">
-                                            <div>
-                                                <div className={`font-bold ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                                                <div className="text-xs text-slate-500 mb-1">
-                                                    {item.type === 'EQUIPMENT' ? `[装备 - ${item.slot ? SLOT_NAMES[item.slot] : '未知'}]` : item.type === 'ARTIFACT' ? '[法宝]' : '[道具]'}
+                                            <div className="flex gap-3">
+                                                {/* Icon */}
+                                                <div className="w-12 h-12 flex-shrink-0 bg-slate-900 rounded-lg border border-slate-700 flex items-center justify-center text-2xl">
+                                                    {item.icon || '📦'}
                                                 </div>
-                                                <div className="text-xs text-emerald-400 my-1 font-mono">{statsDesc.join(', ')}</div>
-                                                <div className="text-xs text-slate-400 mt-1">{item.description}</div>
-                                                <div className={`text-xs mt-1 ${canEquip ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    需境界: {getRealmName(item.reqLevel, realms)}
+                                                
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`font-bold ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'} truncate`}>{item.name}</div>
+                                                    <div className="text-[10px] text-slate-500 mb-1">
+                                                        {item.type === 'EQUIPMENT' ? `[装备 - ${item.slot ? SLOT_NAMES[item.slot] : '未知'}]` : item.type === 'ARTIFACT' ? '[法宝]' : '[道具]'}
+                                                    </div>
+                                                    <div className="text-[10px] text-emerald-400 my-1 font-mono leading-tight">{statsDesc.join(', ')}</div>
+                                                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{item.description}</div>
+                                                    <div className={`text-[10px] mt-1 ${canEquip ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                        需境界: {getRealmName(item.reqLevel, realms)}
+                                                    </div>
                                                 </div>
                                             </div>
                                             
@@ -172,7 +198,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
         </div>
 
         {/* Right: Stats & Equipment */}
-        <div className="w-80 bg-slate-900/90 border border-slate-700 rounded-lg p-4 flex flex-col gap-4 shrink-0 z-10 overflow-y-auto">
+        <div className="w-96 bg-slate-900/90 border border-slate-700 rounded-lg p-4 flex flex-col gap-4 shrink-0 z-10 overflow-y-auto">
             <div>
                 <h3 className="text-emerald-400 font-bold border-b border-emerald-800 pb-2 mb-3">当前状态</h3>
                 <div className="space-y-1 text-sm">
@@ -184,24 +210,45 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                 </div>
                 
                 <h4 className="text-slate-400 font-bold text-xs mt-4 mb-2 border-b border-slate-700 pb-1">元素亲和 (每回合恢复)</h4>
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-                    {Object.entries(player.stats.elementalAffinities).map(([elem, val]) => {
-                        const config = ELEMENT_CONFIG[elem as ElementType];
-                        return (
-                             <div key={elem} className="flex justify-between items-center">
-                                <span className={`flex items-center gap-1 ${config.color}`}>
-                                    {config.icon} {elem}
-                                </span>
-                                <span className="font-mono text-slate-200">{val}</span>
-                             </div>
-                        );
-                    })}
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                    {/* Column 1: Five Elements */}
+                    <div className="space-y-1">
+                        {primaryElements.map(elem => {
+                             const config = ELEMENT_CONFIG[elem];
+                             const val = player.stats.elementalAffinities[elem];
+                             return (
+                                <div key={elem} className="flex justify-between items-center bg-slate-800/30 px-1 rounded">
+                                   <span className={`flex items-center gap-1 ${config.color}`}>
+                                       {config.icon} {elem}
+                                   </span>
+                                   <span className="font-mono text-slate-200">{val}</span>
+                                </div>
+                             )
+                        })}
+                    </div>
+                    
+                    {/* Column 2: Other Elements */}
+                    <div className="space-y-1">
+                        {secondaryElements.map(elem => {
+                             const config = ELEMENT_CONFIG[elem];
+                             const val = player.stats.elementalAffinities[elem];
+                             return (
+                                <div key={elem} className="flex justify-between items-center bg-slate-800/30 px-1 rounded">
+                                   <span className={`flex items-center gap-1 ${config.color}`}>
+                                       {config.icon} {elem}
+                                   </span>
+                                   <span className="font-mono text-slate-200">{val}</span>
+                                </div>
+                             )
+                        })}
+                    </div>
                 </div>
             </div>
 
             <div className="flex-1 flex flex-col">
                 <h3 className="text-amber-400 font-bold border-b border-amber-800 pb-2 mb-3">已装备</h3>
-                <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[400px] pr-1">
+                {/* Removed fixed height scroll container, allow natural flow */}
+                <div className="grid grid-cols-1 gap-2 pr-1">
                     {equipmentSlots.map(slot => (
                         <EquipSlot key={slot} label={SLOT_NAMES[slot]} item={player.equipment[slot]} />
                     ))}
@@ -211,19 +258,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
 
       </div>
 
-      {/* Bottom: Progress & Action */}
+      {/* Bottom: Action */}
       <div className="flex flex-col gap-2 shrink-0">
-         {/* Realm Progress Bar */}
-         <div className="relative h-6 bg-slate-800 rounded-full border border-slate-600 overflow-hidden group">
-            <div 
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-900 via-emerald-600 to-emerald-400 transition-all duration-1000"
-                style={{ width: `${expPercentage}%` }}
-            ></div>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white shadow-black drop-shadow-md z-10">
-                修炼进度: {player.exp} / {player.maxExp} (下一境界)
-            </div>
-         </div>
-
          {/* Adventure Button */}
          <Button 
             variant="primary" 
@@ -246,8 +282,8 @@ const StatRow = ({ label, value }: { label: string, value: string | number }) =>
 
 const EquipSlot: React.FC<{ label: string; item: Item | null }> = ({ label, item }) => (
     <div className="flex items-center gap-2 bg-slate-800 p-1.5 rounded border border-slate-600">
-        <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center border border-slate-700 text-[10px] text-slate-500 shrink-0">
-            {label}
+        <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center border border-slate-700 text-lg shrink-0">
+            {item ? (item.icon || '🛡️') : <span className="text-[10px] text-slate-600">{label}</span>}
         </div>
         <div className="flex-1 overflow-hidden min-w-0">
             {item ? (

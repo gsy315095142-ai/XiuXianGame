@@ -20,6 +20,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
     [CardType.DEFEND]: 'border-blue-500/50 bg-gradient-to-b from-blue-900/80 to-slate-900',
     [CardType.HEAL]: 'border-green-500/50 bg-gradient-to-b from-green-900/80 to-slate-900',
     [CardType.BUFF]: 'border-amber-500/50 bg-gradient-to-b from-amber-900/80 to-slate-900',
+    [CardType.GROWTH]: 'border-purple-500/50 bg-gradient-to-b from-purple-900/80 to-slate-900',
   };
 
   const textColor = {
@@ -27,6 +28,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
     [CardType.DEFEND]: 'text-blue-200',
     [CardType.HEAL]: 'text-green-200',
     [CardType.BUFF]: 'text-amber-200',
+    [CardType.GROWTH]: 'text-purple-200',
   };
 
   const levelMet = playerLevel ? playerLevel >= card.reqLevel : true;
@@ -69,6 +71,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
             {card.type === CardType.DEFEND && '🛡️'}
             {card.type === CardType.HEAL && '💊'}
             {card.type === CardType.BUFF && '✨'}
+            {card.type === CardType.GROWTH && '📈'}
         </div>
         
         {!levelMet && (

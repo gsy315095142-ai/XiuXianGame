@@ -20,12 +20,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [playerHp, setPlayerHp] = useState(initialPlayer.stats.hp);
   const [playerSpirit, setPlayerSpirit] = useState(initialPlayer.stats.spirit);
   const [playerBlock, setPlayerBlock] = useState(0);
+  
+  // Track MAX elements for combat session (for GROWTH cards)
+  const [playerMaxElements, setPlayerMaxElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
+  // Track CURRENT available elements
   const [playerElements, setPlayerElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
   
   const [enemyHp, setEnemyHp] = useState(initialEnemy.stats.hp);
   const [enemyBlock, setEnemyBlock] = useState(0);
   const [enemySpirit, setEnemySpirit] = useState(initialEnemy.stats.spirit);
-  // Enemy elements simplified: also refill full
+  // Enemy elements simplified
   const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
 
   const [deck, setDeck] = useState<Card[]>([...initialPlayer.deck].sort(() => Math.random() - 0.5));
@@ -151,6 +155,22 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                     addLog(`你冥想恢复了 ${card.value} 神识`);
                 }
                 break;
+            case CardType.GROWTH:
+                // Increase MAX limit for this battle
+                setPlayerMaxElements(prev => {
+                    const newMax = { ...prev };
+                    newMax[card.element] = (newMax[card.element] || 0) + card.value;
+                    return newMax;
+                });
+                // Also recover that amount immediately? Or just increase cap? 
+                // Let's increase Cap and Recover equal to value (so it's useful immediately)
+                setPlayerElements(prev => {
+                    const newElems = { ...prev };
+                    newElems[card.element] = (newElems[card.element] || 0) + card.value;
+                    return newElems;
+                });
+                addLog(`你运转 ${card.name}，${card.element}属性上限提升 ${card.value} 点！`);
+                break;
           }
       } else {
           // Enemy Logic
@@ -183,6 +203,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             case CardType.BUFF:
                 setEnemySpirit(prev => Math.min(initialEnemy.stats.maxSpirit, prev + card.value));
                 addLog(`${initialEnemy.name} 恢复了神识`);
+                break;
+            case CardType.GROWTH:
+                addLog(`${initialEnemy.name} 气息暴涨，提升了元素之力！`);
                 break;
           }
       }
@@ -220,7 +243,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     if (combatEndedRef.current) return;
     setTurn('PLAYER');
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
-    setPlayerElements({...initialPlayer.stats.elementalAffinities}); // Refill elements
+    
+    // Refill Elements based on CURRENT MAX CAPS (which might have been boosted by GROWTH cards)
+    setPlayerElements({...playerMaxElements}); 
     
     // Reset Player Block at start of turn
     statsRef.current.playerBlock = 0;
@@ -529,11 +554,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         {Object.entries(playerElements).map(([elem, val]) => {
                             const v = val as number;
                             // Only show elements that are relevant (have value or max affinity > 0)
-                            if (v <= 0 && initialPlayer.stats.elementalAffinities[elem as ElementType] <= 0) return null;
+                            // Use playerMaxElements to determine relevance during combat
+                            if (v <= 0 && playerMaxElements[elem as ElementType] <= 0) return null;
                             
                             const config = ELEMENT_CONFIG[elem as ElementType];
                             return (
-                                <div key={elem} className={`flex items-center gap-1 px-2 py-1 rounded border border-slate-600 ${config.bg} bg-opacity-40 min-w-[40px] justify-center transition-all hover:scale-110 select-none`} title={`${elem}灵力: ${v}`}>
+                                <div key={elem} className={`flex items-center gap-1 px-2 py-1 rounded border border-slate-600 ${config.bg} bg-opacity-40 min-w-[40px] justify-center transition-all hover:scale-110 select-none`} title={`${elem}灵力: ${v} / ${playerMaxElements[elem as ElementType]}`}>
                                     <span className="text-xs">{config.icon}</span>
                                     <span className={`text-xs font-bold ${config.color}`}>{v}</span>
                                 </div>
