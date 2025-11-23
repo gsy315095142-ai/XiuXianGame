@@ -1,7 +1,8 @@
 
 
 import React from 'react';
-import { Card, CardType } from '../types';
+import { Card, CardType, ElementType } from '../types';
+import { ELEMENT_CONFIG } from '../constants';
 
 interface CardItemProps {
   card: Card;
@@ -9,9 +10,10 @@ interface CardItemProps {
   disabled?: boolean;
   isPlayable?: boolean;
   playerLevel?: number; // Optional, to check reqLevel
+  currentElement?: number; // Optional: Pass current specific element pool value to check cost
 }
 
-export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel }) => {
+export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel, currentElement }) => {
   
   const typeColors = {
     [CardType.ATTACK]: 'border-red-500/50 bg-gradient-to-b from-red-900/80 to-slate-900',
@@ -28,8 +30,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
   };
 
   const levelMet = playerLevel ? playerLevel >= card.reqLevel : true;
-  const isDisabled = disabled || !levelMet;
+  // If currentElement is passed, check it. If not, assume true (for deck view)
+  const elementMet = currentElement !== undefined ? currentElement >= card.elementCost : true;
+
+  const isDisabled = disabled || !levelMet || !elementMet;
   const isPierce = card.tags?.includes('PIERCE');
+
+  const elementInfo = ELEMENT_CONFIG[card.element] || ELEMENT_CONFIG[ElementType.SWORD];
 
   return (
     <div 
@@ -41,17 +48,22 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
         ${!isPlayable && !isDisabled ? 'opacity-70' : ''}
       `}
     >
-      {/* Cost Badge */}
-      <div className="absolute -top-2 -left-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 border-slate-300 z-10 font-bold text-white shadow-md">
+      {/* Cost Badge (Spirit) */}
+      <div className="absolute -top-2 -left-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 border-slate-300 z-10 font-bold text-white shadow-md text-sm">
         {card.cost}
       </div>
 
-      <div className="text-center font-bold text-sm mb-1 border-b border-white/10 pb-1 truncate text-white tracking-wide">
+      {/* Element Badge */}
+      <div className={`absolute -top-2 -right-2 w-8 h-8 ${elementInfo.bg} rounded-full flex items-center justify-center border-2 border-slate-300 z-10 font-bold text-white shadow-md text-[10px] flex-col leading-none`}>
+         <span>{elementInfo.icon}</span>
+         <span>{card.elementCost}</span>
+      </div>
+
+      <div className="text-center font-bold text-sm mb-1 border-b border-white/10 pb-1 truncate text-white tracking-wide mt-1">
         {card.name}
       </div>
       
       <div className="flex-grow flex items-center justify-center relative">
-        {/* Placeholder for card art */}
         <div className={`text-4xl ${textColor[card.type]} opacity-80`}>
             {card.type === CardType.ATTACK && (isPierce ? '🏹' : '⚔️')}
             {card.type === CardType.DEFEND && '🛡️'}
@@ -73,7 +85,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
 
       <div className="mt-1 flex justify-between items-center text-[10px] text-white/40 uppercase tracking-widest">
         <span>{card.type}</span>
-        {card.reqLevel > 1 && <span>Lv.{card.reqLevel}</span>}
+        <span className={elementInfo.color}>{card.element}</span>
       </div>
     </div>
   );

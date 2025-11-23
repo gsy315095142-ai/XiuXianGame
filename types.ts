@@ -15,6 +15,20 @@ export enum CardType {
   BUFF = '增益',
 }
 
+export enum ElementType {
+  METAL = '金',
+  WOOD = '木',
+  WATER = '水',
+  FIRE = '火',
+  EARTH = '土',
+  LIGHT = '光',
+  DARK = '暗',
+  WIND = '风',
+  THUNDER = '雷',
+  ICE = '冰',
+  SWORD = '剑',
+}
+
 export enum NodeType {
   EMPTY = '空地',
   BATTLE = '战斗',
@@ -58,6 +72,8 @@ export interface Card {
   id: string;
   name: string;
   cost: number; // Spirit cost
+  element: ElementType; // New: Primary Element
+  elementCost: number; // New: Cost of that element
   type: CardType;
   value: number; // Damage or Heal amount
   description: string;
@@ -74,6 +90,8 @@ export interface Stats {
   attack: number;
   defense: number;
   speed: number;
+  // New: Elemental Affinities (determines max pool/regen per turn)
+  elementalAffinities: Record<ElementType, number>; 
 }
 
 export interface Entity {

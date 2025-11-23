@@ -1,6 +1,8 @@
+
+
 import React, { useState, useRef } from 'react';
-import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot } from '../types';
-import { SLOT_NAMES } from '../constants';
+import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType } from '../types';
+import { SLOT_NAMES, createZeroElementStats } from '../constants';
 import { Button } from './Button';
 import * as XLSX from 'xlsx';
 
@@ -19,7 +21,7 @@ const createEmptyItem = (type: ItemType): Item => ({
   description: '描述...',
   rarity: 'common',
   reqLevel: 1,
-  statBonus: { attack: 0 }
+  statBonus: { attack: 0, elementalAffinities: createZeroElementStats() }
 });
 
 const createEmptyCard = (): Card => ({
@@ -27,6 +29,8 @@ const createEmptyCard = (): Card => ({
   name: '新卡牌',
   type: CardType.ATTACK,
   cost: 1,
+  element: ElementType.SWORD,
+  elementCost: 1,
   value: 5,
   description: '效果...',
   rarity: 'common',
@@ -36,7 +40,7 @@ const createEmptyCard = (): Card => ({
 
 const createEmptyEnemy = (): EnemyTemplate => ({
   name: '新敌人',
-  baseStats: { maxHp: 50, hp: 50, maxSpirit: 10, spirit: 10, attack: 5, defense: 0, speed: 10 },
+  baseStats: { maxHp: 50, hp: 50, maxSpirit: 10, spirit: 10, attack: 5, defense: 0, speed: 10, elementalAffinities: createZeroElementStats() },
   cardIds: [],
   minPlayerLevel: 1
 });
@@ -44,8 +48,6 @@ const createEmptyEnemy = (): EnemyTemplate => ({
 export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
   const [localConfig, setLocalConfig] = useState<GameConfig>(JSON.parse(JSON.stringify(config)));
   const [activeTab, setActiveTab] = useState<'realms' | 'map' | 'items' | 'enemies' | 'cards' | 'player'>('realms');
-  
-  // Sub-tab for Items
   const [itemSubTab, setItemSubTab] = useState<ItemType>('EQUIPMENT');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +69,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             { Key: 'player_attack', Value: localConfig.playerInitialStats.attack },
             { Key: 'player_defense', Value: localConfig.playerInitialStats.defense },
             { Key: 'player_speed', Value: localConfig.playerInitialStats.speed },
+            // Flatten player affinities
+            ...Object.entries(localConfig.playerInitialStats.elementalAffinities).map(([k, v]) => ({ Key: `player_affinity_${k}`, Value: v }))
         ];
         const wsGeneral = XLSX.utils.json_to_sheet(generalData);
         XLSX.utils.book_append_sheet(wb, wsGeneral, "General");
@@ -76,29 +80,40 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         XLSX.utils.book_append_sheet(wb, wsRealms, "Realms");
 
         // 3. Items Sheet (Flattened stats)
-        const itemsData = localConfig.items.map(item => ({
-            id: item.id,
-            name: item.name,
-            type: item.type,
-            slot: item.slot || '',
-            description: item.description,
-            rarity: item.rarity,
-            reqLevel: item.reqLevel,
-            stat_attack: item.statBonus?.attack || 0,
-            stat_defense: item.statBonus?.defense || 0,
-            stat_maxHp: item.statBonus?.maxHp || 0,
-            stat_maxSpirit: item.statBonus?.maxSpirit || 0,
-            stat_speed: item.statBonus?.speed || 0,
-        }));
+        const itemsData = localConfig.items.map(item => {
+            const row: any = {
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                slot: item.slot || '',
+                description: item.description,
+                rarity: item.rarity,
+                reqLevel: item.reqLevel,
+                stat_attack: item.statBonus?.attack || 0,
+                stat_defense: item.statBonus?.defense || 0,
+                stat_maxHp: item.statBonus?.maxHp || 0,
+                stat_maxSpirit: item.statBonus?.maxSpirit || 0,
+                stat_speed: item.statBonus?.speed || 0,
+            };
+            // Flatten Affinities
+            if (item.statBonus?.elementalAffinities) {
+                Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
+                    row[`stat_affinity_${k}`] = v;
+                });
+            }
+            return row;
+        });
         const wsItems = XLSX.utils.json_to_sheet(itemsData);
         XLSX.utils.book_append_sheet(wb, wsItems, "Items");
 
-        // 4. Cards Sheet (Flattened tags)
+        // 4. Cards Sheet
         const cardsData = localConfig.cards.map(card => ({
             id: card.id,
             name: card.name,
             type: card.type,
             cost: card.cost,
+            element: card.element,
+            elementCost: card.elementCost,
             value: card.value,
             description: card.description,
             rarity: card.rarity,
@@ -108,7 +123,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         const wsCards = XLSX.utils.json_to_sheet(cardsData);
         XLSX.utils.book_append_sheet(wb, wsCards, "Cards");
 
-        // 5. Enemies Sheet (Flattened stats & deck)
+        // 5. Enemies Sheet
         const enemiesData = localConfig.enemies.map(e => ({
             name: e.name,
             minPlayerLevel: e.minPlayerLevel,
@@ -117,7 +132,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             attack: e.baseStats.attack,
             defense: e.baseStats.defense,
             speed: e.baseStats.speed,
-            cardIds: e.cardIds.join(',')
+            cardIds: e.cardIds.join(','),
+             // NOTE: Not exporting enemy affinities for simplicity in this version to avoid huge columns, relying on defaults if re-imported without them
         }));
         const wsEnemies = XLSX.utils.json_to_sheet(enemiesData);
         XLSX.utils.book_append_sheet(wb, wsEnemies, "Enemies");
@@ -152,22 +168,28 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               // 1. General
               const wsGeneral = wb.Sheets['General'];
               if (wsGeneral) {
-                  const genData = XLSX.utils.sheet_to_json<{Key: string, Value: number}>(wsGeneral);
-                  const map: Record<string, number> = {};
+                  const genData = XLSX.utils.sheet_to_json<{Key: string, Value: any}>(wsGeneral);
+                  const map: Record<string, any> = {};
                   genData.forEach(r => map[r.Key] = r.Value);
                   
-                  if (map['mapNodeCount']) newConfig.mapNodeCount = map['mapNodeCount'];
-                  if (map['itemDropRate']) newConfig.itemDropRate = map['itemDropRate'];
+                  if (map['mapNodeCount']) newConfig.mapNodeCount = parseInt(map['mapNodeCount']);
+                  if (map['itemDropRate']) newConfig.itemDropRate = parseFloat(map['itemDropRate']);
                   
+                  const affs = createZeroElementStats();
+                  Object.values(ElementType).forEach(el => {
+                      if (map[`player_affinity_${el}`]) affs[el] = parseInt(map[`player_affinity_${el}`]);
+                  });
+
                   newConfig.playerInitialStats = {
                       ...newConfig.playerInitialStats,
-                      maxHp: map['player_maxHp'] || 100,
-                      hp: map['player_maxHp'] || 100,
-                      maxSpirit: map['player_maxSpirit'] || 10,
-                      spirit: map['player_maxSpirit'] || 10,
-                      attack: map['player_attack'] || 5,
-                      defense: map['player_defense'] || 0,
-                      speed: map['player_speed'] || 10,
+                      maxHp: parseInt(map['player_maxHp'] || 100),
+                      hp: parseInt(map['player_maxHp'] || 100),
+                      maxSpirit: parseInt(map['player_maxSpirit'] || 10),
+                      spirit: parseInt(map['player_maxSpirit'] || 10),
+                      attack: parseInt(map['player_attack'] || 5),
+                      defense: parseInt(map['player_defense'] || 0),
+                      speed: parseInt(map['player_speed'] || 10),
+                      elementalAffinities: affs
                   };
               }
 
@@ -181,22 +203,33 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               const wsItems = wb.Sheets['Items'];
               if (wsItems) {
                   const rawItems = XLSX.utils.sheet_to_json<any>(wsItems);
-                  newConfig.items = rawItems.map(r => ({
-                      id: r.id,
-                      name: r.name,
-                      type: r.type,
-                      slot: r.slot || undefined,
-                      description: r.description,
-                      rarity: r.rarity,
-                      reqLevel: r.reqLevel,
-                      statBonus: {
-                          attack: r.stat_attack || 0,
-                          defense: r.stat_defense || 0,
-                          maxHp: r.stat_maxHp || 0,
-                          maxSpirit: r.stat_maxSpirit || 0,
-                          speed: r.stat_speed || 0,
+                  newConfig.items = rawItems.map(r => {
+                      const affs = createZeroElementStats();
+                      Object.keys(r).forEach(k => {
+                          if (k.startsWith('stat_affinity_')) {
+                              const elem = k.replace('stat_affinity_', '') as ElementType;
+                              affs[elem] = r[k];
+                          }
+                      });
+
+                      return {
+                        id: r.id,
+                        name: r.name,
+                        type: r.type,
+                        slot: r.slot || undefined,
+                        description: r.description,
+                        rarity: r.rarity,
+                        reqLevel: r.reqLevel,
+                        statBonus: {
+                            attack: r.stat_attack || 0,
+                            defense: r.stat_defense || 0,
+                            maxHp: r.stat_maxHp || 0,
+                            maxSpirit: r.stat_maxSpirit || 0,
+                            speed: r.stat_speed || 0,
+                            elementalAffinities: affs
+                        }
                       }
-                  }));
+                  });
               }
 
               // 4. Cards
@@ -208,6 +241,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       name: r.name,
                       type: r.type,
                       cost: r.cost,
+                      element: r.element || ElementType.SWORD,
+                      elementCost: r.elementCost || 1,
                       value: r.value,
                       description: r.description,
                       rarity: r.rarity,
@@ -216,7 +251,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                   }));
               }
 
-              // 5. Enemies
+              // 5. Enemies (Basic)
               const wsEnemies = wb.Sheets['Enemies'];
               if (wsEnemies) {
                   const rawEnemies = XLSX.utils.sheet_to_json<any>(wsEnemies);
@@ -230,7 +265,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                           spirit: r.spirit,
                           attack: r.attack,
                           defense: r.defense,
-                          speed: r.speed
+                          speed: r.speed,
+                          elementalAffinities: createZeroElementStats() // simplified import
                       },
                       cardIds: r.cardIds ? String(r.cardIds).split(',') : []
                   }));
@@ -244,7 +280,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               }
 
               setLocalConfig(newConfig);
-              alert("Excel配置导入成功！请记得点击保存生效。");
+              alert("Excel配置导入成功！");
           } catch (err) {
               console.error(err);
               alert("读取Excel失败，请确保文件格式正确。");
@@ -306,27 +342,20 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             <div className="space-y-4">
                <div className="flex justify-between items-center mb-2">
                    <h3 className="text-lg font-bold text-slate-200">修仙境界划分</h3>
-                   <p className="text-xs text-slate-500">定义每个阶段的等级范围和升级所需经验</p>
                </div>
-               
                <div className="grid gap-4">
                   {localConfig.realms.map((realm, idx) => (
                       <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-wrap items-end gap-4">
-                          <div>
-                              <label className="text-xs text-emerald-500 font-bold">境界名称</label>
-                              <input 
-                                  value={realm.name}
-                                  onChange={(e) => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[idx].name = e.target.value;
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }}
-                                  className="block w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-xs text-slate-500">起始等级</label>
-                              <input 
+                          <input 
+                              value={realm.name}
+                              onChange={(e) => {
+                                  const newRealms = [...localConfig.realms];
+                                  newRealms[idx].name = e.target.value;
+                                  setLocalConfig({...localConfig, realms: newRealms});
+                              }}
+                              className="block w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                          />
+                          <input 
                                   type="number"
                                   value={realm.rangeStart}
                                   onChange={(e) => {
@@ -335,11 +364,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                       setLocalConfig({...localConfig, realms: newRealms});
                                   }}
                                   className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-xs text-slate-500">结束等级</label>
-                              <input 
+                          />
+                          <input 
                                   type="number"
                                   value={realm.rangeEnd}
                                   onChange={(e) => {
@@ -348,11 +374,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                       setLocalConfig({...localConfig, realms: newRealms});
                                   }}
                                   className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-xs text-amber-500 font-bold">升级所需EXP</label>
-                              <input 
+                          />
+                           <input 
                                   type="number"
                                   value={realm.expReq}
                                   onChange={(e) => {
@@ -361,87 +384,68 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                       setLocalConfig({...localConfig, realms: newRealms});
                                   }}
                                   className="block w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                              />
-                          </div>
+                            />
                       </div>
                   ))}
-                  <div className="text-xs text-slate-500 mt-2">
-                      * 游戏逻辑会根据玩家当前等级自动匹配所在的境界范围。请确保等级范围连续且不重叠。
-                  </div>
                </div>
             </div>
           )}
 
           {activeTab === 'map' && (
-            <div className="space-y-6 max-w-lg">
-              <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">探险地图节点数量</label>
-                <input 
-                  type="number" 
-                  value={localConfig.mapNodeCount}
-                  onChange={(e) => setLocalConfig({...localConfig, mapNodeCount: parseInt(e.target.value) || 5})}
-                  className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-emerald-500 outline-none"
-                />
-                <p className="text-xs text-slate-500 mt-1">建议范围: 5 - 20</p>
-              </div>
+             <div className="space-y-6 max-w-lg">
+                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                    <label className="block text-sm text-slate-400 mb-1">探险节点数量</label>
+                    <input 
+                        type="number"
+                        value={localConfig.mapNodeCount}
+                        onChange={(e) => setLocalConfig({...localConfig, mapNodeCount: parseInt(e.target.value)})}
+                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">每次外出历练生成的地图格子数。</p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">宝物/事件掉落概率 (0.0 - 1.0)</label>
-                <input 
-                  type="number" 
-                  step="0.1"
-                  min="0"
-                  max="1"
-                  value={localConfig.itemDropRate}
-                  onChange={(e) => setLocalConfig({...localConfig, itemDropRate: parseFloat(e.target.value)})}
-                  className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-emerald-500 outline-none"
-                />
-              </div>
+                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                    <label className="block text-sm text-slate-400 mb-1">物品掉落率 (0-1)</label>
+                    <input 
+                        type="number"
+                        step="0.05"
+                        max="1"
+                        min="0"
+                        value={localConfig.itemDropRate}
+                        onChange={(e) => setLocalConfig({...localConfig, itemDropRate: parseFloat(e.target.value)})}
+                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">在宝箱节点获得物品的概率。若未获得物品，则获得灵石。</p>
+                </div>
             </div>
           )}
 
           {activeTab === 'items' && (
             <div className="space-y-4">
-              {/* Sub-tabs for Item Categories */}
               <div className="flex gap-2 border-b border-slate-700 pb-2 mb-4">
-                  <button 
-                      onClick={() => setItemSubTab('EQUIPMENT')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'EQUIPMENT' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
-                  >
-                      🗡️ 装备库
-                  </button>
-                  <button 
-                      onClick={() => setItemSubTab('CONSUMABLE')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'CONSUMABLE' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
-                  >
-                      💊 道具库
-                  </button>
-                  <button 
-                      onClick={() => setItemSubTab('ARTIFACT')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === 'ARTIFACT' ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
-                  >
-                      ✨ 法宝库
-                  </button>
+                  {['EQUIPMENT', 'CONSUMABLE', 'ARTIFACT'].map(type => (
+                      <button 
+                        key={type}
+                        onClick={() => setItemSubTab(type as ItemType)}
+                        className={`px-3 py-1 rounded text-sm font-bold ${itemSubTab === type ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
+                      >
+                         {type === 'EQUIPMENT' ? '🗡️ 装备' : type === 'CONSUMABLE' ? '💊 道具' : '✨ 法宝'}
+                      </button>
+                  ))}
               </div>
 
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-200">
-                    {itemSubTab === 'EQUIPMENT' && '装备列表'}
-                    {itemSubTab === 'CONSUMABLE' && '道具列表'}
-                    {itemSubTab === 'ARTIFACT' && '法宝列表'}
-                </h3>
                 <Button size="sm" onClick={() => setLocalConfig({...localConfig, items: [...localConfig.items, createEmptyItem(itemSubTab)]})}>
-                    + 新增{itemSubTab === 'EQUIPMENT' ? '装备' : itemSubTab === 'CONSUMABLE' ? '道具' : '法宝'}
+                    + 新增物品
                 </Button>
               </div>
 
               <div className="grid gap-4">
                 {localConfig.items.filter(i => i.type === itemSubTab).map((item) => {
-                   // Find the actual index in the main array to update correctly
                    const realIndex = localConfig.items.findIndex(i => i.id === item.id);
                    
                    return (
-                   <div key={item.id + realIndex} className="bg-slate-800 p-4 rounded border border-slate-700 flex gap-4 items-start relative group">
+                   <div key={item.id + realIndex} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-col gap-2 relative group">
                       <button 
                         className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
                         onClick={() => {
@@ -451,24 +455,17 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       >
                           🗑️
                       </button>
-                      <div className="flex-1 grid grid-cols-3 gap-4">
-                          <div>
-                            <label className="text-xs text-slate-500">名称</label>
-                            <input 
+                      <div className="flex gap-4">
+                          <input 
                               value={item.name}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
                                 newItems[realIndex].name = e.target.value;
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                            />
-                          </div>
-                          
-                          {/* Slot Selector for Equipment/Artifact */}
-                          {(itemSubTab === 'EQUIPMENT' || itemSubTab === 'ARTIFACT') && (
-                              <div>
-                                <label className="text-xs text-amber-500 font-bold">佩戴部位</label>
+                              className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-1/4"
+                          />
+                           {(itemSubTab === 'EQUIPMENT' || itemSubTab === 'ARTIFACT') && (
                                 <select 
                                     value={item.slot || 'mainWeapon'}
                                     onChange={(e) => {
@@ -476,191 +473,211 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                         newItems[realIndex].slot = e.target.value as EquipmentSlot;
                                         setLocalConfig({...localConfig, items: newItems});
                                     }}
-                                    className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-amber-300"
+                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-amber-300 w-1/4"
                                 >
                                     {Object.entries(SLOT_NAMES).map(([key, label]) => (
                                         <option key={key} value={key}>{label}</option>
                                     ))}
                                 </select>
-                              </div>
-                          )}
-                          
-                          {itemSubTab === 'CONSUMABLE' && (
-                              <div>
-                                <label className="text-xs text-slate-500">类型</label>
-                                <div className="text-sm text-slate-400 pt-1">消耗品</div>
-                              </div>
-                          )}
-
-                          <div>
-                            <label className="text-xs text-slate-500">需求等级</label>
-                            <input 
+                           )}
+                           <input 
                               type="number"
+                              placeholder="Req Lv"
                               value={item.reqLevel || 1}
                               onChange={(e) => {
                                 const newItems = [...localConfig.items];
                                 newItems[realIndex].reqLevel = parseInt(e.target.value);
                                 setLocalConfig({...localConfig, items: newItems});
                               }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                              className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-20"
                             />
-                          </div>
-                          
-                          {/* Stats Configuration */}
-                          <div>
-                            <label className="text-xs text-slate-500">攻击加成</label>
-                            <input 
-                              type="number"
-                              value={item.statBonus?.attack || 0}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, attack: parseInt(e.target.value) };
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-slate-500">防御加成</label>
-                            <input 
-                              type="number"
-                              value={item.statBonus?.defense || 0}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, defense: parseInt(e.target.value) };
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                            />
-                          </div>
-                           <div>
-                            <label className="text-xs text-slate-500">HP加成</label>
-                            <input 
-                              type="number"
-                              value={item.statBonus?.maxHp || 0}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, maxHp: parseInt(e.target.value) };
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                            />
-                          </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-4 gap-2">
+                            {['attack', 'defense', 'maxHp', 'maxSpirit', 'speed'].map(stat => (
+                                <div key={stat} className="flex flex-col">
+                                    <span className="text-[10px] text-slate-500">{stat}</span>
+                                    <input 
+                                        type="number"
+                                        // @ts-ignore
+                                        value={item.statBonus?.[stat] || 0}
+                                        onChange={(e) => {
+                                            const newItems = [...localConfig.items];
+                                            // @ts-ignore
+                                            newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, [stat]: parseInt(e.target.value) };
+                                            setLocalConfig({...localConfig, items: newItems});
+                                        }}
+                                        className="bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-xs"
+                                    />
+                                </div>
+                            ))}
+                      </div>
 
-                          <div className="col-span-3">
-                            <label className="text-xs text-slate-500">描述</label>
-                            <input 
-                              value={item.description}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].description = e.target.value;
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                            />
-                          </div>
+                      {/* Element Bonus Config */}
+                      <div className="border-t border-slate-700 pt-2">
+                        <span className="text-xs text-slate-400 block mb-1">元素亲和加成:</span>
+                        <div className="flex flex-wrap gap-2">
+                            {Object.values(ElementType).map(elem => (
+                                <div key={elem} className="flex items-center gap-1 bg-slate-900 rounded px-1">
+                                    <span className="text-[10px] text-slate-500">{elem}</span>
+                                    <input 
+                                        type="number"
+                                        className="w-8 bg-transparent text-xs text-white border-none outline-none text-right"
+                                        value={item.statBonus?.elementalAffinities?.[elem] || 0}
+                                        onChange={(e) => {
+                                            const newItems = [...localConfig.items];
+                                            const affs = { ...(newItems[realIndex].statBonus?.elementalAffinities || createZeroElementStats()) };
+                                            affs[elem] = parseInt(e.target.value);
+                                            newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, elementalAffinities: affs };
+                                            setLocalConfig({...localConfig, items: newItems});
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                       </div>
                    </div>
                 )})}
-                {localConfig.items.filter(i => i.type === itemSubTab).length === 0 && (
-                    <div className="text-slate-500 text-center py-8">暂无此分类物品</div>
-                )}
               </div>
             </div>
           )}
 
           {activeTab === 'enemies' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-slate-200">敌人配置 ({localConfig.enemies.length})</h3>
-                <Button size="sm" onClick={() => setLocalConfig({...localConfig, enemies: [...localConfig.enemies, createEmptyEnemy()]})}>
-                    + 新增敌人
-                </Button>
-              </div>
-
-              {localConfig.enemies.map((enemy, idx) => (
-                <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 relative group">
-                  <button 
-                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded"
-                        onClick={() => {
-                            const newEnemies = localConfig.enemies.filter((_, i) => i !== idx);
-                            setLocalConfig({...localConfig, enemies: newEnemies});
-                        }}
-                  >
-                          🗑️ 删除
-                  </button>
-                  <div className="flex flex-wrap gap-4 mb-4 items-end pr-10">
-                    <div>
-                      <label className="text-xs text-slate-500">敌人名称</label>
-                      <input 
-                        value={enemy.name}
-                        onChange={(e) => {
-                          const newEnemies = [...localConfig.enemies];
-                          newEnemies[idx].name = e.target.value;
-                          setLocalConfig({...localConfig, enemies: newEnemies});
-                        }}
-                        className="block bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-40"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-emerald-500 font-bold">出现需求(玩家等级)</label>
-                      <input 
-                        type="number"
-                        value={enemy.minPlayerLevel || 1}
-                        onChange={(e) => {
-                          const newEnemies = [...localConfig.enemies];
-                          newEnemies[idx].minPlayerLevel = parseInt(e.target.value);
-                          setLocalConfig({...localConfig, enemies: newEnemies});
-                        }}
-                        className="block bg-slate-900 border border-emerald-600 rounded px-2 py-1 text-sm w-40"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                       {['maxHp', 'attack', 'speed'].map(stat => (
-                         <div key={stat}>
-                            <label className="text-xs text-slate-500 capitalize">{stat}</label>
-                            <input 
-                              type="number"
-                              value={enemy.baseStats[stat as keyof typeof enemy.baseStats]}
-                              onChange={(e) => {
-                                const newEnemies = [...localConfig.enemies];
-                                // @ts-ignore
-                                newEnemies[idx].baseStats[stat] = parseInt(e.target.value);
-                                setLocalConfig({...localConfig, enemies: newEnemies});
-                              }}
-                              className="block bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-20"
-                            />
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-                  <div>
-                     <label className="text-xs text-slate-500 mb-1 block">携带卡牌 (ID)</label>
-                     <div className="flex flex-wrap gap-2 bg-slate-900 p-2 rounded border border-slate-700 min-h-[40px]">
-                        {localConfig.cards.map(card => (
-                          <label key={card.id} className={`flex items-center gap-1 text-xs px-2 py-1 rounded cursor-pointer select-none border ${enemy.cardIds.includes(card.id) ? 'bg-emerald-900 border-emerald-500 text-emerald-200' : 'bg-slate-800 border-slate-600 text-slate-500'}`}>
-                            <input 
-                              type="checkbox" 
-                              checked={enemy.cardIds.includes(card.id)}
-                              onChange={(e) => {
-                                const newEnemies = [...localConfig.enemies];
-                                if (e.target.checked) {
-                                  newEnemies[idx].cardIds.push(card.id);
-                                } else {
-                                  newEnemies[idx].cardIds = newEnemies[idx].cardIds.filter(id => id !== card.id);
-                                }
-                                setLocalConfig({...localConfig, enemies: newEnemies});
-                              }}
-                              className="hidden"
-                            />
-                            {card.name}
-                          </label>
-                        ))}
-                     </div>
-                  </div>
+             <div className="space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-slate-200">敌人配置</h3>
+                    <Button size="sm" onClick={() => setLocalConfig({...localConfig, enemies: [...localConfig.enemies, createEmptyEnemy()]})}>
+                        + 新增敌人
+                    </Button>
                 </div>
-              ))}
-            </div>
+                
+                <div className="grid gap-6">
+                    {localConfig.enemies.map((enemy, idx) => (
+                        <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 relative group">
+                            <button 
+                                className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
+                                onClick={() => {
+                                    const newEnemies = localConfig.enemies.filter((_, i) => i !== idx);
+                                    setLocalConfig({...localConfig, enemies: newEnemies});
+                                }}
+                            >
+                                🗑️
+                            </button>
+                            
+                            <div className="flex flex-wrap gap-4 mb-4">
+                                <div>
+                                    <label className="text-[10px] text-slate-500 uppercase block">Name</label>
+                                    <input 
+                                        value={enemy.name}
+                                        onChange={(e) => {
+                                            const newEnemies = [...localConfig.enemies];
+                                            newEnemies[idx].name = e.target.value;
+                                            setLocalConfig({...localConfig, enemies: newEnemies});
+                                        }}
+                                        className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-40"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 uppercase block">Min Level</label>
+                                    <input 
+                                        type="number"
+                                        value={enemy.minPlayerLevel}
+                                        onChange={(e) => {
+                                            const newEnemies = [...localConfig.enemies];
+                                            newEnemies[idx].minPlayerLevel = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, enemies: newEnemies});
+                                        }}
+                                        className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-20"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-900/50 p-2 rounded mb-4">
+                                <h5 className="text-xs text-slate-400 mb-2 font-bold">基础属性</h5>
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                     {['maxHp', 'maxSpirit', 'attack', 'defense', 'speed'].map(stat => (
+                                        <div key={stat}>
+                                            <label className="text-[9px] text-slate-500 uppercase block">{stat}</label>
+                                            <input 
+                                                type="number"
+                                                // @ts-ignore
+                                                value={enemy.baseStats[stat]}
+                                                onChange={(e) => {
+                                                    const newEnemies = [...localConfig.enemies];
+                                                    // @ts-ignore
+                                                    newEnemies[idx].baseStats = { ...newEnemies[idx].baseStats, [stat]: parseInt(e.target.value) };
+                                                    // Sync hp/spirit
+                                                    if(stat === 'maxHp') newEnemies[idx].baseStats.hp = parseInt(e.target.value);
+                                                    if(stat === 'maxSpirit') newEnemies[idx].baseStats.spirit = parseInt(e.target.value);
+                                                    setLocalConfig({...localConfig, enemies: newEnemies});
+                                                }}
+                                                className="w-full bg-slate-800 border border-slate-600 rounded px-1 text-xs"
+                                            />
+                                        </div>
+                                     ))}
+                                </div>
+                                
+                                <h5 className="text-xs text-slate-400 mt-2 mb-1 font-bold">元素亲和</h5>
+                                <div className="flex flex-wrap gap-1">
+                                    {Object.values(ElementType).map(elem => (
+                                        <div key={elem} className="flex items-center gap-1 bg-slate-800 rounded px-1 border border-slate-700">
+                                            <span className="text-[9px] text-slate-500">{elem}</span>
+                                            <input 
+                                                type="number"
+                                                className="w-6 bg-transparent text-[10px] text-white border-none outline-none text-right"
+                                                value={enemy.baseStats.elementalAffinities?.[elem] || 0}
+                                                onChange={(e) => {
+                                                    const newEnemies = [...localConfig.enemies];
+                                                    const affs = { ...(newEnemies[idx].baseStats.elementalAffinities || createZeroElementStats()) };
+                                                    affs[elem] = parseInt(e.target.value);
+                                                    newEnemies[idx].baseStats.elementalAffinities = affs;
+                                                    setLocalConfig({...localConfig, enemies: newEnemies});
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-900/50 p-2 rounded">
+                                <h5 className="text-xs text-slate-400 mb-2 font-bold">携带卡组 (ID列表)</h5>
+                                <div className="flex flex-wrap gap-2">
+                                    {enemy.cardIds.map((cid, cidx) => (
+                                        <div key={cidx} className="bg-slate-700 px-2 py-1 rounded text-xs flex items-center gap-1">
+                                            <span className="text-slate-200">{localConfig.cards.find(c => c.id === cid)?.name || cid}</span>
+                                            <button 
+                                                className="text-red-400 hover:text-white"
+                                                onClick={() => {
+                                                    const newEnemies = [...localConfig.enemies];
+                                                    const newDeck = [...enemy.cardIds];
+                                                    newDeck.splice(cidx, 1);
+                                                    newEnemies[idx].cardIds = newDeck;
+                                                    setLocalConfig({...localConfig, enemies: newEnemies});
+                                                }}
+                                            >×</button>
+                                        </div>
+                                    ))}
+                                    <select 
+                                        className="bg-slate-800 border border-slate-600 rounded text-xs px-2 py-1 w-32"
+                                        value=""
+                                        onChange={(e) => {
+                                            if(!e.target.value) return;
+                                            const newEnemies = [...localConfig.enemies];
+                                            newEnemies[idx].cardIds = [...enemy.cardIds, e.target.value];
+                                            setLocalConfig({...localConfig, enemies: newEnemies});
+                                        }}
+                                    >
+                                        <option value="">+ 添加卡牌</option>
+                                        {localConfig.cards.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name} ({c.cost}耗)</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+             </div>
           )}
 
           {activeTab === 'cards' && (
@@ -718,44 +735,66 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                 />
                         </div>
                         </div>
-                        <div className="flex gap-2 text-xs">
-                        <div className="flex items-center gap-1">
-                            <span>Cost:</span>
-                            <input type="number" value={card.cost} onChange={(e) => {
-                                const newCards = [...localConfig.cards];
-                                newCards[idx].cost = parseInt(e.target.value);
-                                setLocalConfig({...localConfig, cards: newCards});
-                            }} className="w-10 bg-slate-900 rounded px-1" />
+                        <div className="flex gap-2 text-xs flex-wrap">
+                            <div className="flex items-center gap-1">
+                                <span className="text-blue-400 font-bold">Spirit:</span>
+                                <input type="number" value={card.cost} onChange={(e) => {
+                                    const newCards = [...localConfig.cards];
+                                    newCards[idx].cost = parseInt(e.target.value);
+                                    setLocalConfig({...localConfig, cards: newCards});
+                                }} className="w-8 bg-slate-900 rounded px-1" />
+                            </div>
+                            
+                            {/* Element Config */}
+                            <div className="flex items-center gap-1">
+                                <select 
+                                    value={card.element} 
+                                    onChange={(e) => {
+                                        const newCards = [...localConfig.cards];
+                                        newCards[idx].element = e.target.value as ElementType;
+                                        setLocalConfig({...localConfig, cards: newCards});
+                                    }}
+                                    className="bg-slate-900 rounded px-1 w-12"
+                                >
+                                    {Object.values(ElementType).map(e => <option key={e} value={e}>{e}</option>)}
+                                </select>
+                                <input type="number" value={card.elementCost} onChange={(e) => {
+                                    const newCards = [...localConfig.cards];
+                                    newCards[idx].elementCost = parseInt(e.target.value);
+                                    setLocalConfig({...localConfig, cards: newCards});
+                                }} className="w-8 bg-slate-900 rounded px-1" />
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                                <span>Val:</span>
+                                <input type="number" value={card.value} onChange={(e) => {
+                                    const newCards = [...localConfig.cards];
+                                    newCards[idx].value = parseInt(e.target.value);
+                                    setLocalConfig({...localConfig, cards: newCards});
+                                }} className="w-10 bg-slate-900 rounded px-1" />
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                            <span>Value:</span>
-                            <input type="number" value={card.value} onChange={(e) => {
-                                const newCards = [...localConfig.cards];
-                                newCards[idx].value = parseInt(e.target.value);
-                                setLocalConfig({...localConfig, cards: newCards});
-                            }} className="w-10 bg-slate-900 rounded px-1" />
-                        </div>
-                         {/* Pierce Toggle */}
-                         <div className="flex items-center gap-1 ml-auto">
-                            <label className="flex items-center gap-1 cursor-pointer select-none">
+                        
+                        {/* New: Tags Config (e.g. Pierce) */}
+                        <div className="flex gap-2 mt-1">
+                           <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer">
                                 <input 
-                                    type="checkbox" 
+                                    type="checkbox"
                                     checked={card.tags?.includes('PIERCE') || false}
                                     onChange={(e) => {
                                         const newCards = [...localConfig.cards];
-                                        if (e.target.checked) {
-                                            newCards[idx].tags = [...(newCards[idx].tags || []), 'PIERCE'];
-                                        } else {
-                                            newCards[idx].tags = (newCards[idx].tags || []).filter(t => t !== 'PIERCE');
-                                        }
+                                        let tags = card.tags || [];
+                                        if (e.target.checked) tags = [...tags, 'PIERCE'];
+                                        else tags = tags.filter(t => t !== 'PIERCE');
+                                        newCards[idx].tags = tags;
                                         setLocalConfig({...localConfig, cards: newCards});
                                     }}
-                                    className="rounded bg-slate-700 border-slate-500"
+                                    className="rounded bg-slate-900 border-slate-600"
                                 />
-                                <span className={card.tags?.includes('PIERCE') ? 'text-amber-400 font-bold' : 'text-slate-500'}>穿刺</span>
-                            </label>
+                                穿刺效果
+                           </label>
                         </div>
-                        </div>
+
                         <textarea 
                         value={card.description} 
                         onChange={(e) => {
@@ -773,29 +812,52 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
           {activeTab === 'player' && (
              <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-800 p-4 rounded border border-slate-700">
-                   {['maxHp', 'maxSpirit', 'attack', 'speed'].map(stat => (
-                     <div key={stat}>
-                       <label className="block text-xs text-slate-500 uppercase mb-1">{stat}</label>
-                       <input 
-                         type="number" 
-                         // @ts-ignore
-                         value={localConfig.playerInitialStats[stat]} 
-                         onChange={(e) => {
-                             const newStats = {...localConfig.playerInitialStats};
-                             // @ts-ignore
-                             newStats[stat] = parseInt(e.target.value);
-                             setLocalConfig({...localConfig, playerInitialStats: newStats});
-                         }}
-                         className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"
-                       />
-                     </div>
-                   ))}
+                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                    <h4 className="text-slate-400 text-sm mb-2">基础属性</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {['maxHp', 'maxSpirit', 'attack', 'speed'].map(stat => (
+                        <div key={stat}>
+                        <label className="block text-xs text-slate-500 uppercase mb-1">{stat}</label>
+                        <input 
+                            type="number" 
+                            // @ts-ignore
+                            value={localConfig.playerInitialStats[stat]} 
+                            onChange={(e) => {
+                                const newStats = {...localConfig.playerInitialStats};
+                                // @ts-ignore
+                                newStats[stat] = parseInt(e.target.value);
+                                setLocalConfig({...localConfig, playerInitialStats: newStats});
+                            }}
+                            className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"
+                        />
+                        </div>
+                    ))}
+                    </div>
+
+                    <h4 className="text-slate-400 text-sm mb-2">初始元素亲和</h4>
+                    <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                        {Object.values(ElementType).map(elem => (
+                             <div key={elem}>
+                                <label className="block text-[10px] text-slate-500 text-center">{elem}</label>
+                                <input 
+                                    type="number" 
+                                    value={localConfig.playerInitialStats.elementalAffinities[elem]} 
+                                    onChange={(e) => {
+                                        const newStats = {...localConfig.playerInitialStats};
+                                        newStats.elementalAffinities = { ...newStats.elementalAffinities, [elem]: parseInt(e.target.value) };
+                                        setLocalConfig({...localConfig, playerInitialStats: newStats});
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded px-1 py-1 text-center text-xs"
+                                />
+                             </div>
+                        ))}
+                    </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-slate-200 mb-3">初始牌组选择</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <h3 className="text-lg font-bold text-slate-200 mb-3">初始牌组</h3>
+                   {/* Deck selector same as before */}
+                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {localConfig.cards.map(card => {
                        const count = localConfig.playerInitialDeckIds.filter(id => id === card.id).length;
                        return (

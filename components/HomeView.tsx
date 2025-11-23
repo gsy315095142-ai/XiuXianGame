@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { Player, Item, RealmRank, EquipmentSlot } from '../types';
-import { getRealmName, SLOT_NAMES } from '../constants';
+import { Player, Item, RealmRank, EquipmentSlot, ElementType } from '../types';
+import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
 import { Button } from './Button';
 import { CardItem } from './CardItem';
 
@@ -100,6 +99,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                                 {player.inventory.map((item, idx) => {
                                     const canEquip = player.level >= item.reqLevel;
                                     const isEquipable = item.type === 'EQUIPMENT' || (item.type === 'ARTIFACT' && item.slot);
+                                    
+                                    // Collect stats description including elements
+                                    const statsDesc = [];
+                                    if(item.statBonus?.attack) statsDesc.push(`攻+${item.statBonus.attack}`);
+                                    if(item.statBonus?.defense) statsDesc.push(`防+${item.statBonus.defense}`);
+                                    if(item.statBonus?.maxHp) statsDesc.push(`血+${item.statBonus.maxHp}`);
+                                    if(item.statBonus?.elementalAffinities) {
+                                        Object.entries(item.statBonus.elementalAffinities).forEach(([k,v]) => {
+                                            const val = v as number;
+                                            if (val > 0) statsDesc.push(`${k}+${val}`);
+                                        })
+                                    }
 
                                     return (
                                         <div key={idx} className="bg-slate-800 p-3 rounded border border-slate-600 flex flex-col justify-between">
@@ -108,6 +119,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                                                 <div className="text-xs text-slate-500 mb-1">
                                                     {item.type === 'EQUIPMENT' ? `[装备 - ${item.slot ? SLOT_NAMES[item.slot] : '未知'}]` : item.type === 'ARTIFACT' ? '[法宝]' : '[道具]'}
                                                 </div>
+                                                <div className="text-xs text-emerald-400 my-1 font-mono">{statsDesc.join(', ')}</div>
                                                 <div className="text-xs text-slate-400 mt-1">{item.description}</div>
                                                 <div className={`text-xs mt-1 ${canEquip ? 'text-emerald-500' : 'text-red-500'}`}>
                                                     需境界: {getRealmName(item.reqLevel, realms)}
@@ -154,6 +166,21 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                     <StatRow label="攻击" value={player.stats.attack} />
                     <StatRow label="防御" value={player.stats.defense} />
                     <StatRow label="速度" value={player.stats.speed} />
+                </div>
+                
+                <h4 className="text-slate-400 font-bold text-xs mt-4 mb-2 border-b border-slate-700 pb-1">元素亲和 (每回合恢复)</h4>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                    {Object.entries(player.stats.elementalAffinities).map(([elem, val]) => {
+                        const config = ELEMENT_CONFIG[elem as ElementType];
+                        return (
+                             <div key={elem} className="flex justify-between items-center">
+                                <span className={`flex items-center gap-1 ${config.color}`}>
+                                    {config.icon} {elem}
+                                </span>
+                                <span className="font-mono text-slate-200">{val}</span>
+                             </div>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -212,10 +239,10 @@ const EquipSlot: React.FC<{ label: string; item: Item | null }> = ({ label, item
                 <div>
                     <div className={`font-bold text-xs truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
                     <div className="text-[9px] text-slate-400 truncate">
+                        {/* Simplified stat preview */}
                         {item.statBonus?.attack ? `攻+${item.statBonus.attack} ` : ''}
-                        {item.statBonus?.defense ? `防+${item.statBonus.defense} ` : ''}
-                        {item.statBonus?.maxHp ? `血+${item.statBonus.maxHp}` : ''}
-                        {!item.statBonus?.attack && !item.statBonus?.defense && !item.statBonus?.maxHp ? '无属性' : ''}
+                        {item.statBonus?.maxHp ? `血+${item.statBonus.maxHp} ` : ''}
+                        {!item.statBonus?.attack && !item.statBonus?.maxHp && '属性加成'}
                     </div>
                 </div>
             ) : (

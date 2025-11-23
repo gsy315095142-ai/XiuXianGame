@@ -1,8 +1,6 @@
-
-
 import React, { useEffect, useState } from 'react';
-import { Player, Enemy, Card, CardType } from '../types';
-import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN } from '../constants';
+import { Player, Enemy, Card, CardType, ElementType } from '../types';
+import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, createZeroElementStats } from '../constants';
 import { CardItem } from './CardItem';
 import { Button } from './Button';
 
@@ -20,11 +18,13 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [playerHp, setPlayerHp] = useState(initialPlayer.stats.hp);
   const [playerSpirit, setPlayerSpirit] = useState(initialPlayer.stats.spirit);
   const [playerBlock, setPlayerBlock] = useState(0);
+  const [playerElements, setPlayerElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
   
   const [enemyHp, setEnemyHp] = useState(initialEnemy.stats.hp);
   const [enemyBlock, setEnemyBlock] = useState(0);
-  // Enemy Spirit simplified: refreshes every turn just like player
   const [enemySpirit, setEnemySpirit] = useState(initialEnemy.stats.spirit);
+  // Enemy elements simplified: also refill full
+  const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
 
   const [deck, setDeck] = useState<Card[]>([...initialPlayer.deck].sort(() => Math.random() - 0.5));
   const [hand, setHand] = useState<Card[]>([]);
@@ -75,8 +75,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           switch (card.type) {
             case CardType.ATTACK:
                 let dmg = Math.max(0, card.value + initialPlayer.stats.attack);
-                
-                // Block Logic with Pierce check
                 let blocked = 0;
                 if (!isPierce) {
                     blocked = Math.min(dmg, enemyBlock);
@@ -85,7 +83,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 } else {
                     addLog('>>> 穿刺攻击！无视护盾！');
                 }
-                
                 setEnemyHp(prev => prev - dmg);
                 addLog(`你使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
@@ -109,8 +106,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           switch (card.type) {
             case CardType.ATTACK:
                 let dmg = Math.max(0, card.value + initialEnemy.stats.attack);
-                
-                // Block Logic with Pierce check
                 let blocked = 0;
                 if (!isPierce) {
                      blocked = Math.min(dmg, playerBlock);
@@ -119,7 +114,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 } else {
                      addLog('>>> 敌人穿刺攻击！无视你的护盾！');
                 }
-
                 setPlayerHp(prev => prev - dmg);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
@@ -170,7 +164,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const startPlayerTurn = () => {
     setTurn('PLAYER');
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
-    setPlayerBlock(0); // Reset block at start of turn (Slay the Spire style)
+    setPlayerElements({...initialPlayer.stats.elementalAffinities}); // Refill elements
+    setPlayerBlock(0);
     drawCards(DRAW_COUNT_PER_TURN); 
   };
 
@@ -178,7 +173,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     if (turn !== 'PLAYER') return;
     const card = hand[cardIndex];
 
-    // Check Level Requirement
     if (initialPlayer.level < (card.reqLevel || 1)) {
         addLog(`境界不足，无法使用此卡(需Lv.${card.reqLevel})`);
         return;
@@ -189,7 +183,19 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       return;
     }
 
+    // Check Element Cost
+    const currentElemVal = playerElements[card.element] || 0;
+    if (currentElemVal < card.elementCost) {
+        addLog(`${card.element}属性不足！需要 ${card.elementCost}，当前 ${currentElemVal}`);
+        return;
+    }
+
     setPlayerSpirit(prev => prev - card.cost);
+    setPlayerElements(prev => ({
+        ...prev,
+        [card.element]: prev[card.element] - card.elementCost
+    }));
+
     resolveCardEffect(card, 'PLAYER');
 
     const newHand = [...hand];
@@ -209,36 +215,39 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     if (enemyHp <= 0) return;
 
     setEnemySpirit(initialEnemy.stats.maxSpirit);
+    setEnemyElements({...initialEnemy.stats.elementalAffinities});
     setEnemyBlock(0);
     
     const enemyDeck = initialEnemy.deck && initialEnemy.deck.length > 0 ? initialEnemy.deck : [];
     
     if (enemyDeck.length > 0) {
-        // Try to play 1-2 cards
         let currentSpirit = initialEnemy.stats.maxSpirit; 
+        let currentElements = {...initialEnemy.stats.elementalAffinities};
         const maxActions = 2;
         let actions = 0;
 
         const performAction = () => {
             if (actions >= maxActions || currentSpirit <= 0) return;
 
-            const availableCards = enemyDeck.filter(c => c.cost <= currentSpirit);
+            // Filter cards that can be paid for
+            const availableCards = enemyDeck.filter(c => 
+                c.cost <= currentSpirit && (currentElements[c.element] || 0) >= c.elementCost
+            );
+
             if (availableCards.length > 0) {
                 const card = availableCards[Math.floor(Math.random() * availableCards.length)];
                 resolveCardEffect(card, 'ENEMY');
                 currentSpirit -= card.cost;
+                currentElements[card.element] -= card.elementCost;
+                setEnemyElements({...currentElements}); // Update UI state if we visualized enemy elements
                 actions++;
-            } else {
-                // Basic attack fallback if spirit allows, but usually we stop here
             }
         }
         
         performAction();
-        // Maybe do a second action if spirit allows
         if (currentSpirit > 0) performAction();
         
         if (actions === 0) {
-             // Fallback basic attack
              let dmg = Math.max(0, initialEnemy.stats.attack);
              const blocked = Math.min(dmg, playerBlock);
              dmg -= blocked;
@@ -248,7 +257,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         }
 
     } else {
-        // Fallback old logic
         let dmg = initialEnemy.stats.attack;
         const blockedDmg = Math.max(0, dmg - playerBlock);
         const blockUsed = dmg - blockedDmg;
@@ -321,32 +329,49 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         <div className="flex-1 bg-slate-900 p-4 flex flex-col justify-end relative overflow-hidden">
             
             {/* Player Stats Bar */}
-            <div className="absolute top-2 left-4 right-4 flex justify-between items-center bg-slate-800/50 p-2 rounded-lg backdrop-blur">
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col">
-                        <span className="text-xs text-emerald-400 font-bold">HP</span>
-                        <div className="w-32 h-3 bg-gray-700 rounded-full border border-gray-600 overflow-hidden relative">
-                             <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
-                             <span className="absolute inset-0 flex items-center justify-center text-[8px]">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
+            <div className="absolute top-2 left-4 right-4 bg-slate-800/80 p-2 rounded-lg backdrop-blur flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase">HP</span>
+                            <div className="w-32 h-3 bg-gray-700 rounded-full border border-gray-600 overflow-hidden relative">
+                                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
+                                <span className="absolute inset-0 flex items-center justify-center text-[8px]">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
+                            </div>
                         </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-blue-400 font-bold uppercase">Spirit</span>
+                            <div className="flex gap-1">
+                                {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
+                                    <div key={i} className={`w-3 h-3 rounded-full border border-blue-400 ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_5px_blue]' : 'bg-transparent'}`}></div>
+                                ))}
+                            </div>
+                        </div>
+                        {playerBlock > 0 && (
+                            <div className="flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/50 shadow-lg">
+                                🛡️ {playerBlock}
+                            </div>
+                        )}
                     </div>
-                    <div className="flex flex-col">
-                        <span className="text-xs text-blue-400 font-bold">神识</span>
-                        <div className="flex gap-1">
-                            {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
-                                <div key={i} className={`w-3 h-3 rounded-full border border-blue-400 ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_5px_blue]' : 'bg-transparent'}`}></div>
-                            ))}
-                        </div>
+                    <div className="text-xs text-slate-500">
+                        牌库: {deck.length} | 弃牌: {discardPile.length}
                     </div>
-                    {playerBlock > 0 && (
-                        <div className="flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/50 shadow-lg">
-                            🛡️ {playerBlock}
-                        </div>
-                    )}
                 </div>
-                
-                <div className="text-xs text-slate-500">
-                    牌库: {deck.length} | 弃牌: {discardPile.length}
+
+                {/* Elemental Pool Display */}
+                <div className="flex gap-2 overflow-x-auto pb-1 items-center">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase shrink-0">五行:</span>
+                    {Object.entries(playerElements).map(([elem, val]) => {
+                        const v = val as number;
+                        if (v <= 0 && initialPlayer.stats.elementalAffinities[elem as ElementType] <= 0) return null; // Hide totally irrelevant elements
+                        const config = ELEMENT_CONFIG[elem as ElementType];
+                        return (
+                            <div key={elem} className={`flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-600 ${config.bg} bg-opacity-50 min-w-[30px] justify-center`}>
+                                <span className="text-xs">{config.icon}</span>
+                                <span className={`text-xs font-bold ${config.color}`}>{v}</span>
+                            </div>
+                        )
+                    })}
                 </div>
             </div>
 
@@ -359,6 +384,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                                 card={card} 
                                 isPlayable={turn === 'PLAYER' && playerSpirit >= card.cost}
                                 playerLevel={initialPlayer.level}
+                                currentElement={playerElements[card.element]}
                                 onClick={() => playCard(idx)}
                              />
                         </div>

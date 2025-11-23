@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot } from './types';
-import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES } from './constants';
+import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType } from './types';
+import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
 import { CombatView } from './components/CombatView';
@@ -169,14 +168,27 @@ export default function App() {
       setPlayer(prev => {
           if (!prev) return null;
           
-          // Recalculate base stats adjustment
-          // (Simplified: just add diff. Ideally, recalc total stats from base + all items)
-          
           const attackDiff = (item.statBonus?.attack || 0) - (existingItem?.statBonus?.attack || 0);
           const defenseDiff = (item.statBonus?.defense || 0) - (existingItem?.statBonus?.defense || 0);
           const maxHpDiff = (item.statBonus?.maxHp || 0) - (existingItem?.statBonus?.maxHp || 0);
           const maxSpiritDiff = (item.statBonus?.maxSpirit || 0) - (existingItem?.statBonus?.maxSpirit || 0);
           const speedDiff = (item.statBonus?.speed || 0) - (existingItem?.statBonus?.speed || 0);
+
+          // Handle Element Affinities Merging
+          const newAffinities = { ...prev.stats.elementalAffinities };
+          
+          // Remove old stats
+          if (existingItem?.statBonus?.elementalAffinities) {
+               Object.entries(existingItem.statBonus.elementalAffinities).forEach(([k, v]) => {
+                   newAffinities[k as ElementType] -= (v as number);
+               });
+          }
+          // Add new stats
+          if (item.statBonus?.elementalAffinities) {
+              Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
+                   newAffinities[k as ElementType] = (newAffinities[k as ElementType] || 0) + (v as number);
+               });
+          }
 
           return {
             ...prev,
@@ -187,6 +199,7 @@ export default function App() {
                 maxHp: prev.stats.maxHp + maxHpDiff,
                 maxSpirit: prev.stats.maxSpirit + maxSpiritDiff,
                 speed: prev.stats.speed + speedDiff,
+                elementalAffinities: newAffinities
             },
             equipment: {
                 ...prev.equipment,
