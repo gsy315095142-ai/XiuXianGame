@@ -66,6 +66,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   
   const combatEndedRef = useRef(false);
   
+  // Define element groups for rendering layout
+  const primaryElements = [ElementType.METAL, ElementType.WOOD, ElementType.WATER, ElementType.FIRE, ElementType.EARTH];
+  const secondaryElements = [ElementType.LIGHT, ElementType.DARK, ElementType.WIND, ElementType.THUNDER, ElementType.ICE, ElementType.SWORD];
+
   // Helper to add logs
   const addLog = (msg: string) => {
     setCombatLog(prev => [...prev.slice(-4), msg]);
@@ -423,6 +427,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       }
   };
 
+  const renderElementBadge = (elem: ElementType, val: number) => {
+      const config = ELEMENT_CONFIG[elem];
+      return (
+          <div key={elem} className={`flex items-center gap-1 px-2 py-0.5 rounded border border-slate-600/50 ${config.bg} ${val === 0 ? 'opacity-40 grayscale' : 'bg-opacity-60'}`} title={`${elem}灵力`}>
+              <span className="text-[10px]">{config.icon}</span>
+              <span className={`text-xs font-bold ${val > 0 ? config.color : 'text-gray-500'}`}>{val}</span>
+          </div>
+      );
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
         
@@ -583,7 +597,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         <div className="flex-1 bg-gradient-to-t from-slate-900 to-slate-800 relative overflow-hidden flex flex-col justify-end">
             
             {/* Hand Cards Area - Middle Lower */}
-            <div className="flex-1 flex items-end justify-center pb-36 overflow-hidden z-10 pointer-events-none w-full">
+            {/* Moved up by increasing bottom padding to pb-52 */}
+            <div className="flex-1 flex items-end justify-center pb-52 overflow-hidden z-10 pointer-events-none w-full">
                  <div className="flex gap-3 px-4 pointer-events-auto items-end h-[240px] w-full max-w-[95%] overflow-x-auto no-scrollbar justify-center">
                     {hand.map((card, idx) => (
                         <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-4 transition-transform duration-200 flex-shrink-0 mb-2">
@@ -600,7 +615,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             </div>
 
             {/* Stats Panel - Bottom Center (Redesigned) */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-3xl flex flex-col items-center gap-3 z-20 pointer-events-none">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-full max-w-3xl flex flex-col items-center gap-2 z-20 pointer-events-none">
                 
                 {/* Avatar & HP - Centered */}
                 <div className="flex items-center gap-4 bg-slate-900/90 px-6 py-2 rounded-full border border-slate-600 shadow-xl pointer-events-auto backdrop-blur-md">
@@ -631,7 +646,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 {/* Spirit & Elements - Centered below */}
                 <div className="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-xl backdrop-blur-sm border border-slate-700/50 pointer-events-auto">
                      {/* Spirit */}
-                     <div className="flex items-center gap-2 border-r border-slate-600/50 pr-4">
+                     <div className="flex items-center gap-2 border-r border-slate-600/50 pr-4 h-full">
                          <span className="text-[10px] text-blue-400 font-bold uppercase">神识</span>
                          <div className="flex gap-0.5">
                             {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
@@ -640,19 +655,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                          </div>
                      </div>
                      
-                     {/* Elements - Show ALL, even 0 */}
-                     <div className="flex gap-2 flex-wrap justify-center max-w-xl">
-                        {Object.entries(playerElements).map(([elem, val]) => {
-                            const v = val as number;
-                            // Removed the "if (v <= 0) return null;" check here
-                            const config = ELEMENT_CONFIG[elem as ElementType];
-                            return (
-                                <div key={elem} className={`flex items-center gap-1 px-2 py-0.5 rounded border border-slate-600/50 ${config.bg} ${v === 0 ? 'opacity-40 grayscale' : 'bg-opacity-60'}`} title={`${elem}灵力`}>
-                                    <span className="text-[10px]">{config.icon}</span>
-                                    <span className={`text-xs font-bold ${v > 0 ? config.color : 'text-gray-500'}`}>{v}</span>
-                                </div>
-                            )
-                        })}
+                     {/* Elements - Split into 2 Rows */}
+                     <div className="flex flex-col gap-1 items-center">
+                        <div className="flex gap-2">
+                            {primaryElements.map(elem => renderElementBadge(elem, playerElements[elem] || 0))}
+                        </div>
+                        <div className="flex gap-2">
+                            {secondaryElements.map(elem => renderElementBadge(elem, playerElements[elem] || 0))}
+                        </div>
                      </div>
                 </div>
             </div>
