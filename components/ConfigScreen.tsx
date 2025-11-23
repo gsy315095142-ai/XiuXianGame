@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot } from '../types';
 import { SLOT_NAMES } from '../constants';
 import { Button } from './Button';
@@ -30,7 +31,8 @@ const createEmptyCard = (): Card => ({
   value: 5,
   description: '效果...',
   rarity: 'common',
-  reqLevel: 1
+  reqLevel: 1,
+  tags: []
 });
 
 const createEmptyEnemy = (): EnemyTemplate => ({
@@ -46,9 +48,48 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
   
   // Sub-tab for Items
   const [itemSubTab, setItemSubTab] = useState<ItemType>('EQUIPMENT');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     onSave(localConfig);
+  };
+
+  const handleExport = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localConfig, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "cultivation_config.json");
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const importedConfig = JSON.parse(event.target?.result as string);
+              // Basic validation check
+              if (!importedConfig.realms || !importedConfig.items || !importedConfig.cards) {
+                  alert("无效的配置文件格式！");
+                  return;
+              }
+              setLocalConfig(importedConfig);
+              alert("配置导入成功！请记得点击保存。");
+          } catch (err) {
+              alert("读取文件失败，请检查文件是否为有效的JSON格式。");
+          }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // Reset file input
   };
 
   const renderTabButton = (id: typeof activeTab, label: string) => (
@@ -67,9 +108,22 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
   return (
     <div className="min-h-screen bg-[#1a1a1a] p-4 md:p-8 flex items-center justify-center">
       <div className="w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
+        <div className="p-4 bg-slate-800 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center shrink-0 gap-4">
           <h2 className="text-2xl font-bold text-emerald-100">游戏配置</h2>
-          <div className="flex gap-2">
+          
+          <div className="flex gap-2 flex-wrap justify-center">
+            {/* Hidden File Input */}
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".json" 
+                onChange={handleFileChange} 
+            />
+            
+            <Button variant="outline" size="sm" onClick={handleExport}>📤 导出配置</Button>
+            <Button variant="outline" size="sm" onClick={handleImportClick}>📥 导入配置</Button>
+            <div className="w-px h-8 bg-slate-600 mx-2 hidden md:block"></div>
             <Button variant="secondary" onClick={onCancel}>取消</Button>
             <Button variant="primary" onClick={handleSave}>保存配置</Button>
           </div>
@@ -518,6 +572,26 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                 newCards[idx].value = parseInt(e.target.value);
                                 setLocalConfig({...localConfig, cards: newCards});
                             }} className="w-10 bg-slate-900 rounded px-1" />
+                        </div>
+                         {/* Pierce Toggle */}
+                         <div className="flex items-center gap-1 ml-auto">
+                            <label className="flex items-center gap-1 cursor-pointer select-none">
+                                <input 
+                                    type="checkbox" 
+                                    checked={card.tags?.includes('PIERCE') || false}
+                                    onChange={(e) => {
+                                        const newCards = [...localConfig.cards];
+                                        if (e.target.checked) {
+                                            newCards[idx].tags = [...(newCards[idx].tags || []), 'PIERCE'];
+                                        } else {
+                                            newCards[idx].tags = (newCards[idx].tags || []).filter(t => t !== 'PIERCE');
+                                        }
+                                        setLocalConfig({...localConfig, cards: newCards});
+                                    }}
+                                    className="rounded bg-slate-700 border-slate-500"
+                                />
+                                <span className={card.tags?.includes('PIERCE') ? 'text-amber-400 font-bold' : 'text-slate-500'}>穿刺</span>
+                            </label>
                         </div>
                         </div>
                         <textarea 

@@ -1,4 +1,5 @@
 
+
 export enum GameView {
   START = 'START',
   CONFIG = 'CONFIG',
@@ -62,6 +63,7 @@ export interface Card {
   description: string;
   rarity: 'common' | 'rare' | 'epic';
   reqLevel: number;
+  tags?: string[]; // e.g., ['PIERCE']
 }
 
 export interface Stats {

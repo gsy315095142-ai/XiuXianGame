@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Card, CardType } from '../types';
 
@@ -28,6 +29,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
 
   const levelMet = playerLevel ? playerLevel >= card.reqLevel : true;
   const isDisabled = disabled || !levelMet;
+  const isPierce = card.tags?.includes('PIERCE');
 
   return (
     <div 
@@ -51,7 +53,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
       <div className="flex-grow flex items-center justify-center relative">
         {/* Placeholder for card art */}
         <div className={`text-4xl ${textColor[card.type]} opacity-80`}>
-            {card.type === CardType.ATTACK && '⚔️'}
+            {card.type === CardType.ATTACK && (isPierce ? '🏹' : '⚔️')}
             {card.type === CardType.DEFEND && '🛡️'}
             {card.type === CardType.HEAL && '💊'}
             {card.type === CardType.BUFF && '✨'}
@@ -64,8 +66,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
         )}
       </div>
 
-      <div className="text-xs text-center text-gray-300 leading-tight h-12 overflow-hidden flex items-center justify-center">
-        {card.description}
+      <div className="text-xs text-center text-gray-300 leading-tight h-12 overflow-hidden flex items-center justify-center flex-col">
+        {isPierce && <div className="text-[9px] text-amber-400 font-bold mb-0.5">[穿刺] 无视护盾</div>}
+        <div>{card.description}</div>
       </div>
 
       <div className="mt-1 flex justify-between items-center text-[10px] text-white/40 uppercase tracking-widest">

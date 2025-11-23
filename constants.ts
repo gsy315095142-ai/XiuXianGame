@@ -1,4 +1,5 @@
 
+
 import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot } from './types';
 
 export const MAX_HAND_SIZE = 10;
@@ -90,7 +91,19 @@ export const HEAL_SPELL: Card = {
   reqLevel: 2,
 };
 
-export const INITIAL_CARDS = [BASIC_STRIKE, BASIC_DEFEND, MEDITATE, FIREBALL, HEAL_SPELL];
+export const PIERCING_NEEDLE: Card = {
+    id: 'c_needle',
+    name: '破罡针',
+    cost: 2,
+    type: CardType.ATTACK,
+    value: 12,
+    description: '造成12点伤害，无视护盾',
+    rarity: 'rare',
+    reqLevel: 5,
+    tags: ['PIERCE']
+};
+
+export const INITIAL_CARDS = [BASIC_STRIKE, BASIC_DEFEND, MEDITATE, FIREBALL, HEAL_SPELL, PIERCING_NEEDLE];
 
 // Initial Equipment
 export const WOODEN_SWORD: Item = {

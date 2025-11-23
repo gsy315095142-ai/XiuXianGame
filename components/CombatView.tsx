@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { Player, Enemy, Card, CardType } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN } from '../constants';
@@ -68,14 +69,23 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   // Unified effect resolver
   const resolveCardEffect = (card: Card, source: 'PLAYER' | 'ENEMY') => {
+      const isPierce = card.tags?.includes('PIERCE');
+
       if (source === 'PLAYER') {
           switch (card.type) {
             case CardType.ATTACK:
                 let dmg = Math.max(0, card.value + initialPlayer.stats.attack);
-                // Enemy block
-                const blocked = Math.min(dmg, enemyBlock);
-                dmg -= blocked;
-                setEnemyBlock(prev => prev - blocked);
+                
+                // Block Logic with Pierce check
+                let blocked = 0;
+                if (!isPierce) {
+                    blocked = Math.min(dmg, enemyBlock);
+                    dmg -= blocked;
+                    setEnemyBlock(prev => prev - blocked);
+                } else {
+                    addLog('>>> 穿刺攻击！无视护盾！');
+                }
+                
                 setEnemyHp(prev => prev - dmg);
                 addLog(`你使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
@@ -99,9 +109,17 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           switch (card.type) {
             case CardType.ATTACK:
                 let dmg = Math.max(0, card.value + initialEnemy.stats.attack);
-                const blocked = Math.min(dmg, playerBlock);
-                dmg -= blocked;
-                setPlayerBlock(prev => prev - blocked);
+                
+                // Block Logic with Pierce check
+                let blocked = 0;
+                if (!isPierce) {
+                     blocked = Math.min(dmg, playerBlock);
+                     dmg -= blocked;
+                     setPlayerBlock(prev => prev - blocked);
+                } else {
+                     addLog('>>> 敌人穿刺攻击！无视你的护盾！');
+                }
+
                 setPlayerHp(prev => prev - dmg);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
                 break;
@@ -152,7 +170,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const startPlayerTurn = () => {
     setTurn('PLAYER');
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
-    setPlayerBlock(0); // Reset block at start of turn
+    setPlayerBlock(0); // Reset block at start of turn (Slay the Spire style)
     drawCards(DRAW_COUNT_PER_TURN); 
   };
 
@@ -255,7 +273,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         Lv.{initialEnemy.level}
                     </div>
                     {enemyBlock > 0 && (
-                        <div className="absolute -top-2 -right-8 flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/80 z-20">
+                        <div className="absolute -top-2 -right-8 flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/80 z-20 shadow-lg">
                             🛡️ {enemyBlock}
                         </div>
                     )}
@@ -321,7 +339,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         </div>
                     </div>
                     {playerBlock > 0 && (
-                        <div className="flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/50">
+                        <div className="flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/50 shadow-lg">
                             🛡️ {playerBlock}
                         </div>
                     )}
