@@ -501,10 +501,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         <div className="flex-1 bg-gradient-to-t from-slate-900 to-slate-800 relative overflow-hidden flex flex-col justify-end">
             
             {/* Hand Cards Area - Middle Lower */}
-            <div className="flex-1 flex items-end justify-center pb-32 overflow-visible z-10 pointer-events-none">
-                 <div className="flex -space-x-8 hover:space-x-2 transition-all duration-300 px-10 pointer-events-auto items-end h-[220px]">
+            <div className="flex-1 flex items-end justify-center pb-36 overflow-hidden z-10 pointer-events-none w-full">
+                 <div className="flex gap-3 px-4 pointer-events-auto items-end h-[240px] w-full max-w-[95%] overflow-x-auto no-scrollbar justify-center">
                     {hand.map((card, idx) => (
-                        <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-10 transition-transform origin-bottom hover:z-20 hover:scale-110">
+                        <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-4 transition-transform duration-200 flex-shrink-0 mb-2">
                              <CardItem 
                                 card={card} 
                                 isPlayable={turn === 'PLAYER' && playerSpirit >= card.cost}
