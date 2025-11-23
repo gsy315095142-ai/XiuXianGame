@@ -72,7 +72,7 @@ export const generateSkillBook = (level: number, element: ElementType): Item => 
         id: `book_${element}_${level}_${Date.now()}_${Math.floor(Math.random()*1000)}`,
         name: `《${element}·${realm.name}心法》`,
         type: 'CONSUMABLE',
-        description: `使用后领悟一张${realm.name}${element}属性卡牌。`,
+        description: `使用后随机领悟一张${realm.name}${element}属性卡牌。`,
         rarity: 'rare',
         reqLevel: realm.rangeStart,
         statBonus: { elementalAffinities: createZeroElementStats() }
@@ -212,6 +212,7 @@ const MANUAL_ITEMS = [WOODEN_SWORD, IRON_SWORD, LEATHER_ARMOR, JADE_PENDANT];
 
 const GENERATED_CARDS: Card[] = [];
 const GENERATED_ITEMS: Item[] = [];
+const GENERATED_BOOKS: Item[] = [];
 
 const REALMS_GEN_CONFIG = [
     { name: '炼气', level: 1, limit: 10, prefix: '凡品' },
@@ -323,11 +324,16 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
             reqLevel: realm.level
         });
     }
+
+    // 3. Generate Skill Books (One for each element for this realm)
+    Object.values(ElementType).forEach(elem => {
+        GENERATED_BOOKS.push(generateSkillBook(realm.level, elem));
+    });
 });
 
 // Combine Cards and Items FIRST
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
-export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS];
+export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS];
 
 // --- Procedural Generation: Enemies ---
 
@@ -481,8 +487,8 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   // But also include low level enemies if no high level ones exist yet, or just strictly check minPlayerLevel
   // The current logic uses minPlayerLevel. Let's make it a bit more dynamic.
   
-  // Filter enemies that have minPlayerLevel <= playerLevel + 2 (so you can fight slightly stronger ones)
-  // And minPlayerLevel >= playerLevel - 10 (so you don't fight level 1 boars at level 50)
+  // Filter enemies that have minPlayerLevel <= playerLevel + 1 (so you can fight slightly stronger ones)
+  // And minPlayerLevel >= playerLevel - 15 (so you don't fight level 1 boars at level 50)
   
   let possibleEnemies = config.enemies.filter(e => 
       e.minPlayerLevel <= playerLevel + 1 && 

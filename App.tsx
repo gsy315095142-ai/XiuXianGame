@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -93,7 +95,7 @@ export default function App() {
     }
   };
 
-  const handleCombatWin = (rewards: { exp: number, gold: number }) => {
+  const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
     setPlayer(prev => {
         if (!prev) return null;
         const newExp = prev.exp + rewards.exp;
@@ -103,11 +105,11 @@ export default function App() {
 
         if (levelUp) {
             const newLevel = prev.level + 1;
-            const realmName = getRealmName(newLevel, config.realms);
-            alert(`恭喜！你的境界突破到了 ${realmName}!`);
-
             const currentRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd);
             const nextMaxExp = currentRealm ? currentRealm.expReq : Math.floor(prev.maxExp * 1.5);
+            
+            // NOTE: We don't alert here anymore to not interrupt the Combat Result Modal flow, 
+            // the level up will be visible on the Home Screen.
 
             updatedPlayer = {
                 ...updatedPlayer,
@@ -129,22 +131,15 @@ export default function App() {
         }
 
         updatedPlayer.gold += rewards.gold;
-
-        // Drop Logic: Skill Book (Heart Method Manual)
-        // 30% chance to get a manual
-        if (Math.random() < 0.3) {
-            const elements = Object.values(ElementType);
-            const randElem = elements[Math.floor(Math.random() * elements.length)];
-            const book = generateSkillBook(updatedPlayer.level, randElem);
-            updatedPlayer.inventory = [...updatedPlayer.inventory, book];
-            setTimeout(() => alert(`战斗胜利！你意外获得了一本: ${book.name}`), 500);
+        if (rewards.drops.length > 0) {
+            updatedPlayer.inventory = [...updatedPlayer.inventory, ...rewards.drops];
         }
 
         return updatedPlayer;
     });
     
     if (activeEnemy?.name.includes('领主') || (currentNode !== null && currentNode === mapNodes.length - 1)) {
-         alert("恭喜你通过了本次试炼！");
+         // Boss clear
          setView(GameView.HOME);
     } else {
         setView(GameView.ADVENTURE);
@@ -153,7 +148,7 @@ export default function App() {
   };
 
   const handleCombatLose = () => {
-    alert("你被打败了！不得不狼狈逃回洞府...");
+    // Alert logic handled in CombatView modal now, only state update here
     setPlayer(prev => prev ? ({
         ...prev,
         stats: { ...prev.stats, hp: Math.floor(prev.stats.maxHp * 0.1) } // Return with 10% hp
@@ -205,8 +200,6 @@ export default function App() {
               alert(`你研读了${item.name}，顿悟了招式: [${newCard.name}]！`);
           } else {
               alert(`你研读了${item.name}，却发现书中记载的法术早已失传... (配置中无对应卡牌)`);
-              // Still consume it? Or keep it? Let's consume it to avoid frustration loop, but maybe refund gold? 
-              // For now just consume.
               setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
           }
       } else {

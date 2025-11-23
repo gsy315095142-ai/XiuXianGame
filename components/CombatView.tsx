@@ -1,14 +1,15 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
-import { Player, Enemy, Card, CardType, ElementType } from '../types';
-import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG } from '../constants';
+import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
+import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook } from '../constants';
 import { CardItem } from './CardItem';
 import { Button } from './Button';
 
 interface CombatViewProps {
   player: Player;
   enemy: Enemy;
-  onWin: (rewards: { exp: number, gold: number }) => void;
+  onWin: (rewards: { exp: number, gold: number, drops: Item[] }) => void;
   onLose: () => void;
 }
 
@@ -44,6 +45,13 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       enemyHp: initialEnemy.stats.hp,
       enemyBlock: 0
   });
+
+  const [combatResult, setCombatResult] = useState<{
+      win: boolean;
+      rewards?: { exp: number; gold: number; drops: Item[] };
+  } | null>(null);
+  
+  const combatEndedRef = useRef(false);
   
   // Helper to add logs
   const addLog = (msg: string) => {
@@ -67,16 +75,41 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   // Win/Loss Check
   useEffect(() => {
-    // We check state here for final triggers, but logic mostly happens in refs/handlers
+    if (combatEndedRef.current) return;
+
     if (enemyHp <= 0) {
+      combatEndedRef.current = true;
       addLog('敌人倒下了！胜利！');
-      setTimeout(() => onWin({ exp: initialEnemy.dropExp, gold: initialEnemy.dropGold }), 1500);
+      
+      // Calculate Rewards Locally
+      const drops: Item[] = [];
+      // 30% chance to drop Skill Book
+      if (Math.random() < 0.3) {
+          const elements = Object.values(ElementType);
+          const randElem = elements[Math.floor(Math.random() * elements.length)];
+          const book = generateSkillBook(initialPlayer.level, randElem);
+          drops.push(book);
+      }
+
+      const rewards = {
+          exp: initialEnemy.dropExp,
+          gold: initialEnemy.dropGold,
+          drops: drops
+      };
+
+      setTimeout(() => {
+          setCombatResult({ win: true, rewards });
+      }, 1000);
     }
+
     if (playerHp <= 0) {
+      combatEndedRef.current = true;
       addLog('你力竭倒下了...');
-      setTimeout(onLose, 1500);
+      setTimeout(() => {
+          setCombatResult({ win: false });
+      }, 1000);
     }
-  }, [enemyHp, playerHp, initialEnemy, onWin, onLose]);
+  }, [enemyHp, playerHp, initialEnemy, initialPlayer.level]);
 
   // --- Mechanics ---
 
@@ -184,11 +217,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   };
 
   const startPlayerTurn = () => {
+    if (combatEndedRef.current) return;
     setTurn('PLAYER');
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
     setPlayerElements({...initialPlayer.stats.elementalAffinities}); // Refill elements
     
-    // Reset Player Block at start of turn (Standard RPG rule? Or keep it? Usually block expires)
+    // Reset Player Block at start of turn
     statsRef.current.playerBlock = 0;
     setPlayerBlock(0);
     
@@ -196,7 +230,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   };
 
   const playCard = (cardIndex: number) => {
-    if (turn !== 'PLAYER') return;
+    if (turn !== 'PLAYER' || combatEndedRef.current) return;
     const card = hand[cardIndex];
 
     if (initialPlayer.level < (card.reqLevel || 1)) {
@@ -231,6 +265,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   };
 
   const endTurn = () => {
+    if (combatEndedRef.current) return;
     setTurn('ENEMY');
     setTimeout(executeEnemyTurn, 1000);
   };
@@ -238,7 +273,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // --- Enemy Mechanics ---
 
   const executeEnemyTurn = async () => {
-    if (statsRef.current.enemyHp <= 0) return;
+    if (combatEndedRef.current || statsRef.current.enemyHp <= 0) return;
 
     // Reset Enemy Block at start of their turn
     statsRef.current.enemyBlock = 0;
@@ -273,6 +308,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
     if (actionsToPlay.length > 0) {
         for (const card of actionsToPlay) {
+            if (combatEndedRef.current) break;
             // 1. Show Card
             setActiveEnemyCard(card);
             await new Promise(r => setTimeout(r, 2000)); // Display time: 2 seconds
@@ -286,34 +322,101 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         }
     } else {
         // Fallback Attack
-        let dmg = initialEnemy.stats.attack;
-        const blockedDmg = Math.min(dmg, statsRef.current.playerBlock);
-        dmg -= blockedDmg;
-        
-        statsRef.current.playerBlock -= blockedDmg;
-        setPlayerBlock(statsRef.current.playerBlock);
-        
-        statsRef.current.playerHp -= dmg;
-        setPlayerHp(statsRef.current.playerHp);
-        
-        addLog(`${initialEnemy.name} 猛扑过来，造成 ${dmg} 伤害!`);
-        await new Promise(r => setTimeout(r, 1000));
+        if (!combatEndedRef.current) {
+            let dmg = initialEnemy.stats.attack;
+            const blockedDmg = Math.min(dmg, statsRef.current.playerBlock);
+            dmg -= blockedDmg;
+            
+            statsRef.current.playerBlock -= blockedDmg;
+            setPlayerBlock(statsRef.current.playerBlock);
+            
+            statsRef.current.playerHp -= dmg;
+            setPlayerHp(statsRef.current.playerHp);
+            
+            addLog(`${initialEnemy.name} 猛扑过来，造成 ${dmg} 伤害!`);
+            await new Promise(r => setTimeout(r, 1000));
+        }
     }
 
     startPlayerTurn();
   };
 
+  const handleModalConfirm = () => {
+      if (combatResult?.win && combatResult.rewards) {
+          onWin(combatResult.rewards);
+      } else {
+          onLose();
+      }
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
         
-        {/* Overlay: Active Enemy Card */}
+        {/* Active Enemy Card (No Backdrop, Floating) */}
         {activeEnemyCard && (
-            <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-                <div className="transform scale-125 shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+            <div className="absolute inset-0 z-[40] flex items-center justify-center pointer-events-none">
+                <div className="transform scale-125 shadow-[0_0_50px_rgba(220,38,38,0.5)] animate-bounce-slight pointer-events-auto">
                     <CardItem card={activeEnemyCard} isPlayable={false} />
-                    <div className="text-center mt-4 text-2xl font-bold text-red-500 animate-pulse text-shadow-lg">
+                    <div className="text-center mt-4 text-2xl font-bold text-red-500 text-shadow-lg bg-black/50 px-4 py-1 rounded">
                         {initialEnemy.name} 使用了这张卡!
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* Combat Result Modal */}
+        {combatResult && (
+            <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-slate-900 border-2 border-emerald-600 rounded-xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(5,150,105,0.4)] flex flex-col items-center">
+                    <h2 className={`text-4xl font-bold mb-6 ${combatResult.win ? 'text-emerald-400' : 'text-red-500'}`}>
+                        {combatResult.win ? '战斗胜利' : '战斗失败'}
+                    </h2>
+                    
+                    {combatResult.win && combatResult.rewards && (
+                        <div className="w-full space-y-4 mb-8">
+                             <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                                <h3 className="text-slate-400 font-bold mb-2 border-b border-slate-600 pb-1">获得奖励</h3>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span>✨ 修为经验</span>
+                                    <span className="font-mono text-emerald-300">+{combatResult.rewards.exp}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span>💎 灵石</span>
+                                    <span className="font-mono text-yellow-300">+{combatResult.rewards.gold}</span>
+                                </div>
+                             </div>
+
+                             {combatResult.rewards.drops.length > 0 && (
+                                 <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                                    <h3 className="text-slate-400 font-bold mb-2 border-b border-slate-600 pb-1">战利品</h3>
+                                    <div className="space-y-2">
+                                        {combatResult.rewards.drops.map((item, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 flex items-center justify-center rounded bg-slate-700 border border-slate-600 text-xs`}>
+                                                    {item.type === 'CONSUMABLE' ? '📚' : '🎁'}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className={`text-sm font-bold ${item.rarity === 'rare' ? 'text-blue-300' : 'text-white'}`}>{item.name}</div>
+                                                    <div className="text-[10px] text-slate-500 truncate">{item.description}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                 </div>
+                             )}
+                        </div>
+                    )}
+
+                    {!combatResult.win && (
+                        <div className="text-slate-400 mb-8 text-center">
+                            你身受重伤，不得不逃回洞府休养生息...<br/>
+                            <span className="text-xs text-red-500 mt-2 block">损失了部分当前生命值</span>
+                        </div>
+                    )}
+
+                    <Button onClick={handleModalConfirm} size="lg" className="w-full">
+                        {combatResult.win ? '收入囊中' : '狼狈逃窜'}
+                    </Button>
                 </div>
             </div>
         )}
