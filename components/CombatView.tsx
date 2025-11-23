@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook, getRealmName } from '../constants';
@@ -14,6 +13,13 @@ interface CombatViewProps {
 }
 
 type Turn = 'PLAYER' | 'ENEMY';
+type VfxType = 'SLASH' | 'HEAL' | 'SHIELD' | 'BUFF';
+
+interface VisualEffectState {
+  id: number;
+  type: VfxType;
+  target: 'PLAYER' | 'ENEMY';
+}
 
 export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, enemy: initialEnemy, onWin, onLose }) => {
   // Combat State
@@ -42,6 +48,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // UI State for Enemy Move
   const [activeEnemyCard, setActiveEnemyCard] = useState<Card | null>(null);
   
+  // VFX State
+  const [activeVfx, setActiveVfx] = useState<VisualEffectState | null>(null);
+
   // Logic Refs (Source of Truth for async sequences)
   const statsRef = useRef({
       playerHp: initialPlayer.stats.hp,
@@ -115,6 +124,35 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     }
   }, [enemyHp, playerHp, initialEnemy, initialPlayer.level]);
 
+  // --- VFX Helper ---
+  const triggerVfx = (cardType: CardType, caster: 'PLAYER' | 'ENEMY') => {
+      let type: VfxType = 'BUFF';
+      let target: 'PLAYER' | 'ENEMY' = caster;
+
+      switch (cardType) {
+          case CardType.ATTACK:
+              type = 'SLASH';
+              target = caster === 'PLAYER' ? 'ENEMY' : 'PLAYER';
+              break;
+          case CardType.HEAL:
+              type = 'HEAL';
+              target = caster;
+              break;
+          case CardType.DEFEND:
+              type = 'SHIELD';
+              target = caster;
+              break;
+          case CardType.BUFF:
+          case CardType.GROWTH:
+              type = 'BUFF';
+              target = caster;
+              break;
+      }
+
+      setActiveVfx({ id: Date.now(), type, target });
+      setTimeout(() => setActiveVfx(null), 800); // Clear effect after animation
+  };
+
   // --- Mechanics ---
 
   // Unified effect resolver
@@ -156,13 +194,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 }
                 break;
             case CardType.GROWTH:
-                // Increase MAX limit for this battle
                 setPlayerMaxElements(prev => {
                     const newMax = { ...prev };
                     newMax[card.element] = (newMax[card.element] || 0) + card.value;
                     return newMax;
                 });
-                // Also recover that amount immediately? Or just increase Cap and Recover equal to value
                 setPlayerElements(prev => {
                     const newElems = { ...prev };
                     newElems[card.element] = (newElems[card.element] || 0) + card.value;
@@ -280,7 +316,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         [card.element]: prev[card.element] - card.elementCost
     }));
 
-    resolveCardEffect(card, 'PLAYER');
+    triggerVfx(card.type, 'PLAYER');
+    
+    // Slight delay for damage number to appear after effect starts
+    setTimeout(() => {
+        resolveCardEffect(card, 'PLAYER');
+    }, 200);
 
     const newHand = [...hand];
     newHand.splice(cardIndex, 1);
@@ -337,27 +378,36 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             setActiveEnemyCard(card);
             await new Promise(r => setTimeout(r, 2000)); // Display time: 2 seconds
 
-            // 2. Resolve Effect
+            // 2. Trigger VFX
+            triggerVfx(card.type, 'ENEMY');
+
+            // 3. Resolve Effect
             resolveCardEffect(card, 'ENEMY');
             
-            // 3. Hide Card
+            // 4. Hide Card
             setActiveEnemyCard(null);
             await new Promise(r => setTimeout(r, 500)); // Pause between cards
         }
     } else {
         // Fallback Attack
         if (!combatEndedRef.current) {
-            let dmg = initialEnemy.stats.attack;
-            const blockedDmg = Math.min(dmg, statsRef.current.playerBlock);
-            dmg -= blockedDmg;
+            // Basic attack visual
+            triggerVfx(CardType.ATTACK, 'ENEMY');
             
-            statsRef.current.playerBlock -= blockedDmg;
-            setPlayerBlock(statsRef.current.playerBlock);
+            setTimeout(() => {
+                let dmg = initialEnemy.stats.attack;
+                const blockedDmg = Math.min(dmg, statsRef.current.playerBlock);
+                dmg -= blockedDmg;
+                
+                statsRef.current.playerBlock -= blockedDmg;
+                setPlayerBlock(statsRef.current.playerBlock);
+                
+                statsRef.current.playerHp -= dmg;
+                setPlayerHp(statsRef.current.playerHp);
+                
+                addLog(`${initialEnemy.name} 猛扑过来，造成 ${dmg} 伤害!`);
+            }, 200);
             
-            statsRef.current.playerHp -= dmg;
-            setPlayerHp(statsRef.current.playerHp);
-            
-            addLog(`${initialEnemy.name} 猛扑过来，造成 ${dmg} 伤害!`);
             await new Promise(r => setTimeout(r, 1000));
         }
     }
@@ -376,6 +426,20 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
         
+        {/* VFX Layer */}
+        {activeVfx && (
+             <div className="absolute inset-0 z-[60] pointer-events-none flex items-center justify-center">
+                 {/* 
+                    Positioning Logic:
+                    ENEMY target -> Top half (top-[20vh])
+                    PLAYER target -> Bottom half (bottom-[20vh])
+                 */}
+                 <div className={`absolute ${activeVfx.target === 'ENEMY' ? 'top-[20vh]' : 'bottom-[20vh]'}`}>
+                     <VisualEffect type={activeVfx.type} />
+                 </div>
+             </div>
+        )}
+
         {/* Active Enemy Card (No Backdrop, Floating Below Button) */}
         {activeEnemyCard && (
             <div className="absolute top-[50vh] left-1/2 -translate-x-1/2 z-[40] pointer-events-none mt-8">
@@ -449,15 +513,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         <div className="h-[40vh] bg-[url('https://picsum.photos/seed/dungeon/1920/600')] bg-cover bg-center relative flex flex-col items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60"></div>
             
-            {/* Combat Log Overlay (Center Right) */}
-            <div className="absolute top-1/2 right-4 -translate-x-2 -translate-y-1/2 w-64 text-right z-10 pointer-events-none">
-                {combatLog.map((log, i) => (
-                    <div key={i} className="text-sm text-slate-300 drop-shadow-md animate-fade-in bg-black/30 p-1 mb-1 rounded inline-block">
-                        {log}
-                    </div>
-                ))}
-            </div>
-
             <div className="relative z-10 flex flex-col items-center animate-bounce-slight w-full max-w-md">
                 <div className="relative group">
                     <img src={initialEnemy.avatarUrl} className="w-28 h-28 rounded-full border-4 border-red-800 shadow-[0_0_20px_rgba(220,38,38,0.6)] transition-transform group-hover:scale-105" alt="Enemy" />
@@ -504,15 +559,24 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             </div>
         </div>
 
-        {/* Turn Indicator */}
-        <div className="absolute top-[38vh] left-1/2 -translate-x-1/2 z-20">
+        {/* Turn Indicator & Combat Log */}
+        <div className="absolute top-[38vh] left-1/2 -translate-x-1/2 z-20 flex items-center">
              <div className={`
-                    px-8 py-2 rounded-full font-bold text-lg border-2 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex items-center gap-2
+                    px-8 py-2 rounded-full font-bold text-lg border-2 shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex items-center gap-2 whitespace-nowrap
                     ${turn === 'PLAYER' ? 'bg-emerald-600 border-emerald-400 text-white scale-110' : 'bg-red-900 border-red-700 text-gray-300'}
                 `}>
                     {turn === 'PLAYER' ? '🟢 你的回合' : '🔴 敌方回合'}
                     {turn === 'PLAYER' && <Button size="sm" variant="danger" onClick={endTurn} className="ml-4 py-0.5 text-xs">结束</Button>}
              </div>
+
+             {/* Combat Log to the right of the button */}
+             <div className="absolute left-full ml-6 w-72 text-left pointer-events-none">
+                {combatLog.slice().reverse().map((log, i) => (
+                    <div key={i} className={`text-sm drop-shadow-md animate-fade-in bg-black/50 p-1.5 mb-1 rounded backdrop-blur-sm border-l-2 ${i === 0 ? 'text-white border-emerald-400 font-bold scale-105' : 'text-slate-400 border-transparent'}`}>
+                        {log}
+                    </div>
+                ))}
+            </div>
         </div>
 
         {/* Bottom: Player Area */}
@@ -576,16 +640,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                          </div>
                      </div>
                      
-                     {/* Elements */}
-                     <div className="flex gap-2 flex-wrap justify-center">
+                     {/* Elements - Show ALL, even 0 */}
+                     <div className="flex gap-2 flex-wrap justify-center max-w-xl">
                         {Object.entries(playerElements).map(([elem, val]) => {
                             const v = val as number;
-                            if (v <= 0) return null; // Hide if 0
+                            // Removed the "if (v <= 0) return null;" check here
                             const config = ELEMENT_CONFIG[elem as ElementType];
                             return (
-                                <div key={elem} className={`flex items-center gap-1 px-2 py-0.5 rounded border border-slate-600/50 ${config.bg} bg-opacity-60`} title={`${elem}灵力`}>
+                                <div key={elem} className={`flex items-center gap-1 px-2 py-0.5 rounded border border-slate-600/50 ${config.bg} ${v === 0 ? 'opacity-40 grayscale' : 'bg-opacity-60'}`} title={`${elem}灵力`}>
                                     <span className="text-[10px]">{config.icon}</span>
-                                    <span className={`text-xs font-bold ${config.color}`}>{v}</span>
+                                    <span className={`text-xs font-bold ${v > 0 ? config.color : 'text-gray-500'}`}>{v}</span>
                                 </div>
                             )
                         })}
@@ -594,6 +658,61 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             </div>
 
         </div>
+        
+        <style>{`
+          @keyframes slash {
+            0% { transform: scale(0.5) rotate(-45deg); opacity: 0; }
+            50% { transform: scale(1.5) rotate(0deg); opacity: 1; }
+            100% { transform: scale(1) rotate(45deg); opacity: 0; }
+          }
+          @keyframes floatUp {
+            0% { transform: translateY(0) scale(0.8); opacity: 0; }
+            20% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+            100% { transform: translateY(-60px) scale(1); opacity: 0; }
+          }
+          @keyframes shieldPulse {
+             0% { transform: scale(0.9); opacity: 0; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+             50% { transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+             100% { transform: scale(1); opacity: 0; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+          }
+          .animate-slash { animation: slash 0.5s ease-out forwards; }
+          .animate-heal { animation: floatUp 1.5s ease-out forwards; }
+          .animate-shield { animation: shieldPulse 0.8s ease-out forwards; }
+        `}</style>
     </div>
   );
+};
+
+// Sub-component for rendering visual effects
+const VisualEffect: React.FC<{ type: VfxType }> = ({ type }) => {
+    if (type === 'SLASH') {
+        return (
+            <div className="text-6xl text-red-500 font-bold animate-slash filter drop-shadow-[0_0_10px_rgba(220,38,38,0.8)]">
+                ⚔️ 斩!
+            </div>
+        );
+    }
+    if (type === 'HEAL') {
+        return (
+            <div className="relative">
+                 <div className="absolute -left-8 -top-4 text-4xl animate-heal animation-delay-100">💚</div>
+                 <div className="absolute left-0 top-0 text-5xl animate-heal">✨</div>
+                 <div className="absolute left-8 -top-8 text-4xl animate-heal animation-delay-200">➕</div>
+            </div>
+        );
+    }
+    if (type === 'SHIELD') {
+        return (
+            <div className="w-40 h-40 rounded-full border-4 border-blue-400 bg-blue-500/30 animate-shield shadow-[0_0_30px_blue]"></div>
+        );
+    }
+    if (type === 'BUFF') {
+         return (
+            <div className="relative">
+                 <div className="absolute -left-6 top-0 text-4xl animate-heal text-yellow-300">⬆️</div>
+                 <div className="absolute left-6 top-4 text-4xl animate-heal text-yellow-300 animation-delay-200">🔥</div>
+            </div>
+         );
+    }
+    return null;
 };
