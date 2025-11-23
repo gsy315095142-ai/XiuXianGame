@@ -384,12 +384,13 @@ export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_
 
 const GENERATED_ENEMIES: EnemyTemplate[] = [];
 
-// Config for enemy generation: 4 Realms x 10 Enemies
+// Config for enemy generation: 5 Realms x 10 Enemies
 const ENEMY_REALM_CONFIG = [
-    { name: '炼气', minLv: 1, maxLv: 9, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
-    { name: '筑基', minLv: 10, maxLv: 19, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
-    { name: '金丹', minLv: 20, maxLv: 29, hpRange: [800, 1500], atkRange: [40, 60], spirit: 40, prefix: ['三眼', '六臂', '吞天', '覆海', '裂地', '万古', '不灭', '修罗', '九幽', '太上'] },
-    { name: '元婴', minLv: 30, maxLv: 39, hpRange: [4000, 8000], atkRange: [80, 120], spirit: 100, prefix: ['洪荒', '混沌', '造化', '涅槃', '虚空', '星辰', '昊天', '元始', '寂灭', '无相'] },
+    { name: '炼气', minLv: 1, maxLv: 9, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, elementLimit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
+    { name: '筑基', minLv: 10, maxLv: 19, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, elementLimit: 20, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
+    { name: '金丹', minLv: 20, maxLv: 29, hpRange: [800, 1500], atkRange: [40, 60], spirit: 40, elementLimit: 50, prefix: ['三眼', '六臂', '吞天', '覆海', '裂地', '万古', '不灭', '修罗', '九幽', '太上'] },
+    { name: '元婴', minLv: 30, maxLv: 39, hpRange: [4000, 8000], atkRange: [80, 120], spirit: 100, elementLimit: 100, prefix: ['洪荒', '混沌', '造化', '涅槃', '虚空', '星辰', '昊天', '元始', '寂灭', '无相'] },
+    { name: '化神', minLv: 40, maxLv: 99, hpRange: [20000, 50000], atkRange: [200, 400], spirit: 200, elementLimit: 200, prefix: ['太古', '灭世', '诛仙', '神魔', '永恒'] },
 ];
 
 const ENEMY_BASE_NAMES = ['妖狼', '巨蟒', '魔猿', '剑修', '散人', '鬼王', '灵狐', '石魔', '花妖', '巨虫'];
@@ -431,7 +432,8 @@ ENEMY_REALM_CONFIG.forEach((config) => {
 
         const affs = createZeroElementStats();
         // Give them plenty of element affinity so they can cast cards
-        affs[mainElement] = 50 + (level * 10);
+        // Updated logic: use elementLimit from config
+        affs[mainElement] = randInt(Math.floor(config.elementLimit * 0.5), config.elementLimit);
         
         // Start deck with the signature attack card
         const deck: string[] = [primaryCardId];

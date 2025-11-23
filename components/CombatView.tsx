@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook, getRealmName } from '../constants';
@@ -161,8 +162,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                     newMax[card.element] = (newMax[card.element] || 0) + card.value;
                     return newMax;
                 });
-                // Also recover that amount immediately? Or just increase cap? 
-                // Let's increase Cap and Recover equal to value (so it's useful immediately)
+                // Also recover that amount immediately? Or just increase Cap and Recover equal to value
                 setPlayerElements(prev => {
                     const newElems = { ...prev };
                     newElems[card.element] = (newElems[card.element] || 0) + card.value;
@@ -376,12 +376,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
         
-        {/* Active Enemy Card (No Backdrop, Floating) */}
+        {/* Active Enemy Card (No Backdrop, Floating Below Button) */}
         {activeEnemyCard && (
-            <div className="absolute inset-0 z-[40] flex items-center justify-center pointer-events-none">
-                <div className="transform scale-125 shadow-[0_0_50px_rgba(220,38,38,0.5)] animate-bounce-slight pointer-events-auto">
+            <div className="absolute top-[50vh] left-1/2 -translate-x-1/2 z-[40] pointer-events-none mt-8">
+                <div className="transform scale-110 shadow-[0_0_50px_rgba(220,38,38,0.5)] animate-bounce-slight pointer-events-auto">
                     <CardItem card={activeEnemyCard} isPlayable={false} />
-                    <div className="text-center mt-4 text-2xl font-bold text-red-500 text-shadow-lg bg-black/50 px-4 py-1 rounded">
+                    <div className="text-center mt-4 text-xl font-bold text-red-500 text-shadow-lg bg-black/50 px-4 py-1 rounded whitespace-nowrap">
                         {initialEnemy.name} 使用了这张卡!
                     </div>
                 </div>
@@ -535,66 +535,64 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 </div>
             </div>
 
-            {/* Stats Panel - Bottom Center */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-slate-900/95 border border-slate-600 rounded-2xl p-4 flex flex-col md:flex-row gap-6 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] z-20 backdrop-blur-md items-center justify-between">
+            {/* Stats Panel - Bottom Center (Redesigned) */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-3xl flex flex-col items-center gap-3 z-20 pointer-events-none">
                 
-                {/* Left: Avatar & HP & Block */}
-                <div className="flex items-center gap-4 w-full md:w-1/3">
-                    <div className="relative shrink-0">
-                        <img src={initialPlayer.avatarUrl} alt="Player" className="w-14 h-14 rounded-full border-2 border-emerald-500 shadow-lg object-cover" />
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-900 text-[9px] px-2 rounded border border-emerald-600 whitespace-nowrap text-emerald-200 font-bold">
+                {/* Avatar & HP - Centered */}
+                <div className="flex items-center gap-4 bg-slate-900/90 px-6 py-2 rounded-full border border-slate-600 shadow-xl pointer-events-auto backdrop-blur-md">
+                     {/* Avatar + Level */}
+                     <div className="relative shrink-0">
+                         <img src={initialPlayer.avatarUrl} alt="Player" className="w-14 h-14 rounded-full border-2 border-emerald-500 shadow-lg object-cover" />
+                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-900 text-[9px] px-2 rounded border border-emerald-600 whitespace-nowrap text-emerald-200 font-bold">
                             {getRealmName(initialPlayer.level)}
-                        </div>
-                    </div>
-                    
-                    <div className="flex flex-col gap-1 flex-1">
-                        <div className="flex justify-between items-end">
-                            <span className="text-xs text-emerald-400 font-bold uppercase">生命值</span>
-                            <span className="text-xs text-slate-400">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
-                        </div>
-                        <div className="h-4 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
-                            <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
-                        </div>
-                        {playerBlock > 0 && (
-                            <div className="flex items-center gap-1 text-blue-300 font-bold text-xs">
-                                🛡️ 护盾: {playerBlock}
-                            </div>
-                        )}
-                    </div>
+                         </div>
+                     </div>
+                     {/* HP Bar */}
+                     <div className="flex flex-col gap-1 w-48">
+                         <div className="flex justify-between items-end text-xs font-bold">
+                            <span className="text-emerald-400">HP</span>
+                            <span className="text-slate-300">{Math.max(0, playerHp)} / {initialPlayer.stats.maxHp}</span>
+                         </div>
+                         <div className="h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
+                             <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
+                         </div>
+                         {playerBlock > 0 && (
+                             <div className="text-blue-300 text-[10px] font-bold mt-0.5 flex items-center gap-1">
+                                🛡️ 护盾 {playerBlock}
+                             </div>
+                         )}
+                     </div>
                 </div>
 
-                {/* Center: Spirit */}
-                <div className="flex flex-col items-center gap-1 w-full md:w-1/3 border-x border-slate-700/50 px-4">
-                     <span className="text-xs text-blue-400 font-bold uppercase">神识 (Mana)</span>
-                     <div className="flex flex-wrap justify-center gap-1">
-                        {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
-                            <div key={i} className={`w-3 h-3 md:w-4 md:h-4 rounded-full border border-blue-400 transition-all duration-300 ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_8px_blue] scale-110' : 'bg-transparent opacity-30'}`}></div>
-                        ))}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-1">牌库: {deck.length} | 弃牌: {discardPile.length}</div>
-                </div>
-
-                {/* Right: Elements */}
-                <div className="flex flex-col gap-1 w-full md:w-1/3">
-                    <span className="text-xs text-amber-400 font-bold uppercase mb-1 text-right block">五行灵力</span>
-                    <div className="flex flex-wrap gap-2 justify-end">
+                {/* Spirit & Elements - Centered below */}
+                <div className="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-xl backdrop-blur-sm border border-slate-700/50 pointer-events-auto">
+                     {/* Spirit */}
+                     <div className="flex items-center gap-2 border-r border-slate-600/50 pr-4">
+                         <span className="text-[10px] text-blue-400 font-bold uppercase">神识</span>
+                         <div className="flex gap-0.5">
+                            {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
+                                <div key={i} className={`w-2.5 h-2.5 rounded-full border border-blue-400 transition-all ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_5px_blue]' : 'bg-transparent opacity-30'}`}></div>
+                            ))}
+                         </div>
+                     </div>
+                     
+                     {/* Elements */}
+                     <div className="flex gap-2 flex-wrap justify-center">
                         {Object.entries(playerElements).map(([elem, val]) => {
                             const v = val as number;
-                            // Only show elements that are relevant (have value or max affinity > 0)
-                            if (v <= 0 && playerMaxElements[elem as ElementType] <= 0) return null;
-                            
+                            if (v <= 0) return null; // Hide if 0
                             const config = ELEMENT_CONFIG[elem as ElementType];
                             return (
-                                <div key={elem} className={`flex items-center gap-1 px-2 py-1 rounded border border-slate-600 ${config.bg} bg-opacity-40 min-w-[40px] justify-center transition-all hover:scale-110 select-none`} title={`${elem}灵力: ${v} / ${playerMaxElements[elem as ElementType]}`}>
-                                    <span className="text-xs">{config.icon}</span>
+                                <div key={elem} className={`flex items-center gap-1 px-2 py-0.5 rounded border border-slate-600/50 ${config.bg} bg-opacity-60`} title={`${elem}灵力`}>
+                                    <span className="text-[10px]">{config.icon}</span>
                                     <span className={`text-xs font-bold ${config.color}`}>{v}</span>
                                 </div>
                             )
                         })}
-                    </div>
+                     </div>
                 </div>
-
             </div>
+
         </div>
     </div>
   );
