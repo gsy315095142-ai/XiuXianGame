@@ -1,13 +1,13 @@
-
-
 import React, { useState } from 'react';
-import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType } from './types';
+import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
 import { CombatView } from './components/CombatView';
 import { StartScreen } from './components/StartScreen';
 import { ConfigScreen } from './components/ConfigScreen';
+import { CardItem } from './components/CardItem';
+import { Button } from './components/Button';
 
 export default function App() {
   // --- Game State ---
@@ -23,6 +23,9 @@ export default function App() {
   
   // Combat State
   const [activeEnemy, setActiveEnemy] = useState<Enemy | null>(null);
+
+  // Modal State
+  const [acquiredCard, setAcquiredCard] = useState<Card | null>(null);
   
   // --- Start Logic ---
   const handleStartGame = () => {
@@ -197,7 +200,8 @@ export default function App() {
                   };
               });
 
-              alert(`你研读了${item.name}，顿悟了招式: [${newCard.name}]！`);
+              // Show Modal instead of alert
+              setAcquiredCard(newCard);
           } else {
               alert(`你研读了${item.name}，却发现书中记载的法术早已失传... (配置中无对应卡牌)`);
               setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
@@ -281,8 +285,38 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-100 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-[#121212] text-gray-100 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white relative">
       
+      {/* Acquired Card Modal */}
+      {acquiredCard && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-8 max-w-sm w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] flex flex-col items-center transform scale-100 transition-all">
+                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 mb-6 tracking-widest text-center">
+                    ✨ 顿悟 ✨
+                </h2>
+                
+                <div className="mb-6 transform scale-110">
+                    <CardItem card={acquiredCard} isPlayable={false} />
+                </div>
+                
+                <div className="text-center text-slate-300 mb-8">
+                    你研读了心法，灵光一闪<br/>
+                    成功领悟了招式<br/>
+                    <span className="font-bold text-emerald-400 text-lg mt-2 block">[{acquiredCard.name}]</span>
+                </div>
+
+                <Button 
+                    variant="primary" 
+                    size="lg" 
+                    className="w-full"
+                    onClick={() => setAcquiredCard(null)}
+                >
+                    收入囊中
+                </Button>
+            </div>
+        </div>
+      )}
+
       {view === GameView.START && (
         <StartScreen 
           onStart={handleStartGame}
