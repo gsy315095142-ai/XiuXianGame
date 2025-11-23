@@ -1,9 +1,8 @@
-
-
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot } from '../types';
 import { SLOT_NAMES } from '../constants';
 import { Button } from './Button';
+import * as XLSX from 'xlsx';
 
 interface ConfigScreenProps {
   config: GameConfig;
@@ -55,14 +54,84 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
     onSave(localConfig);
   };
 
-  const handleExport = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localConfig, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "cultivation_config.json");
-    document.body.appendChild(downloadAnchorNode); // required for firefox
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+  const handleExportExcel = () => {
+    try {
+        const wb = XLSX.utils.book_new();
+
+        // 1. General Config Sheet
+        const generalData = [
+            { Key: 'mapNodeCount', Value: localConfig.mapNodeCount },
+            { Key: 'itemDropRate', Value: localConfig.itemDropRate },
+            { Key: 'player_maxHp', Value: localConfig.playerInitialStats.maxHp },
+            { Key: 'player_maxSpirit', Value: localConfig.playerInitialStats.maxSpirit },
+            { Key: 'player_attack', Value: localConfig.playerInitialStats.attack },
+            { Key: 'player_defense', Value: localConfig.playerInitialStats.defense },
+            { Key: 'player_speed', Value: localConfig.playerInitialStats.speed },
+        ];
+        const wsGeneral = XLSX.utils.json_to_sheet(generalData);
+        XLSX.utils.book_append_sheet(wb, wsGeneral, "General");
+
+        // 2. Realms Sheet
+        const wsRealms = XLSX.utils.json_to_sheet(localConfig.realms);
+        XLSX.utils.book_append_sheet(wb, wsRealms, "Realms");
+
+        // 3. Items Sheet (Flattened stats)
+        const itemsData = localConfig.items.map(item => ({
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            slot: item.slot || '',
+            description: item.description,
+            rarity: item.rarity,
+            reqLevel: item.reqLevel,
+            stat_attack: item.statBonus?.attack || 0,
+            stat_defense: item.statBonus?.defense || 0,
+            stat_maxHp: item.statBonus?.maxHp || 0,
+            stat_maxSpirit: item.statBonus?.maxSpirit || 0,
+            stat_speed: item.statBonus?.speed || 0,
+        }));
+        const wsItems = XLSX.utils.json_to_sheet(itemsData);
+        XLSX.utils.book_append_sheet(wb, wsItems, "Items");
+
+        // 4. Cards Sheet (Flattened tags)
+        const cardsData = localConfig.cards.map(card => ({
+            id: card.id,
+            name: card.name,
+            type: card.type,
+            cost: card.cost,
+            value: card.value,
+            description: card.description,
+            rarity: card.rarity,
+            reqLevel: card.reqLevel,
+            tags: (card.tags || []).join(',')
+        }));
+        const wsCards = XLSX.utils.json_to_sheet(cardsData);
+        XLSX.utils.book_append_sheet(wb, wsCards, "Cards");
+
+        // 5. Enemies Sheet (Flattened stats & deck)
+        const enemiesData = localConfig.enemies.map(e => ({
+            name: e.name,
+            minPlayerLevel: e.minPlayerLevel,
+            hp: e.baseStats.maxHp,
+            spirit: e.baseStats.maxSpirit,
+            attack: e.baseStats.attack,
+            defense: e.baseStats.defense,
+            speed: e.baseStats.speed,
+            cardIds: e.cardIds.join(',')
+        }));
+        const wsEnemies = XLSX.utils.json_to_sheet(enemiesData);
+        XLSX.utils.book_append_sheet(wb, wsEnemies, "Enemies");
+
+        // 6. Player Deck Sheet
+        const deckData = localConfig.playerInitialDeckIds.map(id => ({ cardId: id }));
+        const wsDeck = XLSX.utils.json_to_sheet(deckData);
+        XLSX.utils.book_append_sheet(wb, wsDeck, "PlayerDeck");
+
+        XLSX.writeFile(wb, "cultivation_config.xlsx");
+    } catch (error) {
+        console.error("Export Error:", error);
+        alert("导出Excel失败，请查看控制台错误。");
+    }
   };
 
   const handleImportClick = () => {
@@ -76,20 +145,113 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
       const reader = new FileReader();
       reader.onload = (event) => {
           try {
-              const importedConfig = JSON.parse(event.target?.result as string);
-              // Basic validation check
-              if (!importedConfig.realms || !importedConfig.items || !importedConfig.cards) {
-                  alert("无效的配置文件格式！");
-                  return;
+              const data = new Uint8Array(event.target?.result as ArrayBuffer);
+              const wb = XLSX.read(data, { type: 'array' });
+              const newConfig = { ...localConfig };
+
+              // 1. General
+              const wsGeneral = wb.Sheets['General'];
+              if (wsGeneral) {
+                  const genData = XLSX.utils.sheet_to_json<{Key: string, Value: number}>(wsGeneral);
+                  const map: Record<string, number> = {};
+                  genData.forEach(r => map[r.Key] = r.Value);
+                  
+                  if (map['mapNodeCount']) newConfig.mapNodeCount = map['mapNodeCount'];
+                  if (map['itemDropRate']) newConfig.itemDropRate = map['itemDropRate'];
+                  
+                  newConfig.playerInitialStats = {
+                      ...newConfig.playerInitialStats,
+                      maxHp: map['player_maxHp'] || 100,
+                      hp: map['player_maxHp'] || 100,
+                      maxSpirit: map['player_maxSpirit'] || 10,
+                      spirit: map['player_maxSpirit'] || 10,
+                      attack: map['player_attack'] || 5,
+                      defense: map['player_defense'] || 0,
+                      speed: map['player_speed'] || 10,
+                  };
               }
-              setLocalConfig(importedConfig);
-              alert("配置导入成功！请记得点击保存。");
+
+              // 2. Realms
+              const wsRealms = wb.Sheets['Realms'];
+              if (wsRealms) {
+                  newConfig.realms = XLSX.utils.sheet_to_json(wsRealms);
+              }
+
+              // 3. Items
+              const wsItems = wb.Sheets['Items'];
+              if (wsItems) {
+                  const rawItems = XLSX.utils.sheet_to_json<any>(wsItems);
+                  newConfig.items = rawItems.map(r => ({
+                      id: r.id,
+                      name: r.name,
+                      type: r.type,
+                      slot: r.slot || undefined,
+                      description: r.description,
+                      rarity: r.rarity,
+                      reqLevel: r.reqLevel,
+                      statBonus: {
+                          attack: r.stat_attack || 0,
+                          defense: r.stat_defense || 0,
+                          maxHp: r.stat_maxHp || 0,
+                          maxSpirit: r.stat_maxSpirit || 0,
+                          speed: r.stat_speed || 0,
+                      }
+                  }));
+              }
+
+              // 4. Cards
+              const wsCards = wb.Sheets['Cards'];
+              if (wsCards) {
+                  const rawCards = XLSX.utils.sheet_to_json<any>(wsCards);
+                  newConfig.cards = rawCards.map(r => ({
+                      id: r.id,
+                      name: r.name,
+                      type: r.type,
+                      cost: r.cost,
+                      value: r.value,
+                      description: r.description,
+                      rarity: r.rarity,
+                      reqLevel: r.reqLevel,
+                      tags: r.tags ? String(r.tags).split(',') : []
+                  }));
+              }
+
+              // 5. Enemies
+              const wsEnemies = wb.Sheets['Enemies'];
+              if (wsEnemies) {
+                  const rawEnemies = XLSX.utils.sheet_to_json<any>(wsEnemies);
+                  newConfig.enemies = rawEnemies.map(r => ({
+                      name: r.name,
+                      minPlayerLevel: r.minPlayerLevel,
+                      baseStats: {
+                          maxHp: r.hp,
+                          hp: r.hp,
+                          maxSpirit: r.spirit,
+                          spirit: r.spirit,
+                          attack: r.attack,
+                          defense: r.defense,
+                          speed: r.speed
+                      },
+                      cardIds: r.cardIds ? String(r.cardIds).split(',') : []
+                  }));
+              }
+
+              // 6. Deck
+              const wsDeck = wb.Sheets['PlayerDeck'];
+              if (wsDeck) {
+                  const rawDeck = XLSX.utils.sheet_to_json<{cardId: string}>(wsDeck);
+                  newConfig.playerInitialDeckIds = rawDeck.map(r => r.cardId);
+              }
+
+              setLocalConfig(newConfig);
+              alert("Excel配置导入成功！请记得点击保存生效。");
           } catch (err) {
-              alert("读取文件失败，请检查文件是否为有效的JSON格式。");
+              console.error(err);
+              alert("读取Excel失败，请确保文件格式正确。");
           }
       };
-      reader.readAsText(file);
-      e.target.value = ''; // Reset file input
+      reader.readAsArrayBuffer(file);
+      e.target.value = ''; // Reset
   };
 
   const renderTabButton = (id: typeof activeTab, label: string) => (
@@ -117,12 +279,12 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept=".json" 
+                accept=".xlsx, .xls" 
                 onChange={handleFileChange} 
             />
             
-            <Button variant="outline" size="sm" onClick={handleExport}>📤 导出配置</Button>
-            <Button variant="outline" size="sm" onClick={handleImportClick}>📥 导入配置</Button>
+            <Button variant="outline" size="sm" onClick={handleExportExcel}>📊 导出Excel</Button>
+            <Button variant="outline" size="sm" onClick={handleImportClick}>📂 导入Excel</Button>
             <div className="w-px h-8 bg-slate-600 mx-2 hidden md:block"></div>
             <Button variant="secondary" onClick={onCancel}>取消</Button>
             <Button variant="primary" onClick={handleSave}>保存配置</Button>
