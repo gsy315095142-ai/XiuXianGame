@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { Card, CardType, ElementType } from '../types';
 import { ELEMENT_CONFIG } from '../constants';
@@ -15,12 +14,19 @@ interface CardItemProps {
 
 export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel, currentElement }) => {
   
-  const typeColors = {
-    [CardType.ATTACK]: 'border-red-500/50 bg-gradient-to-b from-red-900/80 to-slate-900',
-    [CardType.DEFEND]: 'border-blue-500/50 bg-gradient-to-b from-blue-900/80 to-slate-900',
-    [CardType.HEAL]: 'border-green-500/50 bg-gradient-to-b from-green-900/80 to-slate-900',
-    [CardType.BUFF]: 'border-amber-500/50 bg-gradient-to-b from-amber-900/80 to-slate-900',
-    [CardType.GROWTH]: 'border-purple-500/50 bg-gradient-to-b from-purple-900/80 to-slate-900',
+  // Mapping ElementType to Background Gradients
+  const elementBgColors: Record<ElementType, string> = {
+    [ElementType.METAL]: 'border-yellow-600/50 bg-gradient-to-b from-yellow-900/80 to-slate-900',
+    [ElementType.WOOD]: 'border-green-600/50 bg-gradient-to-b from-green-900/80 to-slate-900',
+    [ElementType.WATER]: 'border-blue-600/50 bg-gradient-to-b from-blue-900/80 to-slate-900',
+    [ElementType.FIRE]: 'border-red-600/50 bg-gradient-to-b from-red-900/80 to-slate-900',
+    [ElementType.EARTH]: 'border-[#8B4513]/50 bg-gradient-to-b from-[#3E2723]/90 to-slate-900',
+    [ElementType.LIGHT]: 'border-yellow-300/50 bg-gradient-to-b from-yellow-700/80 to-slate-900',
+    [ElementType.DARK]: 'border-purple-600/50 bg-gradient-to-b from-purple-900/80 to-slate-900',
+    [ElementType.WIND]: 'border-teal-500/50 bg-gradient-to-b from-teal-900/80 to-slate-900',
+    [ElementType.THUNDER]: 'border-indigo-500/50 bg-gradient-to-b from-indigo-900/80 to-slate-900',
+    [ElementType.ICE]: 'border-cyan-400/50 bg-gradient-to-b from-cyan-900/80 to-slate-900',
+    [ElementType.SWORD]: 'border-slate-400/50 bg-gradient-to-b from-slate-700/80 to-slate-900',
   };
 
   const textColor = {
@@ -39,13 +45,14 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
   const isPierce = card.tags?.includes('PIERCE');
 
   const elementInfo = ELEMENT_CONFIG[card.element] || ELEMENT_CONFIG[ElementType.SWORD];
+  const bgStyle = elementBgColors[card.element] || elementBgColors[ElementType.SWORD];
 
   return (
     <div 
       onClick={!isDisabled && isPlayable ? onClick : undefined}
       className={`
         relative w-32 h-48 border-2 rounded-xl p-2 flex flex-col select-none transition-transform duration-200
-        ${typeColors[card.type]}
+        ${bgStyle}
         ${isDisabled ? 'opacity-40 cursor-not-allowed scale-95 grayscale-[0.5]' : 'cursor-pointer hover:-translate-y-4 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] shadow-lg'}
         ${!isPlayable && !isDisabled ? 'opacity-70' : ''}
       `}
@@ -66,7 +73,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
       </div>
       
       <div className="flex-grow flex items-center justify-center relative">
-        <div className={`text-4xl ${textColor[card.type]} opacity-80`}>
+        <div className={`text-4xl ${textColor[card.type]} opacity-80 drop-shadow-md`}>
             {card.type === CardType.ATTACK && (isPierce ? '🏹' : '⚔️')}
             {card.type === CardType.DEFEND && '🛡️'}
             {card.type === CardType.HEAL && '💊'}
@@ -81,12 +88,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
         )}
       </div>
 
-      <div className="text-xs text-center text-gray-300 leading-tight h-12 overflow-hidden flex items-center justify-center flex-col">
+      <div className="text-xs text-center text-gray-200 leading-tight h-12 overflow-hidden flex items-center justify-center flex-col bg-black/20 rounded p-1">
         {isPierce && <div className="text-[9px] text-amber-400 font-bold mb-0.5">[穿刺] 无视护盾</div>}
         <div>{card.description}</div>
       </div>
 
-      <div className="mt-1 flex justify-between items-center text-[10px] text-white/40 uppercase tracking-widest">
+      <div className="mt-1 flex justify-between items-center text-[10px] text-white/60 uppercase tracking-widest">
         <span>{card.type}</span>
         <span className={elementInfo.color}>{card.element}</span>
       </div>

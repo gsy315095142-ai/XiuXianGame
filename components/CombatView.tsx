@@ -1,8 +1,7 @@
 
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
-import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook } from '../constants';
+import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook, getRealmName } from '../constants';
 import { CardItem } from './CardItem';
 import { Button } from './Button';
 
@@ -451,7 +450,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             <div className="absolute inset-0 bg-black/60"></div>
             
             {/* Combat Log Overlay (Center Right) */}
-            <div className="absolute top-1/2 right-4 -translate-y-1/2 w-64 text-right z-10 pointer-events-none">
+            <div className="absolute top-1/2 right-4 -translate-x-2 -translate-y-1/2 w-64 text-right z-10 pointer-events-none">
                 {combatLog.map((log, i) => (
                     <div key={i} className="text-sm text-slate-300 drop-shadow-md animate-fade-in bg-black/30 p-1 mb-1 rounded inline-block">
                         {log}
@@ -459,29 +458,48 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 ))}
             </div>
 
-            <div className="relative z-10 flex flex-col items-center animate-bounce-slight">
+            <div className="relative z-10 flex flex-col items-center animate-bounce-slight w-full max-w-md">
                 <div className="relative group">
-                    <img src={initialEnemy.avatarUrl} className="w-32 h-32 rounded-full border-4 border-red-800 shadow-[0_0_20px_rgba(220,38,38,0.6)] transition-transform group-hover:scale-105" alt="Enemy" />
-                    <div className="absolute -bottom-3 -right-3 bg-red-700 text-white text-xs px-2 py-1 rounded border border-red-400">
-                        Lv.{initialEnemy.level}
-                    </div>
+                    <img src={initialEnemy.avatarUrl} className="w-28 h-28 rounded-full border-4 border-red-800 shadow-[0_0_20px_rgba(220,38,38,0.6)] transition-transform group-hover:scale-105" alt="Enemy" />
                     {enemyBlock > 0 && (
                         <div className="absolute -top-2 -right-8 flex items-center text-blue-200 font-bold border border-blue-500 px-2 rounded bg-blue-900/80 z-20 shadow-lg animate-pulse">
                             🛡️ {enemyBlock}
                         </div>
                     )}
                 </div>
-                <h3 className="text-2xl font-bold text-red-200 mt-4 text-shadow">{initialEnemy.name}</h3>
-                
-                {/* Enemy HP Bar */}
-                <div className="w-64 h-4 bg-gray-700 rounded-full mt-2 border border-gray-600 overflow-hidden relative shadow-lg">
-                    <div 
-                        className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" 
-                        style={{ width: `${Math.max(0, (enemyHp / initialEnemy.stats.maxHp) * 100)}%` }}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white text-shadow-sm">
-                        {Math.max(0, enemyHp)} / {initialEnemy.stats.maxHp}
-                    </span>
+                <div className="flex flex-col items-center mt-2 w-full">
+                    <h3 className="text-2xl font-bold text-red-200 text-shadow">{initialEnemy.name}</h3>
+                    
+                    {/* Enemy HP Bar */}
+                    <div className="w-full max-w-[300px] h-4 bg-gray-700 rounded-full mt-1 border border-gray-600 overflow-hidden relative shadow-lg">
+                        <div 
+                            className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300" 
+                            style={{ width: `${Math.max(0, (enemyHp / initialEnemy.stats.maxHp) * 100)}%` }}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white text-shadow-sm">
+                            {Math.max(0, enemyHp)} / {initialEnemy.stats.maxHp}
+                        </span>
+                    </div>
+
+                    {/* Enemy Extra Info (Realm, Spirit, Elements) */}
+                    <div className="flex flex-wrap justify-center gap-3 mt-2 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+                        <span className="text-xs font-bold text-amber-400">{getRealmName(initialEnemy.level)}</span>
+                        <span className="text-xs text-blue-300 font-mono">神识:{enemySpirit}/{initialEnemy.stats.maxSpirit}</span>
+                    </div>
+                    {/* Enemy Elements (Only > 0) */}
+                    <div className="flex gap-1 mt-1 justify-center">
+                        {Object.entries(enemyElements).map(([elem, val]) => {
+                            const v = val as number;
+                            if (v <= 0) return null;
+                            const config = ELEMENT_CONFIG[elem as ElementType];
+                            return (
+                                <div key={elem} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-600/50 ${config.bg} bg-opacity-60`} title={`${elem}灵力`}>
+                                    <span className="text-[10px]">{config.icon}</span>
+                                    <span className={`text-[10px] font-bold ${config.color}`}>{v}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
                 </div>
             </div>
         </div>
@@ -520,20 +538,29 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
             {/* Stats Panel - Bottom Center */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl bg-slate-900/95 border border-slate-600 rounded-2xl p-4 flex flex-col md:flex-row gap-6 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] z-20 backdrop-blur-md items-center justify-between">
                 
-                {/* Left: HP & Block */}
-                <div className="flex flex-col gap-1 w-full md:w-1/3">
-                    <div className="flex justify-between items-end">
-                         <span className="text-xs text-emerald-400 font-bold uppercase">生命值</span>
-                         <span className="text-xs text-slate-400">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
-                    </div>
-                    <div className="h-4 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
-                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
-                    </div>
-                     {playerBlock > 0 && (
-                        <div className="flex items-center justify-center gap-1 text-blue-300 font-bold text-sm bg-blue-900/50 border border-blue-500/50 rounded py-0.5 mt-1">
-                            🛡️ 护盾: {playerBlock}
+                {/* Left: Avatar & HP & Block */}
+                <div className="flex items-center gap-4 w-full md:w-1/3">
+                    <div className="relative shrink-0">
+                        <img src={initialPlayer.avatarUrl} alt="Player" className="w-14 h-14 rounded-full border-2 border-emerald-500 shadow-lg object-cover" />
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-900 text-[9px] px-2 rounded border border-emerald-600 whitespace-nowrap text-emerald-200 font-bold">
+                            {getRealmName(initialPlayer.level)}
                         </div>
-                    )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-1 flex-1">
+                        <div className="flex justify-between items-end">
+                            <span className="text-xs text-emerald-400 font-bold uppercase">生命值</span>
+                            <span className="text-xs text-slate-400">{Math.max(0, playerHp)}/{initialPlayer.stats.maxHp}</span>
+                        </div>
+                        <div className="h-4 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
+                            <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
+                        </div>
+                        {playerBlock > 0 && (
+                            <div className="flex items-center gap-1 text-blue-300 font-bold text-xs">
+                                🛡️ 护盾: {playerBlock}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Center: Spirit */}
@@ -549,12 +576,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
                 {/* Right: Elements */}
                 <div className="flex flex-col gap-1 w-full md:w-1/3">
-                    <span className="text-xs text-amber-400 font-bold uppercase mb-1">五行灵力</span>
+                    <span className="text-xs text-amber-400 font-bold uppercase mb-1 text-right block">五行灵力</span>
                     <div className="flex flex-wrap gap-2 justify-end">
                         {Object.entries(playerElements).map(([elem, val]) => {
                             const v = val as number;
                             // Only show elements that are relevant (have value or max affinity > 0)
-                            // Use playerMaxElements to determine relevance during combat
                             if (v <= 0 && playerMaxElements[elem as ElementType] <= 0) return null;
                             
                             const config = ELEMENT_CONFIG[elem as ElementType];
