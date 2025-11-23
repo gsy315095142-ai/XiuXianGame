@@ -242,7 +242,14 @@ const randPick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
     // 1. Generate 10 Cards per Realm
     for (let i = 0; i < 10; i++) {
-        const type = Object.values(CardType)[randInt(0, 3)]; 
+        // Guarantee at least some cards are Attack type (first 3) to ensure enemies have weapons
+        let type;
+        if (i < 3) {
+            type = CardType.ATTACK;
+        } else {
+            type = Object.values(CardType)[randInt(0, 3)]; 
+        }
+
         const element = Object.values(ElementType)[randInt(0, 10)];
         const isPierce = type === CardType.ATTACK && Math.random() < 0.2;
         
@@ -355,23 +362,50 @@ ENEMY_REALM_CONFIG.forEach((config) => {
         const level = randInt(config.minLv, config.maxLv);
         const name = `${randPick(config.prefix)}${ENEMY_BASE_NAMES[i % ENEMY_BASE_NAMES.length]}`;
         
-        // Random main element
-        const mainElement = Object.values(ElementType)[randInt(0, 10)];
+        // Strategy: Ensure enemy has at least one Attack card that matches their Realm and Element.
+        // 1. Find all ATTACK cards in this Realm
+        const realmAttackCards = INITIAL_CARDS.filter(c => 
+            c.type === CardType.ATTACK && 
+            c.reqLevel >= config.minLv && 
+            c.reqLevel <= config.maxLv
+        );
+
+        let mainElement: ElementType;
+        let primaryCardId: string;
+
+        if (realmAttackCards.length > 0) {
+            // Pick a random card from available attack cards in this realm
+            const card = randPick(realmAttackCards);
+            mainElement = card.element;
+            primaryCardId = card.id;
+        } else {
+             // Fallback: look for any attack card <= level (should be rare given generation logic)
+             const anyAttack = INITIAL_CARDS.filter(c => c.type === CardType.ATTACK && c.reqLevel <= level);
+             if (anyAttack.length > 0) {
+                 const card = randPick(anyAttack);
+                 mainElement = card.element;
+                 primaryCardId = card.id;
+             } else {
+                 mainElement = ElementType.SWORD;
+                 primaryCardId = 'c_strike';
+             }
+        }
+
         const affs = createZeroElementStats();
         // Give them plenty of element affinity so they can cast cards
         affs[mainElement] = 50 + (level * 10);
         
-        // Pick random cards suitable for this level
-        const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 2); // Can use cards slightly above level
-        const deck: string[] = [];
+        // Start deck with the signature attack card
+        const deck: string[] = [primaryCardId];
         const deckSize = 3 + Math.floor(level / 10); // Higher level enemies have larger decks
         
+        // Fill rest of deck with valid cards for this level
+        const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 2); 
+        
         if (validCards.length > 0) {
-            for(let k=0; k<deckSize; k++) {
+            for(let k=1; k<deckSize; k++) {
                 deck.push(randPick(validCards).id);
             }
-        } else {
-             deck.push('c_strike');
         }
 
         GENERATED_ENEMIES.push({
@@ -522,13 +556,31 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is Card => !!c);
   
+  // Fallback if deck is empty for some reason (e.g. broken ids in config)
   if (enemyDeck.length === 0 && config.cards.length > 0) {
+      // Logic for random enemy deck generation if config is broken
+      // Try to find attack card matching main affinity
+      let mainAffinity = ElementType.SWORD;
+      let maxAff = -1;
+      // @ts-ignore
+      Object.entries(template.baseStats.elementalAffinities).forEach(([k,v]) => {
+          if ((v as number) > maxAff) {
+              maxAff = v as number;
+              mainAffinity = k as ElementType;
+          }
+      });
+
+      const affinityCards = config.cards.filter(c => c.element === mainAffinity && c.type === CardType.ATTACK && c.reqLevel <= playerLevel + 2);
+      if (affinityCards.length > 0) {
+          enemyDeck.push(randPick(affinityCards));
+      } else {
+          enemyDeck.push(config.cards[0]);
+      }
+      
+      // Add one more random
       const levelAppropriateCards = config.cards.filter(c => c.reqLevel <= playerLevel);
       if (levelAppropriateCards.length > 0) {
           enemyDeck.push(levelAppropriateCards[Math.floor(Math.random() * levelAppropriateCards.length)]);
-          enemyDeck.push(levelAppropriateCards[Math.floor(Math.random() * levelAppropriateCards.length)]);
-      } else {
-          enemyDeck.push(config.cards[0]);
       }
   }
 
@@ -555,3 +607,4 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
     deck: enemyDeck
   };
 };
+
