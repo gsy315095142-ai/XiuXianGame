@@ -345,46 +345,84 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                </div>
                <div className="grid gap-4">
                   {localConfig.realms.map((realm, idx) => (
-                      <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-wrap items-end gap-4">
-                          <input 
-                              value={realm.name}
-                              onChange={(e) => {
-                                  const newRealms = [...localConfig.realms];
-                                  newRealms[idx].name = e.target.value;
-                                  setLocalConfig({...localConfig, realms: newRealms});
-                              }}
-                              className="block w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                          />
-                          <input 
-                                  type="number"
-                                  value={realm.rangeStart}
-                                  onChange={(e) => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[idx].rangeStart = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }}
-                                  className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                          />
-                          <input 
-                                  type="number"
-                                  value={realm.rangeEnd}
-                                  onChange={(e) => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[idx].rangeEnd = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }}
-                                  className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                          />
-                           <input 
-                                  type="number"
-                                  value={realm.expReq}
-                                  onChange={(e) => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[idx].expReq = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }}
-                                  className="block w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                      <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-wrap items-end gap-2">
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-slate-500">名称</label>
+                            <input 
+                                value={realm.name}
+                                onChange={(e) => {
+                                    const newRealms = [...localConfig.realms];
+                                    newRealms[idx].name = e.target.value;
+                                    setLocalConfig({...localConfig, realms: newRealms});
+                                }}
+                                className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                             />
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-slate-500">起始等级</label>
+                            <input 
+                                    type="number"
+                                    value={realm.rangeStart}
+                                    onChange={(e) => {
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].rangeStart = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="block w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                            />
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-slate-500">结束等级</label>
+                            <input 
+                                    type="number"
+                                    value={realm.rangeEnd}
+                                    onChange={(e) => {
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].rangeEnd = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="block w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                            />
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-slate-500">突破经验</label>
+                            <input 
+                                    type="number"
+                                    value={realm.expReq}
+                                    onChange={(e) => {
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].expReq = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                                />
+                          </div>
+                          <div className="flex flex-col border-l border-slate-600 pl-2">
+                            <label className="text-[10px] text-yellow-500">探索灵石(Min)</label>
+                            <input 
+                                    type="number"
+                                    value={realm.minGoldDrop || 10}
+                                    onChange={(e) => {
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].minGoldDrop = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="block w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
+                                />
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-[10px] text-yellow-500">探索灵石(Max)</label>
+                            <input 
+                                    type="number"
+                                    value={realm.maxGoldDrop || 50}
+                                    onChange={(e) => {
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].maxGoldDrop = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="block w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
+                                />
+                          </div>
                       </div>
                   ))}
                </div>

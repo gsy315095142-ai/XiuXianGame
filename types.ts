@@ -41,6 +41,8 @@ export interface RealmRank {
   rangeStart: number;
   rangeEnd: number;
   expReq: number;
+  minGoldDrop: number; // New: Min gold from treasure
+  maxGoldDrop: number; // New: Max gold from treasure
 }
 
 export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';

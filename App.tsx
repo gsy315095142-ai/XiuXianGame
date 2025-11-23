@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -8,6 +9,12 @@ import { StartScreen } from './components/StartScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { CardItem } from './components/CardItem';
 import { Button } from './components/Button';
+
+// Interaction State Type
+type NodeInteraction = 
+  | { type: 'COMBAT', node: MapNode, enemy: Enemy }
+  | { type: 'REWARD', node: MapNode, reward: { type: 'ITEM' | 'GOLD', value: Item | number, message: string } }
+  | { type: 'EMPTY', node: MapNode };
 
 export default function App() {
   // --- Game State ---
@@ -24,8 +31,9 @@ export default function App() {
   // Combat State
   const [activeEnemy, setActiveEnemy] = useState<Enemy | null>(null);
 
-  // Modal State
+  // Modal States
   const [acquiredCard, setAcquiredCard] = useState<Card | null>(null);
+  const [interaction, setInteraction] = useState<NodeInteraction | null>(null);
   
   // --- Start Logic ---
   const handleStartGame = () => {
@@ -58,44 +66,90 @@ export default function App() {
     setView(GameView.ADVENTURE);
   };
 
-  const handleMove = (node: MapNode) => {
+  // 1. Player Clicks Node -> Calculate Outcome & Show Modal
+  const handleNodeClick = (node: MapNode) => {
     if (!player) return;
 
-    // Update Visited
-    const newNodes = mapNodes.map(n => n.id === node.id ? { ...n, visited: true } : n);
-    setMapNodes(newNodes);
-    setCurrentNode(node.id);
-
-    // Process Node Event
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
-      // Use player level to determine enemy
+      // Preview Enemy
       const enemy = getRandomEnemyFromConfig(player.level, config);
-      setActiveEnemy(enemy);
-      setView(GameView.COMBAT);
-    } else if (node.type === NodeType.TREASURE) {
-      // Exploration Reward Logic: Prioritize Realm Items
+      setInteraction({ type: 'COMBAT', node, enemy });
+    } 
+    else if (node.type === NodeType.TREASURE) {
+      // Preview Reward
+      const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
+      
+      // Reward Logic: Prioritize Realm Items
       if (Math.random() < config.itemDropRate && config.items.length > 0) {
-        // Filter items that match player's realm (approx level range)
-        const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
         let validItems: Item[] = [];
-        
         if (currentRealm) {
             validItems = config.items.filter(i => i.reqLevel >= currentRealm.rangeStart && i.reqLevel <= currentRealm.rangeEnd);
         }
-        
-        // If no items in realm found, fallback to all items
         if (validItems.length === 0) validItems = config.items;
         
         const item = validItems[Math.floor(Math.random() * validItems.length)];
         
-        alert(`你发现了一个宝箱，里面是: ${item.name}!`);
-        setPlayer(prev => prev ? ({ ...prev, inventory: [...prev.inventory, item] }) : null);
+        setInteraction({
+            type: 'REWARD',
+            node,
+            reward: {
+                type: 'ITEM',
+                value: item,
+                message: '发现了一个古朴的宝箱，里面似乎藏着宝物...'
+            }
+        });
       } else {
-         const foundGold = Math.floor(Math.random() * 50) + 10;
-         alert(`你发现了一个宝箱，获得了 ${foundGold} 灵石!`);
-         setPlayer(prev => prev ? ({ ...prev, gold: prev.gold + foundGold }) : null);
+         const min = currentRealm.minGoldDrop || 10;
+         const max = currentRealm.maxGoldDrop || 50;
+         const foundGold = Math.floor(Math.random() * (max - min + 1)) + min;
+         
+         setInteraction({
+            type: 'REWARD',
+            node,
+            reward: {
+                type: 'GOLD',
+                value: foundGold,
+                message: '发现了一个遗落的钱袋。'
+            }
+        });
       }
+    } 
+    else {
+        // Empty Node
+        setInteraction({ type: 'EMPTY', node });
     }
+  };
+
+  // 2. User Confirms Modal -> Execute Move & State Change
+  const handleInteractionConfirm = () => {
+      if (!interaction || !player) return;
+
+      const { node, type } = interaction;
+
+      // Update Map Visited
+      const newNodes = mapNodes.map(n => n.id === node.id ? { ...n, visited: true } : n);
+      setMapNodes(newNodes);
+      setCurrentNode(node.id);
+
+      if (type === 'COMBAT') {
+          const enemy = (interaction as any).enemy;
+          setActiveEnemy(enemy);
+          setView(GameView.COMBAT);
+      } else if (type === 'REWARD') {
+          const reward = (interaction as any).reward;
+          setPlayer(prev => {
+              if (!prev) return null;
+              if (reward.type === 'ITEM') {
+                  return { ...prev, inventory: [...prev.inventory, reward.value as Item] };
+              } else {
+                  return { ...prev, gold: prev.gold + (reward.value as number) };
+              }
+          });
+      } else {
+          // Empty node, just moved
+      }
+
+      setInteraction(null);
   };
 
   const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
@@ -110,9 +164,6 @@ export default function App() {
             const newLevel = prev.level + 1;
             const currentRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd);
             const nextMaxExp = currentRealm ? currentRealm.expReq : Math.floor(prev.maxExp * 1.5);
-            
-            // NOTE: We don't alert here anymore to not interrupt the Combat Result Modal flow, 
-            // the level up will be visible on the Home Screen.
 
             updatedPlayer = {
                 ...updatedPlayer,
@@ -142,7 +193,6 @@ export default function App() {
     });
     
     if (activeEnemy?.name.includes('领主') || (currentNode !== null && currentNode === mapNodes.length - 1)) {
-         // Boss clear
          setView(GameView.HOME);
     } else {
         setView(GameView.ADVENTURE);
@@ -151,10 +201,9 @@ export default function App() {
   };
 
   const handleCombatLose = () => {
-    // Alert logic handled in CombatView modal now, only state update here
     setPlayer(prev => prev ? ({
         ...prev,
-        stats: { ...prev.stats, hp: Math.floor(prev.stats.maxHp * 0.1) } // Return with 10% hp
+        stats: { ...prev.stats, hp: Math.floor(prev.stats.maxHp * 0.1) } 
     }) : null);
     setView(GameView.HOME);
     setActiveEnemy(null);
@@ -162,17 +211,13 @@ export default function App() {
 
   const handleUseItem = (item: Item) => {
       if (!player) return;
-
       if (item.type !== 'CONSUMABLE') return;
 
-      // Logic for Skill Books
-      // Check ID format: book_{element}_{level}_...
       const parts = item.id.split('_');
       if (parts[0] === 'book') {
           const elem = parts[1] as ElementType;
           const bookLevel = parseInt(parts[2]);
 
-          // Find realm for this book level
           const realm = config.realms.find(r => bookLevel >= r.rangeStart && bookLevel <= r.rangeEnd);
           
           if (!realm) {
@@ -180,8 +225,6 @@ export default function App() {
               return;
           }
 
-          // Find valid cards in config: Matching Element AND Realm Level Range
-          // Allowing cards slightly higher level (e.g. within realm + 5)
           const validCards = config.cards.filter(c => 
               c.element === elem && 
               c.reqLevel >= realm.rangeStart &&
@@ -196,18 +239,16 @@ export default function App() {
                   return {
                       ...prev,
                       deck: [...prev.deck, newCard],
-                      inventory: prev.inventory.filter(i => i.id !== item.id) // Consume item
+                      inventory: prev.inventory.filter(i => i.id !== item.id) 
                   };
               });
 
-              // Show Modal instead of alert
               setAcquiredCard(newCard);
           } else {
-              alert(`你研读了${item.name}，却发现书中记载的法术早已失传... (配置中无对应卡牌)`);
+              alert(`你研读了${item.name}，却发现书中记载的法术早已失传...`);
               setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
           }
       } else {
-          // Other consumables logic can go here (potions etc)
           alert("此物品暂无使用效果。");
       }
   };
@@ -230,7 +271,6 @@ export default function App() {
           return;
       }
 
-      // Unequip existing item in that slot if any
       const existingItem = player.equipment[item.slot];
       let newInventory = player.inventory.filter(i => i.id !== item.id);
       if (existingItem) {
@@ -248,16 +288,13 @@ export default function App() {
           const maxSpiritDiff = (item.statBonus?.maxSpirit || 0) - (existingItem?.statBonus?.maxSpirit || 0);
           const speedDiff = (item.statBonus?.speed || 0) - (existingItem?.statBonus?.speed || 0);
 
-          // Handle Element Affinities Merging
           const newAffinities = { ...prev.stats.elementalAffinities };
           
-          // Remove old stats
           if (existingItem?.statBonus?.elementalAffinities) {
                Object.entries(existingItem.statBonus.elementalAffinities).forEach(([k, v]) => {
                    newAffinities[k as ElementType] -= (v as number);
                });
           }
-          // Add new stats
           if (item.statBonus?.elementalAffinities) {
               Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
                    newAffinities[k as ElementType] = (newAffinities[k as ElementType] || 0) + (v as number);
@@ -287,6 +324,90 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#121212] text-gray-100 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white relative">
       
+      {/* Exploration Interaction Modal */}
+      {interaction && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className={`
+                bg-slate-900 border-2 rounded-xl p-6 max-w-sm w-full shadow-2xl flex flex-col items-center
+                ${interaction.type === 'COMBAT' ? 'border-red-600 shadow-red-900/40' : interaction.type === 'REWARD' ? 'border-amber-500 shadow-amber-900/40' : 'border-slate-500'}
+            `}>
+                {/* Header */}
+                <h2 className={`text-2xl font-bold mb-4 ${interaction.type === 'COMBAT' ? 'text-red-500' : interaction.type === 'REWARD' ? 'text-amber-400' : 'text-slate-300'}`}>
+                    {interaction.type === 'COMBAT' ? '⚔️ 遭遇强敌' : interaction.type === 'REWARD' ? '🎁 意外发现' : '👣 平静之地'}
+                </h2>
+
+                {/* Content */}
+                <div className="mb-6 w-full flex flex-col items-center">
+                    
+                    {interaction.type === 'COMBAT' && interaction.enemy && (
+                        <>
+                            <div className="relative mb-3">
+                                <img src={interaction.enemy.avatarUrl} className="w-24 h-24 rounded-full border-4 border-red-800" alt="Enemy" />
+                                <div className="absolute -bottom-2 -right-2 bg-black/80 text-red-400 text-xs px-2 py-1 rounded border border-red-600">
+                                    Lv.{interaction.enemy.level}
+                                </div>
+                            </div>
+                            <div className="text-xl font-bold text-red-200">{interaction.enemy.name}</div>
+                            <div className="text-sm text-red-400 mt-1 font-mono">
+                                境界: {getRealmName(interaction.enemy.level, config.realms)}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2 text-center">
+                                此地妖气冲天，似乎有一场恶战...
+                            </div>
+                        </>
+                    )}
+
+                    {interaction.type === 'REWARD' && interaction.reward && (
+                        <>
+                            <div className={`w-20 h-20 bg-slate-800 rounded-lg border-2 ${interaction.reward.type === 'ITEM' ? 'border-emerald-600' : 'border-yellow-500'} flex items-center justify-center text-4xl mb-3`}>
+                                {interaction.reward.type === 'ITEM' ? ((interaction.reward.value as Item).type === 'CONSUMABLE' ? '📚' : '⚔️') : '💎'}
+                            </div>
+                            <div className={`text-lg font-bold ${interaction.reward.type === 'ITEM' && (interaction.reward.value as Item).rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>
+                                {interaction.reward.type === 'ITEM' ? (interaction.reward.value as Item).name : `灵石 x${interaction.reward.value}`}
+                            </div>
+                            {interaction.reward.type === 'ITEM' && (
+                                <div className="text-xs text-slate-500 mt-1 max-w-[200px] text-center">
+                                    {(interaction.reward.value as Item).description}
+                                </div>
+                            )}
+                            <div className="text-sm text-slate-400 mt-3 text-center italic">
+                                "{interaction.reward.message}"
+                            </div>
+                        </>
+                    )}
+
+                    {interaction.type === 'EMPTY' && (
+                         <>
+                            <div className="text-5xl mb-3">🍃</div>
+                            <div className="text-slate-400 text-center">
+                                四周静悄悄的，没有什么特别的发现。<br/>
+                                是一个修整的好地方。
+                            </div>
+                         </>
+                    )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 w-full">
+                    <Button 
+                        variant="secondary" 
+                        className="flex-1"
+                        onClick={() => setInteraction(null)}
+                    >
+                        {interaction.type === 'COMBAT' ? '暂且退避' : '取消'}
+                    </Button>
+                    <Button 
+                        variant={interaction.type === 'COMBAT' ? 'danger' : 'primary'} 
+                        className="flex-1"
+                        onClick={handleInteractionConfirm}
+                    >
+                        {interaction.type === 'COMBAT' ? '开始战斗' : interaction.type === 'REWARD' ? '收入囊中' : '继续前行'}
+                    </Button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* Acquired Card Modal */}
       {acquiredCard && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -294,17 +415,14 @@ export default function App() {
                 <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 mb-6 tracking-widest text-center">
                     ✨ 顿悟 ✨
                 </h2>
-                
                 <div className="mb-6 transform scale-110">
                     <CardItem card={acquiredCard} isPlayable={false} />
                 </div>
-                
                 <div className="text-center text-slate-300 mb-8">
                     你研读了心法，灵光一闪<br/>
                     成功领悟了招式<br/>
                     <span className="font-bold text-emerald-400 text-lg mt-2 block">[{acquiredCard.name}]</span>
                 </div>
-
                 <Button 
                     variant="primary" 
                     size="lg" 
@@ -353,7 +471,7 @@ export default function App() {
         <AdventureView 
           mapNodes={mapNodes} 
           currentLocationId={currentNode} 
-          onMove={handleMove}
+          onNodeClick={handleNodeClick}
           onRetreat={() => setView(GameView.HOME)}
         />
       )}

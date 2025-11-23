@@ -34,11 +34,11 @@ export const ELEMENT_CONFIG: Record<ElementType, { color: string, icon: string, 
 };
 
 export const DEFAULT_REALMS: RealmRank[] = [
-  { name: '炼气期', rangeStart: 1, rangeEnd: 9, expReq: 100 },
-  { name: '筑基期', rangeStart: 10, rangeEnd: 19, expReq: 500 },
-  { name: '金丹期', rangeStart: 20, rangeEnd: 29, expReq: 2000 },
-  { name: '元婴期', rangeStart: 30, rangeEnd: 39, expReq: 10000 },
-  { name: '化神期', rangeStart: 40, rangeEnd: 99, expReq: 50000 },
+  { name: '炼气期', rangeStart: 1, rangeEnd: 9, expReq: 100, minGoldDrop: 10, maxGoldDrop: 50 },
+  { name: '筑基期', rangeStart: 10, rangeEnd: 19, expReq: 500, minGoldDrop: 50, maxGoldDrop: 200 },
+  { name: '金丹期', rangeStart: 20, rangeEnd: 29, expReq: 2000, minGoldDrop: 200, maxGoldDrop: 800 },
+  { name: '元婴期', rangeStart: 30, rangeEnd: 39, expReq: 10000, minGoldDrop: 1000, maxGoldDrop: 3000 },
+  { name: '化神期', rangeStart: 40, rangeEnd: 99, expReq: 50000, minGoldDrop: 5000, maxGoldDrop: 10000 },
 ];
 
 export const getRealmName = (level: number, realms: RealmRank[] = DEFAULT_REALMS): string => {

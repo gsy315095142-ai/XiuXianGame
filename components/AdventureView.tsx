@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MapNode, NodeType } from '../types';
 import { Button } from './Button';
@@ -5,15 +6,12 @@ import { Button } from './Button';
 interface AdventureViewProps {
   mapNodes: MapNode[];
   currentLocationId: number | null;
-  onMove: (node: MapNode) => void;
+  onNodeClick: (node: MapNode) => void;
   onRetreat: () => void;
 }
 
-export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentLocationId, onMove, onRetreat }) => {
+export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentLocationId, onNodeClick, onRetreat }) => {
   
-  // Simple grid layout render
-  const gridSize = 3; // 3x3 or 4x4 grid usually
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[url('https://picsum.photos/seed/mountains/1920/1080')] bg-cover bg-center relative">
       {/* Overlay */}
@@ -29,7 +27,10 @@ export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentL
             <div className="grid grid-cols-4 gap-4 sm:gap-6">
             {mapNodes.map((node) => {
                 const isCurrent = node.id === currentLocationId;
-                const isAvailable = !node.visited && (currentLocationId === null || Math.abs(node.id - currentLocationId) <= 1); // Simplistic adjacency logic for demo list
+                // Simple adjacency logic for demo: Can click any visited or adjacent node
+                // But for "Preview" logic, maybe we allow clicking any node to see what's there?
+                // Usually games restrict movement. Let's keep restriction but use the new handler.
+                const isAvailable = !node.visited && (currentLocationId === null || Math.abs(node.id - currentLocationId) <= 1); 
 
                 let icon = '❓';
                 let bgClass = 'bg-slate-700 border-slate-600';
@@ -41,20 +42,21 @@ export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentL
                     icon = '👿';
                     bgClass = 'bg-red-900/80 border-red-500 animate-pulse';
                 } else if (node.type === NodeType.TREASURE) {
-                    // Only reveal if visited usually, but for visual debugging/gameplay style:
+                    // Usually hidden until visited, but for debug/demo logic we might show hints
                     // icon = '❓'; 
                 }
 
                 return (
                 <button
                     key={node.id}
-                    onClick={() => onMove(node)}
-                    disabled={node.visited}
+                    onClick={() => isAvailable ? onNodeClick(node) : null}
+                    disabled={node.visited || !isAvailable}
                     className={`
                         aspect-square rounded-lg border-2 flex flex-col items-center justify-center transition-all duration-300
                         ${bgClass}
                         ${isCurrent ? 'ring-4 ring-emerald-400 scale-110 z-10 bg-emerald-900' : ''}
-                        ${!node.visited && !isCurrent ? 'hover:scale-105 hover:border-emerald-400 cursor-pointer' : ''}
+                        ${isAvailable && !isCurrent ? 'hover:scale-105 hover:border-emerald-400 cursor-pointer' : ''}
+                        ${!isAvailable && !isCurrent ? 'cursor-not-allowed opacity-30' : ''}
                         ${node.visited ? 'cursor-default' : ''}
                     `}
                 >
