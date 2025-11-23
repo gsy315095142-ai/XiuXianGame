@@ -310,11 +310,70 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
     }
 });
 
-// Combine
+// Combine Cards and Items FIRST
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
 export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS];
 
+// --- Procedural Generation: Enemies ---
+
+const GENERATED_ENEMIES: EnemyTemplate[] = [];
+
+// Config for enemy generation: 4 Realms x 10 Enemies
+const ENEMY_REALM_CONFIG = [
+    { name: '炼气', minLv: 1, maxLv: 9, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
+    { name: '筑基', minLv: 10, maxLv: 19, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
+    { name: '金丹', minLv: 20, maxLv: 29, hpRange: [800, 1500], atkRange: [40, 60], spirit: 40, prefix: ['三眼', '六臂', '吞天', '覆海', '裂地', '万古', '不灭', '修罗', '九幽', '太上'] },
+    { name: '元婴', minLv: 30, maxLv: 39, hpRange: [4000, 8000], atkRange: [80, 120], spirit: 100, prefix: ['洪荒', '混沌', '造化', '涅槃', '虚空', '星辰', '昊天', '元始', '寂灭', '无相'] },
+];
+
+const ENEMY_BASE_NAMES = ['妖狼', '巨蟒', '魔猿', '剑修', '散人', '鬼王', '灵狐', '石魔', '花妖', '巨虫'];
+
+ENEMY_REALM_CONFIG.forEach((config) => {
+    // Generate 10 enemies for this realm
+    for (let i = 0; i < 10; i++) {
+        const level = randInt(config.minLv, config.maxLv);
+        const name = `${randPick(config.prefix)}${ENEMY_BASE_NAMES[i % ENEMY_BASE_NAMES.length]}`;
+        
+        // Random main element
+        const mainElement = Object.values(ElementType)[randInt(0, 10)];
+        const affs = createZeroElementStats();
+        // Give them plenty of element affinity so they can cast cards
+        affs[mainElement] = 50 + (level * 10);
+        
+        // Pick random cards suitable for this level
+        const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 2); // Can use cards slightly above level
+        const deck: string[] = [];
+        const deckSize = 3 + Math.floor(level / 10); // Higher level enemies have larger decks
+        
+        if (validCards.length > 0) {
+            for(let k=0; k<deckSize; k++) {
+                deck.push(randPick(validCards).id);
+            }
+        } else {
+             deck.push('c_strike');
+        }
+
+        GENERATED_ENEMIES.push({
+            name: name,
+            minPlayerLevel: config.minLv,
+            baseStats: {
+                maxHp: randInt(config.hpRange[0], config.hpRange[1]),
+                hp: randInt(config.hpRange[0], config.hpRange[1]),
+                maxSpirit: config.spirit,
+                spirit: config.spirit,
+                attack: randInt(config.atkRange[0], config.atkRange[1]),
+                defense: Math.floor(level / 2),
+                speed: 8 + Math.floor(level / 2),
+                elementalAffinities: affs
+            },
+            cardIds: deck
+        });
+    }
+});
+
+
 export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
+  // Basic Start Enemies
   {
     name: '野猪',
     baseStats: { maxHp: 60, hp: 60, maxSpirit: 10, spirit: 10, attack: 6, defense: 0, speed: 8, elementalAffinities: { ...createZeroElementStats(), [ElementType.EARTH]: 2 } },
@@ -327,24 +386,8 @@ export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
     cardIds: ['c_strike', 'c_strike'],
     minPlayerLevel: 1,
   },
-  {
-    name: '魔修',
-    baseStats: { maxHp: 80, hp: 80, maxSpirit: 10, spirit: 10, attack: 10, defense: 2, speed: 10, elementalAffinities: { ...createZeroElementStats(), [ElementType.FIRE]: 5, [ElementType.DARK]: 3 } },
-    cardIds: ['c_strike', 'c_defend', 'c_fireball'],
-    minPlayerLevel: 3,
-  },
-  {
-    name: '筑基妖兽',
-    baseStats: { maxHp: 200, hp: 200, maxSpirit: 20, spirit: 20, attack: 20, defense: 10, speed: 15, elementalAffinities: { ...createZeroElementStats(), [ElementType.METAL]: 10 } },
-    cardIds: ['c_fireball', 'c_fireball'],
-    minPlayerLevel: 10,
-  },
-  {
-      name: '金丹老祖',
-      baseStats: { maxHp: 1000, hp: 1000, maxSpirit: 50, spirit: 50, attack: 50, defense: 30, speed: 20, elementalAffinities: { ...createZeroElementStats(), [ElementType.SWORD]: 20, [ElementType.LIGHT]: 10 } },
-      cardIds: ['gen_c_20_0', 'gen_c_20_1', 'gen_c_20_2'], 
-      minPlayerLevel: 20
-  }
+  // Generated Enemies
+  ...GENERATED_ENEMIES
 ];
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -419,8 +462,24 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
 };
 
 export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig): Enemy => {
-  let possibleEnemies = config.enemies.filter(e => playerLevel >= e.minPlayerLevel);
+  // Find enemies within a reasonable level range (e.g., playerLevel - 2 to playerLevel + 5)
+  // But also include low level enemies if no high level ones exist yet, or just strictly check minPlayerLevel
+  // The current logic uses minPlayerLevel. Let's make it a bit more dynamic.
   
+  // Filter enemies that have minPlayerLevel <= playerLevel + 2 (so you can fight slightly stronger ones)
+  // And minPlayerLevel >= playerLevel - 10 (so you don't fight level 1 boars at level 50)
+  
+  let possibleEnemies = config.enemies.filter(e => 
+      e.minPlayerLevel <= playerLevel + 1 && 
+      e.minPlayerLevel >= Math.max(1, playerLevel - 15)
+  );
+  
+  // Fallback: just get anything lower than player level
+  if (possibleEnemies.length === 0) {
+      possibleEnemies = config.enemies.filter(e => e.minPlayerLevel <= playerLevel);
+  }
+
+  // Fallback: Get weakest
   if (possibleEnemies.length === 0) {
      if (config.enemies.length > 0) {
         possibleEnemies = config.enemies.sort((a,b) => a.minPlayerLevel - b.minPlayerLevel).slice(0,1);
@@ -434,7 +493,9 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   }
   
   const template = possibleEnemies[Math.floor(Math.random() * possibleEnemies.length)];
-  const difficultyMultiplier = 1 + (playerLevel * 0.2);
+  
+  // Small variance in stats
+  const difficultyMultiplier = 1 + (Math.random() * 0.2 - 0.1); 
   
   const enemyDeck = template.cardIds
     .map(id => config.cards.find(c => c.id === id))
@@ -450,14 +511,12 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
       }
   }
 
-  // Base affinities + some random scaling or fixed template scaling?
-  // For now, template static affinities.
   const affs = {...template.baseStats.elementalAffinities};
 
   return {
     id: `enemy_${Date.now()}`,
     name: template.name,
-    level: playerLevel,
+    level: template.minPlayerLevel, // Use template level as base
     avatarUrl: `https://picsum.photos/seed/${template.name}/200/200`,
     stats: {
       maxHp: Math.floor(template.baseStats.maxHp * difficultyMultiplier),
@@ -469,9 +528,9 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
       speed: Math.floor(template.baseStats.speed * difficultyMultiplier),
       elementalAffinities: affs
     },
-    dropExp: 20 * playerLevel,
-    dropGold: 10 * playerLevel,
-    difficulty: playerLevel,
+    dropExp: 20 * template.minPlayerLevel,
+    dropGold: 10 * template.minPlayerLevel,
+    difficulty: template.minPlayerLevel,
     deck: enemyDeck
   };
 };
