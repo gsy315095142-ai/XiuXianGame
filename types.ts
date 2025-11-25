@@ -43,7 +43,8 @@ export interface RealmRank {
   rangeEnd: number;
   expReq: number;
   minGoldDrop: number; 
-  maxGoldDrop: number; 
+  maxGoldDrop: number;
+  subRanks?: string[]; // New: Custom names for specific levels (e.g., "Early", "Mid", "Grand Completion")
 }
 
 export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';

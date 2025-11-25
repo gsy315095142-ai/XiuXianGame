@@ -34,16 +34,63 @@ export const ELEMENT_CONFIG: Record<ElementType, { color: string, icon: string, 
 };
 
 export const DEFAULT_REALMS: RealmRank[] = [
-  { name: '炼气期', rangeStart: 1, rangeEnd: 9, expReq: 100, minGoldDrop: 10, maxGoldDrop: 50 },
-  { name: '筑基期', rangeStart: 10, rangeEnd: 19, expReq: 500, minGoldDrop: 50, maxGoldDrop: 200 },
-  { name: '金丹期', rangeStart: 20, rangeEnd: 29, expReq: 2000, minGoldDrop: 200, maxGoldDrop: 800 },
-  { name: '元婴期', rangeStart: 30, rangeEnd: 39, expReq: 10000, minGoldDrop: 1000, maxGoldDrop: 3000 },
-  { name: '化神期', rangeStart: 40, rangeEnd: 99, expReq: 50000, minGoldDrop: 5000, maxGoldDrop: 10000 },
+  { 
+      name: '炼气期', 
+      rangeStart: 1, 
+      rangeEnd: 10, 
+      expReq: 100, 
+      minGoldDrop: 10, 
+      maxGoldDrop: 50,
+      subRanks: ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满']
+  },
+  { 
+      name: '筑基期', 
+      rangeStart: 11, 
+      rangeEnd: 14, 
+      expReq: 500, 
+      minGoldDrop: 50, 
+      maxGoldDrop: 200,
+      subRanks: ['初期', '中期', '后期', '假丹']
+  },
+  { 
+      name: '结丹期', // Changed from 金丹 to 结丹 to match request
+      rangeStart: 15, 
+      rangeEnd: 18, 
+      expReq: 2000, 
+      minGoldDrop: 200, 
+      maxGoldDrop: 800,
+      subRanks: ['初期', '中期', '后期', '后期巅峰']
+  },
+  { 
+      name: '元婴期', 
+      rangeStart: 19, 
+      rangeEnd: 24, 
+      expReq: 10000, 
+      minGoldDrop: 1000, 
+      maxGoldDrop: 3000,
+      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰']
+  },
+  { 
+      name: '化神期', 
+      rangeStart: 25, 
+      rangeEnd: 30, 
+      expReq: 50000, 
+      minGoldDrop: 5000, 
+      maxGoldDrop: 10000,
+      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰']
+  },
 ];
 
 export const getRealmName = (level: number, realms: RealmRank[] = DEFAULT_REALMS): string => {
     const realm = realms.find(r => level >= r.rangeStart && level <= r.rangeEnd);
     if (realm) {
+        if (realm.subRanks && realm.subRanks.length > 0) {
+            const index = level - realm.rangeStart;
+            // Ensure index is within bounds of subRanks array
+            const subName = realm.subRanks[Math.min(index, realm.subRanks.length - 1)];
+            return `${realm.name} ${subName}`;
+        }
+        // Fallback for realms without specific sub-ranks configured
         return `${realm.name} ${level - realm.rangeStart + 1}层`;
     }
     return `未知境界 Lv.${level}`;
@@ -219,12 +266,13 @@ const GENERATED_CARDS: Card[] = [];
 const GENERATED_ITEMS: Item[] = [];
 const GENERATED_BOOKS: Item[] = [];
 
+// Adjusted Levels for New Realm Ranges
 const REALMS_GEN_CONFIG = [
     { name: '炼气', level: 1, limit: 10, prefix: '凡品' },
-    { name: '筑基', level: 10, limit: 20, prefix: '灵品' },
-    { name: '金丹', level: 20, limit: 50, prefix: '玄品' },
-    { name: '元婴', level: 30, limit: 100, prefix: '地品' },
-    { name: '化神', level: 40, limit: 200, prefix: '天品' },
+    { name: '筑基', level: 11, limit: 20, prefix: '灵品' },
+    { name: '结丹', level: 15, limit: 50, prefix: '玄品' },
+    { name: '元婴', level: 19, limit: 100, prefix: '地品' },
+    { name: '化神', level: 25, limit: 200, prefix: '天品' },
 ];
 
 const EQUIP_SLOTS_LIST: EquipmentSlot[] = ['mainWeapon', 'offWeapon', 'head', 'body', 'belt', 'legs', 'feet', 'neck', 'accessory', 'ring'];
@@ -385,12 +433,13 @@ export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_
 const GENERATED_ENEMIES: EnemyTemplate[] = [];
 
 // Config for enemy generation: 5 Realms x 10 Enemies
+// Updated level ranges to match the new compressed realm system
 const ENEMY_REALM_CONFIG = [
-    { name: '炼气', minLv: 1, maxLv: 9, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, elementLimit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
-    { name: '筑基', minLv: 10, maxLv: 19, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, elementLimit: 20, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
-    { name: '金丹', minLv: 20, maxLv: 29, hpRange: [800, 1500], atkRange: [40, 60], spirit: 40, elementLimit: 50, prefix: ['三眼', '六臂', '吞天', '覆海', '裂地', '万古', '不灭', '修罗', '九幽', '太上'] },
-    { name: '元婴', minLv: 30, maxLv: 39, hpRange: [4000, 8000], atkRange: [80, 120], spirit: 100, elementLimit: 100, prefix: ['洪荒', '混沌', '造化', '涅槃', '虚空', '星辰', '昊天', '元始', '寂灭', '无相'] },
-    { name: '化神', minLv: 40, maxLv: 99, hpRange: [20000, 50000], atkRange: [200, 400], spirit: 200, elementLimit: 200, prefix: ['太古', '灭世', '诛仙', '神魔', '永恒'] },
+    { name: '炼气', minLv: 1, maxLv: 10, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, elementLimit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
+    { name: '筑基', minLv: 11, maxLv: 14, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, elementLimit: 20, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
+    { name: '结丹', minLv: 15, maxLv: 18, hpRange: [800, 1500], atkRange: [40, 60], spirit: 40, elementLimit: 50, prefix: ['三眼', '六臂', '吞天', '覆海', '裂地', '万古', '不灭', '修罗', '九幽', '太上'] },
+    { name: '元婴', minLv: 19, maxLv: 24, hpRange: [4000, 8000], atkRange: [80, 120], spirit: 100, elementLimit: 100, prefix: ['洪荒', '混沌', '造化', '涅槃', '虚空', '星辰', '昊天', '元始', '寂灭', '无相'] },
+    { name: '化神', minLv: 25, maxLv: 30, hpRange: [20000, 50000], atkRange: [200, 400], spirit: 200, elementLimit: 200, prefix: ['太古', '灭世', '诛仙', '神魔', '永恒'] },
 ];
 
 const ENEMY_BASE_NAMES = ['妖狼', '巨蟒', '魔猿', '剑修', '散人', '鬼王', '灵狐', '石魔', '花妖', '巨虫'];
@@ -406,7 +455,7 @@ ENEMY_REALM_CONFIG.forEach((config) => {
         const realmAttackCards = INITIAL_CARDS.filter(c => 
             c.type === CardType.ATTACK && 
             c.reqLevel >= config.minLv && 
-            c.reqLevel <= config.maxLv
+            c.reqLevel <= config.maxLv + 2 // Allow slightly higher level cards for variety
         );
 
         let mainElement: ElementType;
@@ -437,10 +486,10 @@ ENEMY_REALM_CONFIG.forEach((config) => {
         
         // Start deck with the signature attack card
         const deck: string[] = [primaryCardId];
-        const deckSize = 3 + Math.floor(level / 10); // Higher level enemies have larger decks
+        const deckSize = 3 + Math.floor(level / 5); // Adjusted deck size scaling for compressed levels
         
         // Fill rest of deck with valid cards for this level
-        const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 2); 
+        const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 1); 
         
         if (validCards.length > 0) {
             for(let k=1; k<deckSize; k++) {
@@ -450,7 +499,7 @@ ENEMY_REALM_CONFIG.forEach((config) => {
 
         GENERATED_ENEMIES.push({
             name: name,
-            minPlayerLevel: config.minLv,
+            minPlayerLevel: config.minLv, // Group by realm start
             baseStats: {
                 maxHp: randInt(config.hpRange[0], config.hpRange[1]),
                 hp: randInt(config.hpRange[0], config.hpRange[1]),
@@ -560,7 +609,7 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   
   let possibleEnemies = config.enemies.filter(e => 
       e.minPlayerLevel <= playerLevel + 1 && 
-      e.minPlayerLevel >= Math.max(1, playerLevel - 15)
+      e.minPlayerLevel >= Math.max(1, playerLevel - 3) // Adjusted search range for compressed levels
   );
   
   // Fallback: just get anything lower than player level
@@ -604,7 +653,7 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
           }
       });
 
-      const affinityCards = config.cards.filter(c => c.element === mainAffinity && c.type === CardType.ATTACK && c.reqLevel <= playerLevel + 2);
+      const affinityCards = config.cards.filter(c => c.element === mainAffinity && c.type === CardType.ATTACK && c.reqLevel <= playerLevel + 1);
       if (affinityCards.length > 0) {
           enemyDeck.push(randPick(affinityCards));
       } else {
