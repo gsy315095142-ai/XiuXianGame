@@ -585,8 +585,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
              {/* Combat Log to the right of the button */}
              <div className="absolute left-full ml-6 w-72 text-left pointer-events-none">
-                {combatLog.slice().reverse().map((log, i) => (
-                    <div key={i} className={`text-sm drop-shadow-md animate-fade-in bg-black/50 p-1.5 mb-1 rounded backdrop-blur-sm border-l-2 ${i === 0 ? 'text-white border-emerald-400 font-bold scale-105' : 'text-slate-400 border-transparent'}`}>
+                {combatLog.map((log, i) => (
+                    <div key={i} className={`text-sm drop-shadow-md animate-fade-in bg-black/50 p-1.5 mb-1 rounded backdrop-blur-sm border-l-2 ${i === combatLog.length - 1 ? 'text-white border-emerald-400 font-bold scale-105' : 'text-slate-400 border-transparent'}`}>
                         {log}
                     </div>
                 ))}
