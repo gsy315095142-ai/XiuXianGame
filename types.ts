@@ -38,22 +38,29 @@ export enum NodeType {
   MERCHANT = '游商',
 }
 
+export interface RealmLevelConfig {
+    name: string; // The specific name for this level (e.g. "Layer 1", "Early Stage")
+    expReq: number; // XP required to fill this level
+    // Stat Growth upon reaching this level (or leveling up TO this level)
+    hpGrowth: number;
+    atkGrowth: number;
+    defGrowth: number;
+    spiritGrowth: number;
+    speedGrowth: number;
+    // Costs to break FROM this level to the next
+    breakthroughCost: number; 
+    breakthroughChance: number; // 0.0 - 1.0
+}
+
 export interface RealmRank {
   name: string;
   rangeStart: number;
   rangeEnd: number;
-  expReq: number;
+  
   minGoldDrop: number; 
   maxGoldDrop: number;
-  subRanks?: string[]; 
-  // Level Up Config
-  hpGrowth: number;
-  atkGrowth: number;
-  defGrowth: number;
-  spiritGrowth: number;
-  speedGrowth: number;
-  breakthroughCost: number; // Cost to break TO the next level
-  breakthroughChance: number; // 0.0 - 1.0
+
+  levels: RealmLevelConfig[];
 }
 
 export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';

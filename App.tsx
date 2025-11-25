@@ -285,10 +285,22 @@ export default function App() {
   const handleBreakthrough = () => {
       if (!player) return;
       
-      // Find current config
-      const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
-      const cost = currentRealm.breakthroughCost || 0;
-      const chance = currentRealm.breakthroughChance || 0.5;
+      // Find current Realm config
+      const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
+      if (!currentRealm) return;
+
+      // Find current specific level config to determine COST and CHANCE
+      // (The cost to breakthrough FROM this level)
+      const levelIndex = player.level - currentRealm.rangeStart;
+      const levelConfig = currentRealm.levels[levelIndex];
+
+      if (!levelConfig) {
+          console.error("Missing level config");
+          return;
+      }
+
+      const cost = levelConfig.breakthroughCost;
+      const chance = levelConfig.breakthroughChance;
 
       if (player.gold < cost) {
           alert(`灵石不足！突破需要 ${cost} 灵石。`);
@@ -307,20 +319,20 @@ export default function App() {
               const newLevel = prev.level + 1;
               const expLeft = prev.exp - prev.maxExp; // Consume exp
               
-              // Find next realm config (if level moves to next realm, use that, else use current)
-              // Actually, stat growth is usually defined by the level you just completed or the one you are in.
-              // Let's use the current realm's growth config for this level up.
-              
-              const statsGainedMsg = `HP+${currentRealm.hpGrowth}, 攻+${currentRealm.atkGrowth}, 防+${currentRealm.defGrowth}, 神+${currentRealm.spiritGrowth}, 速+${currentRealm.speedGrowth}`;
-              
-              // Calculate next Max Exp
+              // Determine stats for NEXT level (Reward for reaching new level)
               const nextRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd) || currentRealm;
-              // If entering new realm, expReq might change significantly.
-              // If staying in same realm, maybe scale slightly? For now, keep realm base req.
-              // A simple scaling: Base + (LevelInRealm * 10%)?
-              // The request asked for "Accumulate", but maxExp logic usually fixed per realm or formula.
-              // Let's use the `expReq` from the realm config of the NEW level.
-              const nextMaxExp = nextRealm.expReq;
+              const nextLevelIndex = newLevel - nextRealm.rangeStart;
+              const nextLevelConfig = nextRealm.levels[nextLevelIndex];
+              
+              // If we reached a level that has no config (e.g. exceeded max level), fallback to 0 growth
+              const hpGain = nextLevelConfig ? nextLevelConfig.hpGrowth : 0;
+              const atkGain = nextLevelConfig ? nextLevelConfig.atkGrowth : 0;
+              const defGain = nextLevelConfig ? nextLevelConfig.defGrowth : 0;
+              const spiGain = nextLevelConfig ? nextLevelConfig.spiritGrowth : 0;
+              const spdGain = nextLevelConfig ? nextLevelConfig.speedGrowth : 0;
+              const nextMaxExp = nextLevelConfig ? nextLevelConfig.expReq : prev.maxExp * 2; // Fallback exp req
+
+              const statsGainedMsg = `HP+${hpGain}, 攻+${atkGain}, 防+${defGain}, 神+${spiGain}, 速+${spdGain}`;
 
               setBreakthroughResult({
                   success: true,
@@ -335,13 +347,13 @@ export default function App() {
                   maxExp: nextMaxExp,
                   stats: {
                       ...prev.stats,
-                      maxHp: prev.stats.maxHp + (currentRealm.hpGrowth || 0),
-                      hp: prev.stats.maxHp + (currentRealm.hpGrowth || 0), // Full heal on level up? Or just increase cap? Let's increase current too.
-                      attack: prev.stats.attack + (currentRealm.atkGrowth || 0),
-                      defense: prev.stats.defense + (currentRealm.defGrowth || 0),
-                      maxSpirit: prev.stats.maxSpirit + (currentRealm.spiritGrowth || 0),
-                      spirit: prev.stats.maxSpirit + (currentRealm.spiritGrowth || 0),
-                      speed: prev.stats.speed + (currentRealm.speedGrowth || 0),
+                      maxHp: prev.stats.maxHp + hpGain,
+                      hp: prev.stats.maxHp + hpGain, // Full heal/boost
+                      attack: prev.stats.attack + atkGain,
+                      defense: prev.stats.defense + defGain,
+                      maxSpirit: prev.stats.maxSpirit + spiGain,
+                      spirit: prev.stats.maxSpirit + spiGain,
+                      speed: prev.stats.speed + spdGain,
                   }
               };
           });
@@ -351,7 +363,6 @@ export default function App() {
               success: false,
               message: '突破失败... 灵力逆流，损失了部分灵石，境界未得寸进。',
           });
-          // Player loses gold (already deducted) and keeps EXP.
       }
   };
 

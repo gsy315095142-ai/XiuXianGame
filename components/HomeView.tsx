@@ -27,8 +27,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
   
   // Get next realm info for breakthrough cost display
   const currentRealm = realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || realms[0];
-  const breakthroughCost = currentRealm.breakthroughCost || 0;
-  const breakthroughChance = (currentRealm.breakthroughChance || 0) * 100;
+  const levelIndex = player.level - currentRealm.rangeStart;
+  const levelConfig = currentRealm.levels[levelIndex];
+
+  const breakthroughCost = levelConfig ? levelConfig.breakthroughCost : 0;
+  const breakthroughChance = levelConfig ? (levelConfig.breakthroughChance * 100) : 0;
 
   const equipmentSlots: EquipmentSlot[] = [
     'mainWeapon', 'offWeapon', 

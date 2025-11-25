@@ -1,7 +1,7 @@
 
 
 import React, { useState, useRef } from 'react';
-import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType } from '../types';
+import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
 import { Button } from './Button';
 import * as XLSX from 'xlsx';
@@ -45,6 +45,18 @@ const createEmptyEnemy = (level: number = 1): EnemyTemplate => ({
   baseStats: { maxHp: 50 * level, hp: 50 * level, maxSpirit: 10 + level, spirit: 10 + level, attack: 5 + level, defense: 0, speed: 10, elementalAffinities: createZeroElementStats() },
   cardIds: [],
   minPlayerLevel: level
+});
+
+const createDefaultLevelConfig = (idx: number, prev: RealmLevelConfig): RealmLevelConfig => ({
+    name: `${idx + 1}层`,
+    expReq: prev.expReq,
+    hpGrowth: prev.hpGrowth,
+    atkGrowth: prev.atkGrowth,
+    defGrowth: prev.defGrowth,
+    spiritGrowth: prev.spiritGrowth,
+    speedGrowth: prev.speedGrowth,
+    breakthroughCost: prev.breakthroughCost,
+    breakthroughChance: prev.breakthroughChance,
 });
 
 export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCancel }) => {
@@ -113,10 +125,14 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         const wsGeneral = XLSX.utils.json_to_sheet(generalData);
         XLSX.utils.book_append_sheet(wb, wsGeneral, "General");
 
-        // 2. Realms Sheet
+        // 2. Realms Sheet (Updated for detailed levels)
         const realmsData = localConfig.realms.map(r => ({
-            ...r,
-            subRanks: (r.subRanks || []).join(',') // Flatten subRanks for Excel
+            name: r.name,
+            rangeStart: r.rangeStart,
+            rangeEnd: r.rangeEnd,
+            minGoldDrop: r.minGoldDrop,
+            maxGoldDrop: r.maxGoldDrop,
+            levels_json: JSON.stringify(r.levels) // Serialize levels for robust transport
         }));
         const wsRealms = XLSX.utils.json_to_sheet(realmsData);
         XLSX.utils.book_append_sheet(wb, wsRealms, "Realms");
@@ -248,8 +264,12 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               if (wsRealms) {
                   const rawRealms = XLSX.utils.sheet_to_json<any>(wsRealms);
                   newConfig.realms = rawRealms.map(r => ({
-                      ...r,
-                      subRanks: r.subRanks ? String(r.subRanks).split(',') : []
+                      name: r.name,
+                      rangeStart: r.rangeStart,
+                      rangeEnd: r.rangeEnd,
+                      minGoldDrop: r.minGoldDrop,
+                      maxGoldDrop: r.maxGoldDrop,
+                      levels: r.levels_json ? JSON.parse(r.levels_json) : []
                   }));
               }
 
@@ -404,16 +424,17 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           
           {activeTab === 'realms' && (
             <div className="space-y-4">
-               {/* Realm Config UI (unchanged) */}
+               {/* Realm Config UI (New Detailed Table) */}
                <div className="flex justify-between items-center mb-2">
                    <h3 className="text-lg font-bold text-slate-200">修仙境界划分</h3>
                </div>
-               <div className="grid gap-4">
+               <div className="space-y-6">
                   {localConfig.realms.map((realm, idx) => (
-                      <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700">
-                          <div className="flex flex-wrap items-end gap-2 mb-2">
-                            <div className="flex flex-col">
-                                <label className="text-[10px] text-slate-500">名称</label>
+                      <div key={idx} className="bg-slate-800 rounded border border-slate-700 overflow-hidden">
+                          {/* Realm Header */}
+                          <div className="bg-slate-700/50 p-3 flex gap-4 items-center border-b border-slate-600">
+                             <div className="flex items-center gap-2">
+                                <label className="text-xs text-slate-400">大境界名称:</label>
                                 <input 
                                     value={realm.name}
                                     onChange={(e) => {
@@ -421,119 +442,141 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                         newRealms[idx].name = e.target.value;
                                         setLocalConfig({...localConfig, realms: newRealms});
                                     }}
-                                    className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-32"
                                 />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[10px] text-slate-500">起始等级</label>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <label className="text-xs text-slate-400">起始等级:</label>
                                 <input 
-                                        type="number"
-                                        value={realm.rangeStart}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].rangeStart = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
+                                    type="number"
+                                    value={realm.rangeStart}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        const newRealms = [...localConfig.realms];
+                                        newRealms[idx].rangeStart = val;
+                                        // Auto update rangeEnd based on levels count
+                                        newRealms[idx].rangeEnd = val + newRealms[idx].levels.length - 1;
+                                        setLocalConfig({...localConfig, realms: newRealms});
+                                    }}
+                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-16"
                                 />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[10px] text-slate-500">结束等级</label>
-                                <input 
-                                        type="number"
-                                        value={realm.rangeEnd}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].rangeEnd = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                                />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[10px] text-slate-500">突破经验</label>
-                                <input 
-                                        type="number"
-                                        value={realm.expReq}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].expReq = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
-                                    />
-                            </div>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">结束等级: {realm.rangeEnd}</span>
+                             </div>
                           </div>
                           
-                          {/* Growth Config */}
-                          <div className="grid grid-cols-5 gap-2 mt-2 pt-2 border-t border-slate-700 bg-slate-900/30 p-2 rounded">
-                                <div className="text-[10px] col-span-5 text-slate-400 font-bold mb-1">每级属性成长:</div>
-                                {['hpGrowth', 'atkGrowth', 'defGrowth', 'spiritGrowth', 'speedGrowth'].map(stat => (
-                                    <div key={stat} className="flex flex-col">
-                                        <label className="text-[9px] text-slate-500 uppercase">{stat.replace('Growth','')}</label>
-                                        <input 
-                                            type="number"
-                                            // @ts-ignore
-                                            value={realm[stat]}
-                                            onChange={(e) => {
-                                                const newRealms = [...localConfig.realms];
-                                                // @ts-ignore
-                                                newRealms[idx][stat] = parseFloat(e.target.value);
-                                                setLocalConfig({...localConfig, realms: newRealms});
-                                            }}
-                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-green-300"
-                                        />
-                                    </div>
-                                ))}
-                          </div>
-
-                          {/* Breakthrough Config */}
-                          <div className="flex gap-4 mt-2 pt-2 border-t border-slate-700">
-                                <div className="flex flex-col">
-                                    <label className="text-[10px] text-yellow-500">突破灵石消耗</label>
-                                    <input 
-                                        type="number"
-                                        value={realm.breakthroughCost}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].breakthroughCost = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
-                                    />
-                                </div>
-                                <div className="flex flex-col">
-                                    <label className="text-[10px] text-blue-400">突破成功率 (0-1)</label>
-                                    <input 
-                                        type="number"
-                                        step="0.05"
-                                        max="1"
-                                        min="0"
-                                        value={realm.breakthroughChance}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].breakthroughChance = parseFloat(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-blue-300"
-                                    />
-                                </div>
-                          </div>
-
-                          <div className="flex flex-col mt-2 border-t border-slate-700 pt-2">
-                              <label className="text-[10px] text-slate-400">小境界名称 (用逗号分隔，按顺序对应等级)</label>
-                              <input 
-                                  type="text"
-                                  placeholder="例如: 初期,中期,后期"
-                                  value={(realm.subRanks || []).join(',')}
-                                  onChange={(e) => {
+                          {/* Levels Table */}
+                          <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                  <thead>
+                                      <tr className="bg-slate-900/50 text-[10px] text-slate-400 uppercase">
+                                          <th className="p-2 border-r border-slate-700 w-10">Lv</th>
+                                          <th className="p-2 border-r border-slate-700 min-w-[100px]">小境界名称</th>
+                                          <th className="p-2 border-r border-slate-700 w-20">突破XP</th>
+                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">HP+</th>
+                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">攻+</th>
+                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">防+</th>
+                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">神+</th>
+                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">速+</th>
+                                          <th className="p-2 border-r border-slate-700 w-20 text-yellow-400">消耗(灵石)</th>
+                                          <th className="p-2 w-16 text-blue-400">成功率</th>
+                                          <th className="p-2 w-10"></th>
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {realm.levels.map((level, lIdx) => (
+                                          <tr key={lIdx} className="border-b border-slate-700 hover:bg-slate-700/30">
+                                              <td className="p-2 text-center text-xs text-slate-500">{realm.rangeStart + lIdx}</td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input 
+                                                      value={level.name}
+                                                      onChange={(e) => {
+                                                          const newRealms = [...localConfig.realms];
+                                                          newRealms[idx].levels[lIdx].name = e.target.value;
+                                                          setLocalConfig({...localConfig, realms: newRealms});
+                                                      }}
+                                                      className="w-full bg-transparent border-b border-slate-600 focus:border-emerald-500 outline-none text-xs"
+                                                  />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.expReq} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].expReq = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.hpGrowth} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].hpGrowth = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.atkGrowth} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].atkGrowth = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.defGrowth} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].defGrowth = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.spiritGrowth} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].spiritGrowth = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.speedGrowth} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].speedGrowth = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
+                                              </td>
+                                              <td className="p-2 border-r border-slate-700">
+                                                  <input type="number" value={level.breakthroughCost} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].breakthroughCost = parseInt(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-yellow-300" />
+                                              </td>
+                                              <td className="p-2">
+                                                  <input type="number" step="0.05" max="1" min="0" value={level.breakthroughChance} onChange={(e) => {
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels[lIdx].breakthroughChance = parseFloat(e.target.value);
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-blue-300" />
+                                              </td>
+                                              <td className="p-2 text-center">
+                                                  <button onClick={() => {
+                                                      if(realm.levels.length <= 1) return;
+                                                      const newRealms = [...localConfig.realms];
+                                                      newRealms[idx].levels.splice(lIdx, 1);
+                                                      newRealms[idx].rangeEnd = newRealms[idx].rangeStart + newRealms[idx].levels.length - 1;
+                                                      setLocalConfig({...localConfig, realms: newRealms});
+                                                  }} className="text-red-500 hover:text-white text-xs">×</button>
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                              <div className="p-2 bg-slate-900/30 flex justify-center">
+                                  <Button size="sm" variant="secondary" onClick={() => {
                                       const newRealms = [...localConfig.realms];
-                                      const val = e.target.value;
-                                      newRealms[idx].subRanks = val ? val.split(',') : [];
+                                      const prevLevel = newRealms[idx].levels[newRealms[idx].levels.length - 1];
+                                      newRealms[idx].levels.push(createDefaultLevelConfig(newRealms[idx].levels.length, prevLevel));
+                                      newRealms[idx].rangeEnd = newRealms[idx].rangeStart + newRealms[idx].levels.length - 1;
                                       setLocalConfig({...localConfig, realms: newRealms});
-                                  }}
-                                  className="block w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300"
-                              />
+                                  }} className="w-full text-xs py-1 text-slate-400 hover:text-white">+ 添加层级</Button>
+                              </div>
                           </div>
                       </div>
                   ))}

@@ -1,6 +1,6 @@
 
 
-import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType } from './types';
+import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType, RealmLevelConfig } from './types';
 
 export const MAX_HAND_SIZE = 10;
 export const DRAW_COUNT_PER_TURN = 5;
@@ -33,100 +33,113 @@ export const ELEMENT_CONFIG: Record<ElementType, { color: string, icon: string, 
     [ElementType.SWORD]: { color: 'text-slate-200', icon: '⚔️', bg: 'bg-slate-700' },
 };
 
+// Helper to generate default levels for backward compatibility logic
+const generateLevels = (
+    count: number, 
+    names: string[], 
+    baseExp: number, 
+    hp: number, 
+    atk: number, 
+    def: number, 
+    spi: number, 
+    spd: number,
+    cost: number,
+    chance: number
+): RealmLevelConfig[] => {
+    return Array.from({ length: count }, (_, i) => ({
+        name: names[Math.min(i, names.length - 1)] || `${i+1}层`,
+        expReq: baseExp,
+        hpGrowth: hp,
+        atkGrowth: atk,
+        defGrowth: def,
+        spiritGrowth: spi,
+        speedGrowth: spd,
+        breakthroughCost: cost,
+        breakthroughChance: chance
+    }));
+};
+
 export const DEFAULT_REALMS: RealmRank[] = [
   { 
       name: '炼气期', 
       rangeStart: 1, 
       rangeEnd: 10, 
-      expReq: 100, 
       minGoldDrop: 10, 
       maxGoldDrop: 50,
-      subRanks: ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满'],
-      hpGrowth: 10,
-      atkGrowth: 2,
-      defGrowth: 0,
-      spiritGrowth: 1,
-      speedGrowth: 1,
-      breakthroughCost: 50,
-      breakthroughChance: 1.0
+      levels: generateLevels(
+          10, 
+          ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满'],
+          100, // Exp
+          10, 2, 0, 1, 1, // Growth
+          50, 1.0 // Cost, Chance
+      )
   },
   { 
       name: '筑基期', 
       rangeStart: 11, 
       rangeEnd: 14, 
-      expReq: 500, 
       minGoldDrop: 50, 
       maxGoldDrop: 200,
-      subRanks: ['初期', '中期', '后期', '假丹'],
-      hpGrowth: 50,
-      atkGrowth: 8,
-      defGrowth: 2,
-      spiritGrowth: 3,
-      speedGrowth: 2,
-      breakthroughCost: 500,
-      breakthroughChance: 0.8
+      levels: generateLevels(
+          4,
+          ['初期', '中期', '后期', '假丹'],
+          500,
+          50, 8, 2, 3, 2,
+          500, 0.8
+      )
   },
   { 
       name: '结丹期', 
       rangeStart: 15, 
       rangeEnd: 18, 
-      expReq: 2000, 
       minGoldDrop: 200, 
       maxGoldDrop: 800,
-      subRanks: ['初期', '中期', '后期', '后期巅峰'],
-      hpGrowth: 200,
-      atkGrowth: 20,
-      defGrowth: 10,
-      spiritGrowth: 10,
-      speedGrowth: 5,
-      breakthroughCost: 2000,
-      breakthroughChance: 0.6
+      levels: generateLevels(
+          4,
+          ['初期', '中期', '后期', '后期巅峰'],
+          2000,
+          200, 20, 10, 10, 5,
+          2000, 0.6
+      )
   },
   { 
       name: '元婴期', 
       rangeStart: 19, 
       rangeEnd: 24, 
-      expReq: 10000, 
       minGoldDrop: 1000, 
       maxGoldDrop: 3000,
-      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
-      hpGrowth: 1000,
-      atkGrowth: 100,
-      defGrowth: 50,
-      spiritGrowth: 50,
-      speedGrowth: 10,
-      breakthroughCost: 10000,
-      breakthroughChance: 0.4
+      levels: generateLevels(
+          6,
+          ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
+          10000,
+          1000, 100, 50, 50, 10,
+          10000, 0.4
+      )
   },
   { 
       name: '化神期', 
       rangeStart: 25, 
       rangeEnd: 30, 
-      expReq: 50000, 
       minGoldDrop: 5000, 
       maxGoldDrop: 10000,
-      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
-      hpGrowth: 5000,
-      atkGrowth: 500,
-      defGrowth: 200,
-      spiritGrowth: 100,
-      speedGrowth: 20,
-      breakthroughCost: 50000,
-      breakthroughChance: 0.2
+      levels: generateLevels(
+          6,
+          ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
+          50000,
+          5000, 500, 200, 100, 20,
+          50000, 0.2
+      )
   },
 ];
 
 export const getRealmName = (level: number, realms: RealmRank[] = DEFAULT_REALMS): string => {
     const realm = realms.find(r => level >= r.rangeStart && level <= r.rangeEnd);
     if (realm) {
-        if (realm.subRanks && realm.subRanks.length > 0) {
-            const index = level - realm.rangeStart;
-            // Ensure index is within bounds of subRanks array
-            const subName = realm.subRanks[Math.min(index, realm.subRanks.length - 1)];
-            return `${realm.name} ${subName}`;
+        const index = level - realm.rangeStart;
+        if (realm.levels && realm.levels[index]) {
+            return `${realm.name} ${realm.levels[index].name}`;
         }
-        // Fallback for realms without specific sub-ranks configured
-        return `${realm.name} ${level - realm.rangeStart + 1}层`;
+        return `${realm.name} ${index + 1}层`;
     }
     return `未知境界 Lv.${level}`;
 };
@@ -632,6 +645,10 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
 
   // Deep copy stats to avoid reference issues
   const initialStats: Stats = JSON.parse(JSON.stringify(config.playerInitialStats));
+  
+  // Use Realm Level 1 Exp Req
+  const firstRealm = config.realms[0];
+  const firstLevelExp = firstRealm && firstRealm.levels[0] ? firstRealm.levels[0].expReq : 100;
 
   return {
     id: 'player_1',
@@ -639,7 +656,7 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
     level: 1,
     avatarUrl: 'https://picsum.photos/seed/cultivator/200/200',
     exp: 0,
-    maxExp: config.realms[0]?.expReq || 100,
+    maxExp: firstLevelExp,
     gold: 0,
     stats: initialStats,
     deck: deck,
