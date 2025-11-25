@@ -45,7 +45,15 @@ export interface RealmRank {
   expReq: number;
   minGoldDrop: number; 
   maxGoldDrop: number;
-  subRanks?: string[]; // New: Custom names for specific levels (e.g., "Early", "Mid", "Grand Completion")
+  subRanks?: string[]; 
+  // Level Up Config
+  hpGrowth: number;
+  atkGrowth: number;
+  defGrowth: number;
+  spiritGrowth: number;
+  speedGrowth: number;
+  breakthroughCost: number; // Cost to break TO the next level
+  breakthroughChance: number; // 0.0 - 1.0
 }
 
 export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';
@@ -65,14 +73,14 @@ export type EquipmentSlot =
 export interface Item {
   id: string;
   name: string;
-  icon: string; // New: Item Icon
+  icon: string; 
   type: ItemType;
   slot?: EquipmentSlot; 
   statBonus?: Partial<Stats>;
   description: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   reqLevel: number;
-  price: number; // New: Purchase price in Gold
+  price: number; 
 }
 
 export interface Card {

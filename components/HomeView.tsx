@@ -13,13 +13,22 @@ interface HomeViewProps {
   onEquipItem: (item: Item) => void;
   onUseItem: (item: Item) => void;
   onEndGame: () => void;
+  onBreakthrough: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onUseItem, onEndGame }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough }) => {
   const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck'>('none');
 
   const realmName = getRealmName(player.level, realms);
+  
+  // Calculate percentage, capping display at 100% even if accumulated more
   const expPercentage = Math.min(100, (player.exp / player.maxExp) * 100);
+  const canBreakthrough = player.exp >= player.maxExp;
+  
+  // Get next realm info for breakthrough cost display
+  const currentRealm = realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || realms[0];
+  const breakthroughCost = currentRealm.breakthroughCost || 0;
+  const breakthroughChance = (currentRealm.breakthroughChance || 0) * 100;
 
   const equipmentSlots: EquipmentSlot[] = [
     'mainWeapon', 'offWeapon', 
@@ -92,13 +101,31 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                     {/* Progress Bar Moved Here */}
                     <div className="w-full relative h-4 bg-slate-800 rounded-full border border-slate-600 overflow-hidden group mt-1">
                         <div 
-                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-900 via-emerald-600 to-emerald-400 transition-all duration-1000"
+                            className={`absolute top-0 left-0 h-full transition-all duration-1000 ${canBreakthrough ? 'bg-gradient-to-r from-amber-600 to-yellow-400 animate-pulse' : 'bg-gradient-to-r from-emerald-900 via-emerald-600 to-emerald-400'}`}
                             style={{ width: `${expPercentage}%` }}
                         ></div>
                         <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white shadow-black drop-shadow-md z-10">
                             {player.exp} / {player.maxExp}
                         </div>
                     </div>
+
+                    {/* Breakthrough Button */}
+                    {canBreakthrough && (
+                         <div className="mt-2 w-full flex flex-col items-center animate-fade-in-up">
+                            <Button 
+                                variant="primary" 
+                                size="lg" 
+                                onClick={onBreakthrough}
+                                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)] font-bold tracking-widest text-lg"
+                            >
+                                ⚡ 境界突破 ⚡
+                            </Button>
+                            <div className="text-[10px] text-slate-300 mt-1 flex gap-3 bg-black/50 px-3 py-1 rounded">
+                                <span className="text-yellow-400">消耗: {breakthroughCost}灵石</span>
+                                <span className="text-blue-300">成功率: {breakthroughChance.toFixed(0)}%</span>
+                            </div>
+                         </div>
+                    )}
                 </div>
             </div>
 
@@ -297,7 +324,7 @@ const EquipSlot: React.FC<{ label: string; item: Item | null }> = ({ label, item
                     </div>
                 </div>
             ) : (
-                <div className="text-[10px] text-slate-600">未装备</div>
+                <div className="text-slate-600 text-[10px]">未装备</div>
             )}
         </div>
     </div>

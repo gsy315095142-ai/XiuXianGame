@@ -1,7 +1,5 @@
 
 
-
-
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -41,6 +39,9 @@ export default function App() {
   
   // Shop State (Transient)
   const [merchantTab, setMerchantTab] = useState<'BUY' | 'SELL'>('BUY');
+  
+  // Breakthrough Result State
+  const [breakthroughResult, setBreakthroughResult] = useState<{success: boolean, message: string, statsGained?: string} | null>(null);
 
   // --- Start Logic ---
   const handleStartGame = () => {
@@ -247,33 +248,13 @@ export default function App() {
     setPlayer(prev => {
         if (!prev) return null;
         const newExp = prev.exp + rewards.exp;
-        const levelUp = newExp >= prev.maxExp;
         
+        // NO AUTO LEVEL UP - Just accumulate exp
         let updatedPlayer = { ...prev };
-
-        if (levelUp) {
-            const newLevel = prev.level + 1;
-            const currentRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd);
-            const nextMaxExp = currentRealm ? currentRealm.expReq : Math.floor(prev.maxExp * 1.5);
-
-            updatedPlayer = {
-                ...updatedPlayer,
-                exp: newExp - prev.maxExp,
-                level: newLevel,
-                maxExp: nextMaxExp,
-                stats: {
-                    ...prev.stats,
-                    maxHp: prev.stats.maxHp + 10,
-                    hp: prev.stats.maxHp + 10,
-                    attack: prev.stats.attack + 2
-                }
-            };
-        } else {
-            updatedPlayer = {
-                ...updatedPlayer,
-                exp: newExp,
-            };
-        }
+        updatedPlayer = {
+            ...updatedPlayer,
+            exp: newExp,
+        };
 
         updatedPlayer.gold += rewards.gold;
         if (rewards.drops.length > 0) {
@@ -298,6 +279,80 @@ export default function App() {
     }) : null);
     setView(GameView.HOME);
     setActiveEnemy(null);
+  };
+
+  // New: Manual Breakthrough Logic
+  const handleBreakthrough = () => {
+      if (!player) return;
+      
+      // Find current config
+      const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
+      const cost = currentRealm.breakthroughCost || 0;
+      const chance = currentRealm.breakthroughChance || 0.5;
+
+      if (player.gold < cost) {
+          alert(`灵石不足！突破需要 ${cost} 灵石。`);
+          return;
+      }
+
+      // Pay cost
+      setPlayer(prev => prev ? ({ ...prev, gold: prev.gold - cost }) : null);
+
+      // Roll for success
+      const roll = Math.random();
+      if (roll <= chance) {
+          // SUCCESS
+          setPlayer(prev => {
+              if (!prev) return null;
+              const newLevel = prev.level + 1;
+              const expLeft = prev.exp - prev.maxExp; // Consume exp
+              
+              // Find next realm config (if level moves to next realm, use that, else use current)
+              // Actually, stat growth is usually defined by the level you just completed or the one you are in.
+              // Let's use the current realm's growth config for this level up.
+              
+              const statsGainedMsg = `HP+${currentRealm.hpGrowth}, 攻+${currentRealm.atkGrowth}, 防+${currentRealm.defGrowth}, 神+${currentRealm.spiritGrowth}, 速+${currentRealm.speedGrowth}`;
+              
+              // Calculate next Max Exp
+              const nextRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd) || currentRealm;
+              // If entering new realm, expReq might change significantly.
+              // If staying in same realm, maybe scale slightly? For now, keep realm base req.
+              // A simple scaling: Base + (LevelInRealm * 10%)?
+              // The request asked for "Accumulate", but maxExp logic usually fixed per realm or formula.
+              // Let's use the `expReq` from the realm config of the NEW level.
+              const nextMaxExp = nextRealm.expReq;
+
+              setBreakthroughResult({
+                  success: true,
+                  message: '突破成功！境界提升！',
+                  statsGained: statsGainedMsg
+              });
+
+              return {
+                  ...prev,
+                  level: newLevel,
+                  exp: expLeft,
+                  maxExp: nextMaxExp,
+                  stats: {
+                      ...prev.stats,
+                      maxHp: prev.stats.maxHp + (currentRealm.hpGrowth || 0),
+                      hp: prev.stats.maxHp + (currentRealm.hpGrowth || 0), // Full heal on level up? Or just increase cap? Let's increase current too.
+                      attack: prev.stats.attack + (currentRealm.atkGrowth || 0),
+                      defense: prev.stats.defense + (currentRealm.defGrowth || 0),
+                      maxSpirit: prev.stats.maxSpirit + (currentRealm.spiritGrowth || 0),
+                      spirit: prev.stats.maxSpirit + (currentRealm.spiritGrowth || 0),
+                      speed: prev.stats.speed + (currentRealm.speedGrowth || 0),
+                  }
+              };
+          });
+      } else {
+          // FAILURE
+          setBreakthroughResult({
+              success: false,
+              message: '突破失败... 灵力逆流，损失了部分灵石，境界未得寸进。',
+          });
+          // Player loses gold (already deducted) and keeps EXP.
+      }
   };
 
   const handleUseItem = (item: Item) => {
@@ -575,6 +630,39 @@ export default function App() {
         </div>
       )}
 
+      {/* Breakthrough Result Modal */}
+      {breakthroughResult && (
+        <div className="fixed inset-0 z-[210] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+             <div className={`
+                p-8 rounded-xl border-4 max-w-sm w-full shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col items-center text-center
+                ${breakthroughResult.success ? 'bg-emerald-950 border-emerald-400 shadow-emerald-900/50' : 'bg-red-950 border-red-500 shadow-red-900/50'}
+             `}>
+                 <div className="text-6xl mb-4 animate-bounce-slight">
+                     {breakthroughResult.success ? '⚡' : '💥'}
+                 </div>
+                 <h2 className={`text-3xl font-bold mb-2 ${breakthroughResult.success ? 'text-emerald-300' : 'text-red-400'}`}>
+                     {breakthroughResult.success ? '突破成功!' : '突破失败'}
+                 </h2>
+                 <p className="text-slate-300 mb-6">
+                     {breakthroughResult.message}
+                 </p>
+                 {breakthroughResult.statsGained && (
+                     <div className="bg-black/40 p-3 rounded mb-6 text-sm text-emerald-200 font-mono">
+                         {breakthroughResult.statsGained}
+                     </div>
+                 )}
+                 <Button 
+                    variant={breakthroughResult.success ? 'primary' : 'secondary'}
+                    onClick={() => setBreakthroughResult(null)}
+                    size="lg"
+                    className="w-full"
+                 >
+                     {breakthroughResult.success ? '感受力量' : '再接再厉'}
+                 </Button>
+             </div>
+        </div>
+      )}
+
       {/* Acquired Card Modal */}
       {acquiredCard && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -631,6 +719,7 @@ export default function App() {
             setPlayer(null);
             setView(GameView.START);
           }}
+          onBreakthrough={handleBreakthrough}
         />
       )}
 

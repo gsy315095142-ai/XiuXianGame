@@ -41,7 +41,14 @@ export const DEFAULT_REALMS: RealmRank[] = [
       expReq: 100, 
       minGoldDrop: 10, 
       maxGoldDrop: 50,
-      subRanks: ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满']
+      subRanks: ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满'],
+      hpGrowth: 10,
+      atkGrowth: 2,
+      defGrowth: 0,
+      spiritGrowth: 1,
+      speedGrowth: 1,
+      breakthroughCost: 50,
+      breakthroughChance: 1.0
   },
   { 
       name: '筑基期', 
@@ -50,16 +57,30 @@ export const DEFAULT_REALMS: RealmRank[] = [
       expReq: 500, 
       minGoldDrop: 50, 
       maxGoldDrop: 200,
-      subRanks: ['初期', '中期', '后期', '假丹']
+      subRanks: ['初期', '中期', '后期', '假丹'],
+      hpGrowth: 50,
+      atkGrowth: 8,
+      defGrowth: 2,
+      spiritGrowth: 3,
+      speedGrowth: 2,
+      breakthroughCost: 500,
+      breakthroughChance: 0.8
   },
   { 
-      name: '结丹期', // Changed from 金丹 to 结丹 to match request
+      name: '结丹期', 
       rangeStart: 15, 
       rangeEnd: 18, 
       expReq: 2000, 
       minGoldDrop: 200, 
       maxGoldDrop: 800,
-      subRanks: ['初期', '中期', '后期', '后期巅峰']
+      subRanks: ['初期', '中期', '后期', '后期巅峰'],
+      hpGrowth: 200,
+      atkGrowth: 20,
+      defGrowth: 10,
+      spiritGrowth: 10,
+      speedGrowth: 5,
+      breakthroughCost: 2000,
+      breakthroughChance: 0.6
   },
   { 
       name: '元婴期', 
@@ -68,7 +89,14 @@ export const DEFAULT_REALMS: RealmRank[] = [
       expReq: 10000, 
       minGoldDrop: 1000, 
       maxGoldDrop: 3000,
-      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰']
+      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
+      hpGrowth: 1000,
+      atkGrowth: 100,
+      defGrowth: 50,
+      spiritGrowth: 50,
+      speedGrowth: 10,
+      breakthroughCost: 10000,
+      breakthroughChance: 0.4
   },
   { 
       name: '化神期', 
@@ -77,7 +105,14 @@ export const DEFAULT_REALMS: RealmRank[] = [
       expReq: 50000, 
       minGoldDrop: 5000, 
       maxGoldDrop: 10000,
-      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰']
+      subRanks: ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
+      hpGrowth: 5000,
+      atkGrowth: 500,
+      defGrowth: 200,
+      spiritGrowth: 100,
+      speedGrowth: 20,
+      breakthroughCost: 50000,
+      breakthroughChance: 0.2
   },
 ];
 

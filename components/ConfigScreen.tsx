@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -461,33 +463,63 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                         className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm"
                                     />
                             </div>
-                            <div className="flex flex-col border-l border-slate-600 pl-2">
-                                <label className="text-[10px] text-yellow-500">灵石(Min)</label>
-                                <input 
-                                        type="number"
-                                        value={realm.minGoldDrop || 10}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].minGoldDrop = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
-                                    />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[10px] text-yellow-500">灵石(Max)</label>
-                                <input 
-                                        type="number"
-                                        value={realm.maxGoldDrop || 50}
-                                        onChange={(e) => {
-                                            const newRealms = [...localConfig.realms];
-                                            newRealms[idx].maxGoldDrop = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, realms: newRealms});
-                                        }}
-                                        className="block w-20 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
-                                    />
-                            </div>
                           </div>
+                          
+                          {/* Growth Config */}
+                          <div className="grid grid-cols-5 gap-2 mt-2 pt-2 border-t border-slate-700 bg-slate-900/30 p-2 rounded">
+                                <div className="text-[10px] col-span-5 text-slate-400 font-bold mb-1">每级属性成长:</div>
+                                {['hpGrowth', 'atkGrowth', 'defGrowth', 'spiritGrowth', 'speedGrowth'].map(stat => (
+                                    <div key={stat} className="flex flex-col">
+                                        <label className="text-[9px] text-slate-500 uppercase">{stat.replace('Growth','')}</label>
+                                        <input 
+                                            type="number"
+                                            // @ts-ignore
+                                            value={realm[stat]}
+                                            onChange={(e) => {
+                                                const newRealms = [...localConfig.realms];
+                                                // @ts-ignore
+                                                newRealms[idx][stat] = parseFloat(e.target.value);
+                                                setLocalConfig({...localConfig, realms: newRealms});
+                                            }}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-green-300"
+                                        />
+                                    </div>
+                                ))}
+                          </div>
+
+                          {/* Breakthrough Config */}
+                          <div className="flex gap-4 mt-2 pt-2 border-t border-slate-700">
+                                <div className="flex flex-col">
+                                    <label className="text-[10px] text-yellow-500">突破灵石消耗</label>
+                                    <input 
+                                        type="number"
+                                        value={realm.breakthroughCost}
+                                        onChange={(e) => {
+                                            const newRealms = [...localConfig.realms];
+                                            newRealms[idx].breakthroughCost = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, realms: newRealms});
+                                        }}
+                                        className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-yellow-300"
+                                    />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[10px] text-blue-400">突破成功率 (0-1)</label>
+                                    <input 
+                                        type="number"
+                                        step="0.05"
+                                        max="1"
+                                        min="0"
+                                        value={realm.breakthroughChance}
+                                        onChange={(e) => {
+                                            const newRealms = [...localConfig.realms];
+                                            newRealms[idx].breakthroughChance = parseFloat(e.target.value);
+                                            setLocalConfig({...localConfig, realms: newRealms});
+                                        }}
+                                        className="block w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-blue-300"
+                                    />
+                                </div>
+                          </div>
+
                           <div className="flex flex-col mt-2 border-t border-slate-700 pt-2">
                               <label className="text-[10px] text-slate-400">小境界名称 (用逗号分隔，按顺序对应等级)</label>
                               <input 
