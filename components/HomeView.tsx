@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -200,31 +201,37 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
                 </div>
                 
                 <h4 className="text-slate-400 font-bold text-sm mt-6 mb-3 border-b border-slate-700 pb-2">五行灵根 & 特殊亲和</h4>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    {primaryElements.map(elem => {
-                            const config = ELEMENT_CONFIG[elem];
-                            const val = player.stats.elementalAffinities[elem];
-                            return (
-                            <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
-                                <span className={`flex items-center gap-2 ${config.color} font-bold`}>
-                                    <span className="text-lg">{config.icon}</span> {elem}
-                                </span>
-                                <span className="font-mono text-white font-bold">{val}</span>
-                            </div>
-                            )
-                    })}
-                    {secondaryElements.map(elem => {
-                            const config = ELEMENT_CONFIG[elem];
-                            const val = player.stats.elementalAffinities[elem];
-                            return (
-                            <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
-                                <span className={`flex items-center gap-2 ${config.color} font-bold`}>
-                                    <span className="text-lg">{config.icon}</span> {elem}
-                                </span>
-                                <span className="font-mono text-white font-bold">{val}</span>
-                            </div>
-                            )
-                    })}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Primary Column */}
+                    <div className="flex flex-col gap-2">
+                        {primaryElements.map(elem => {
+                                const config = ELEMENT_CONFIG[elem];
+                                const val = player.stats.elementalAffinities[elem];
+                                return (
+                                <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
+                                    <span className={`flex items-center gap-2 ${config.color} font-bold`}>
+                                        <span className="text-lg">{config.icon}</span> {elem}
+                                    </span>
+                                    <span className="font-mono text-white font-bold">{val}</span>
+                                </div>
+                                )
+                        })}
+                    </div>
+                    {/* Secondary Column */}
+                    <div className="flex flex-col gap-2">
+                        {secondaryElements.map(elem => {
+                                const config = ELEMENT_CONFIG[elem];
+                                const val = player.stats.elementalAffinities[elem];
+                                return (
+                                <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
+                                    <span className={`flex items-center gap-2 ${config.color} font-bold`}>
+                                        <span className="text-lg">{config.icon}</span> {elem}
+                                    </span>
+                                    <span className="font-mono text-white font-bold">{val}</span>
+                                </div>
+                                )
+                        })}
+                    </div>
                 </div>
             </div>
 
