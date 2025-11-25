@@ -39,17 +39,15 @@ export enum NodeType {
 }
 
 export interface RealmLevelConfig {
-    name: string; // The specific name for this level (e.g. "Layer 1", "Early Stage")
-    expReq: number; // XP required to fill this level
-    // Stat Growth upon reaching this level (or leveling up TO this level)
+    name: string; 
+    expReq: number; 
     hpGrowth: number;
     atkGrowth: number;
     defGrowth: number;
     spiritGrowth: number;
     speedGrowth: number;
-    // Costs to break FROM this level to the next
     breakthroughCost: number; 
-    breakthroughChance: number; // 0.0 - 1.0
+    breakthroughChance: number; 
 }
 
 export interface RealmRank {
@@ -63,7 +61,7 @@ export interface RealmRank {
   levels: RealmLevelConfig[];
 }
 
-export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT';
+export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT' | 'MATERIAL' | 'RECIPE' | 'PILL';
 
 export type EquipmentSlot = 
   | 'mainWeapon' 
@@ -88,6 +86,12 @@ export interface Item {
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   reqLevel: number;
   price: number; 
+  
+  // Alchemy Fields
+  maxUsage?: number; // For PILL: Max times a player can use this specific pill
+  recipeResult?: string; // For RECIPE: The ID of the item (Pill) it creates
+  recipeMaterials?: { itemId: string; count: number }[]; // For RECIPE: Materials required
+  successRate?: number; // For RECIPE: 0.0 - 1.0
 }
 
 export interface Card {
@@ -130,6 +134,10 @@ export interface Player extends Entity {
   deck: Card[];
   inventory: Item[];
   equipment: Record<EquipmentSlot, Item | null>;
+  
+  // Alchemy State
+  learnedRecipes: string[]; // List of Recipe Item IDs
+  pillUsage: Record<string, number>; // Pill Item ID -> Count Used
 }
 
 export interface Enemy extends Entity {
@@ -166,7 +174,7 @@ export interface GameConfig {
   playerInitialStats: Stats;
   eventWeights: {
       merchant: number;
-      treasure: number; // Reward node (Item or Gold)
+      treasure: number; 
       battle: number;
       empty: number;
   };

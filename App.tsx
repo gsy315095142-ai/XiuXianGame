@@ -42,6 +42,10 @@ export default function App() {
   
   // Breakthrough Result State
   const [breakthroughResult, setBreakthroughResult] = useState<{success: boolean, message: string, statsGained?: string} | null>(null);
+  
+  // Alchemy State
+  const [isRefining, setIsRefining] = useState(false);
+  const [refineResult, setRefineResult] = useState<{success: boolean, item?: Item} | null>(null);
 
   // --- Start Logic ---
   const handleStartGame = () => {
@@ -62,7 +66,6 @@ export default function App() {
         const rand = Math.random() * totalWeight;
         let type = NodeType.EMPTY;
         
-        // Weighted Random Selection
         let cum = 0;
         if (rand < (cum += w.merchant)) type = NodeType.MERCHANT;
         else if (rand < (cum += w.treasure)) type = NodeType.TREASURE;
@@ -77,9 +80,7 @@ export default function App() {
             y: 0
         };
     });
-    // Ensure node 0 is safe
     nodes[0].type = NodeType.EMPTY;
-    // Ensure last node is Boss
     nodes[nodes.length - 1].type = NodeType.BOSS;
     setMapNodes(nodes);
     setCurrentNode(null);
@@ -90,20 +91,16 @@ export default function App() {
     setView(GameView.ADVENTURE);
   };
 
-  // 1. Player Clicks Node -> Calculate Outcome & Show Modal
   const handleNodeClick = (node: MapNode) => {
     if (!player) return;
 
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
-      // Preview Enemy
       const enemy = getRandomEnemyFromConfig(player.level, config);
       setInteraction({ type: 'COMBAT', node, enemy });
     } 
     else if (node.type === NodeType.TREASURE) {
-      // Preview Reward
       const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
       
-      // Reward Logic: Prioritize Realm Items
       if (Math.random() < config.itemDropRate && config.items.length > 0) {
         let validItems: Item[] = [];
         if (currentRealm) {
@@ -139,21 +136,17 @@ export default function App() {
       }
     } 
     else if (node.type === NodeType.MERCHANT) {
-        // Generate Merchant Inventory
         const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
         let validItems = config.items;
         if (currentRealm) {
-             // Filter roughly by level so merchant isn't selling garbage or god-tier only
              validItems = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
         }
         if (validItems.length === 0) validItems = config.items;
 
-        // Pick 4-8 random items
         const count = 4 + Math.floor(Math.random() * 5);
         const shopInventory: Item[] = [];
         for(let i=0; i<count; i++) {
             const item = validItems[Math.floor(Math.random() * validItems.length)];
-            // Avoid duplicates in display id
             shopInventory.push({ ...item, id: `${item.id}_shop_${i}` });
         }
 
@@ -161,18 +154,15 @@ export default function App() {
         setMerchantTab('BUY');
     }
     else {
-        // Empty Node
         setInteraction({ type: 'EMPTY', node });
     }
   };
 
-  // 2. User Confirms Modal -> Execute Move & State Change
   const handleInteractionConfirm = () => {
       if (!interaction || !player) return;
 
       const { node, type } = interaction;
 
-      // Update Map Visited
       const newNodes = mapNodes.map(n => n.id === node.id ? { ...n, visited: true } : n);
       setMapNodes(newNodes);
       setCurrentNode(node.id);
@@ -191,16 +181,11 @@ export default function App() {
                   return { ...prev, gold: prev.gold + (reward.value as number) };
               }
           });
-      } else if (type === 'MERCHANT') {
-          // Just close modal, player has finished trading
-      } else {
-          // Empty node, just moved
       }
 
       setInteraction(null);
   };
 
-  // Merchant Logic
   const handleBuyItem = (item: Item) => {
       if (!player) return;
       if (player.gold < item.price) {
@@ -217,7 +202,6 @@ export default function App() {
           };
       });
       
-      // Remove bought item from shop list (optional, maybe infinite stock? let's remove for realism)
       if (interaction?.type === 'MERCHANT') {
           setInteraction(prev => {
               if (prev?.type !== 'MERCHANT') return prev;
@@ -231,7 +215,7 @@ export default function App() {
 
   const handleSellItem = (item: Item) => {
       if (!player) return;
-      const sellPrice = Math.floor(item.price * 0.5); // Sell for 50% value
+      const sellPrice = Math.floor(item.price * 0.5); 
 
       setPlayer(prev => {
           if (!prev) return null;
@@ -247,20 +231,12 @@ export default function App() {
   const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
     setPlayer(prev => {
         if (!prev) return null;
-        const newExp = prev.exp + rewards.exp;
-        
-        // NO AUTO LEVEL UP - Just accumulate exp
         let updatedPlayer = { ...prev };
-        updatedPlayer = {
-            ...updatedPlayer,
-            exp: newExp,
-        };
-
+        updatedPlayer.exp += rewards.exp;
         updatedPlayer.gold += rewards.gold;
         if (rewards.drops.length > 0) {
             updatedPlayer.inventory = [...updatedPlayer.inventory, ...rewards.drops];
         }
-
         return updatedPlayer;
     });
     
@@ -281,16 +257,12 @@ export default function App() {
     setActiveEnemy(null);
   };
 
-  // New: Manual Breakthrough Logic
   const handleBreakthrough = () => {
       if (!player) return;
       
-      // Find current Realm config
       const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
       if (!currentRealm) return;
 
-      // Find current specific level config to determine COST and CHANCE
-      // (The cost to breakthrough FROM this level)
       const levelIndex = player.level - currentRealm.rangeStart;
       const levelConfig = currentRealm.levels[levelIndex];
 
@@ -307,30 +279,25 @@ export default function App() {
           return;
       }
 
-      // Pay cost
       setPlayer(prev => prev ? ({ ...prev, gold: prev.gold - cost }) : null);
 
-      // Roll for success
       const roll = Math.random();
       if (roll <= chance) {
-          // SUCCESS
           setPlayer(prev => {
               if (!prev) return null;
               const newLevel = prev.level + 1;
-              const expLeft = prev.exp - prev.maxExp; // Consume exp
+              const expLeft = prev.exp - prev.maxExp; 
               
-              // Determine stats for NEXT level (Reward for reaching new level)
               const nextRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd) || currentRealm;
               const nextLevelIndex = newLevel - nextRealm.rangeStart;
               const nextLevelConfig = nextRealm.levels[nextLevelIndex];
               
-              // If we reached a level that has no config (e.g. exceeded max level), fallback to 0 growth
               const hpGain = nextLevelConfig ? nextLevelConfig.hpGrowth : 0;
               const atkGain = nextLevelConfig ? nextLevelConfig.atkGrowth : 0;
               const defGain = nextLevelConfig ? nextLevelConfig.defGrowth : 0;
               const spiGain = nextLevelConfig ? nextLevelConfig.spiritGrowth : 0;
               const spdGain = nextLevelConfig ? nextLevelConfig.speedGrowth : 0;
-              const nextMaxExp = nextLevelConfig ? nextLevelConfig.expReq : prev.maxExp * 2; // Fallback exp req
+              const nextMaxExp = nextLevelConfig ? nextLevelConfig.expReq : prev.maxExp * 2;
 
               const statsGainedMsg = `HP+${hpGain}, 攻+${atkGain}, 防+${defGain}, 神+${spiGain}, 速+${spdGain}`;
 
@@ -348,7 +315,7 @@ export default function App() {
                   stats: {
                       ...prev.stats,
                       maxHp: prev.stats.maxHp + hpGain,
-                      hp: prev.stats.maxHp + hpGain, // Full heal/boost
+                      hp: prev.stats.maxHp + hpGain, 
                       attack: prev.stats.attack + atkGain,
                       defense: prev.stats.defense + defGain,
                       maxSpirit: prev.stats.maxSpirit + spiGain,
@@ -358,7 +325,6 @@ export default function App() {
               };
           });
       } else {
-          // FAILURE
           setBreakthroughResult({
               success: false,
               message: '突破失败... 灵力逆流，损失了部分灵石，境界未得寸进。',
@@ -366,10 +332,139 @@ export default function App() {
       }
   };
 
+  // --- Alchemy Logic ---
+  const handleRefine = (recipeId: string, materials: {itemId: string, count: number}[]) => {
+      if (!player) return;
+      
+      const recipe = config.items.find(i => i.id === recipeId);
+      if (!recipe) return;
+
+      // Deduct materials (find one by one and remove)
+      let newInventory = [...player.inventory];
+      for (const mat of materials) {
+          for(let c=0; c<mat.count; c++) {
+             // Try exact ID match first, then base ID, then Name (for safety)
+             const idx = newInventory.findIndex(i => i.id === mat.itemId || i.id.startsWith(mat.itemId) || i.name === config.items.find(ci => ci.id === mat.itemId)?.name);
+             if (idx > -1) {
+                 newInventory.splice(idx, 1);
+             }
+          }
+      }
+      setPlayer(prev => prev ? ({...prev, inventory: newInventory}) : null);
+
+      setIsRefining(true);
+
+      // Wait 10 seconds
+      setTimeout(() => {
+          setIsRefining(false);
+          const roll = Math.random();
+          if (roll <= (recipe.successRate || 0.5)) {
+              // Success
+              const pillItem = config.items.find(i => i.id === recipe.recipeResult);
+              if (pillItem) {
+                  // Unique ID for inventory
+                  const newPill = { ...pillItem, id: `refined_${Date.now()}_${pillItem.id}` };
+                  setPlayer(prev => prev ? ({...prev, inventory: [...prev.inventory, newPill]}) : null);
+                  setRefineResult({ success: true, item: newPill });
+              } else {
+                   // Config error fallback
+                   setRefineResult({ success: false });
+              }
+          } else {
+              // Fail
+              setRefineResult({ success: false });
+          }
+      }, 10000);
+  };
+
   const handleUseItem = (item: Item) => {
       if (!player) return;
-      if (item.type !== 'CONSUMABLE') return;
+      
+      // Recipe Learning
+      if (item.type === 'RECIPE') {
+          if (player.learnedRecipes.includes(item.id)) {
+              alert("你已经掌握了这门丹方，无需重复研读。");
+              return;
+          }
+          setPlayer(prev => {
+              if(!prev) return null;
+              return {
+                  ...prev,
+                  inventory: prev.inventory.filter(i => i.id !== item.id),
+                  learnedRecipes: [...prev.learnedRecipes, item.id]
+              };
+          });
+          alert(`恭喜！你掌握了丹方：[${item.name}]。`);
+          return;
+      }
 
+      // Pill Consumption
+      if (item.type === 'PILL') {
+          // Check Realm
+          const pillRealm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
+          const playerRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
+          
+          if (!pillRealm || !playerRealm) return; // Should not happen
+          
+          // Must be same Major Realm or higher (by rangeStart check)
+          if (playerRealm.rangeStart < pillRealm.rangeStart) {
+               alert(`你的境界不足以炼化此丹药！(需${pillRealm.name})`);
+               return;
+          }
+
+          // Check Usage Limit (based on base item ID)
+          // Find base ID by removing unique prefix if present or checking config
+          const configItem = config.items.find(i => item.name === i.name && i.type === 'PILL'); // Name matching is safer due to instance IDs
+          const baseId = configItem?.id || item.id;
+          
+          const usedCount = player.pillUsage[baseId] || 0;
+          const max = item.maxUsage || 1;
+          
+          if (usedCount >= max) {
+              alert("丹毒堆积，此丹药已达到耐药上限，无法再服用！");
+              return;
+          }
+
+          // Apply Stats
+          setPlayer(prev => {
+              if(!prev) return null;
+              const newStats = { ...prev.stats };
+              
+              if (item.statBonus?.attack) newStats.attack += item.statBonus.attack;
+              if (item.statBonus?.defense) newStats.defense += item.statBonus.defense;
+              if (item.statBonus?.maxHp) {
+                  newStats.maxHp += item.statBonus.maxHp;
+                  newStats.hp += item.statBonus.maxHp;
+              }
+              if (item.statBonus?.maxSpirit) {
+                  newStats.maxSpirit += item.statBonus.maxSpirit;
+                  newStats.spirit += item.statBonus.maxSpirit;
+              }
+              if (item.statBonus?.speed) newStats.speed += item.statBonus.speed;
+
+              if (item.statBonus?.elementalAffinities) {
+                   Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
+                       // @ts-ignore
+                       newStats.elementalAffinities[k] += v;
+                   });
+              }
+
+              const newUsage = { ...prev.pillUsage };
+              newUsage[baseId] = usedCount + 1;
+
+              return {
+                  ...prev,
+                  stats: newStats,
+                  inventory: prev.inventory.filter(i => i.id !== item.id),
+                  pillUsage: newUsage
+              }
+          });
+          
+          alert("丹药入腹，化作滚滚热流，你的实力提升了！");
+          return;
+      }
+
+      // Skill Book
       const parts = item.id.split('_');
       if (parts[0] === 'book') {
           const elem = parts[1] as ElementType;
@@ -390,7 +485,6 @@ export default function App() {
 
           if (validCards.length > 0) {
               const newCard = validCards[Math.floor(Math.random() * validCards.length)];
-              
               setPlayer(prev => {
                   if (!prev) return null;
                   return {
@@ -399,14 +493,13 @@ export default function App() {
                       inventory: prev.inventory.filter(i => i.id !== item.id) 
                   };
               });
-
               setAcquiredCard(newCard);
           } else {
               alert(`你研读了${item.name}，却发现书中记载的法术早已失传...`);
               setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
           }
       } else {
-          alert("此物品暂无使用效果。");
+          // Other consumables logic if added
       }
   };
 
@@ -433,8 +526,6 @@ export default function App() {
       if (existingItem) {
           newInventory.push(existingItem);
       }
-
-      alert(`装备了 ${item.name} 于 [${SLOT_NAMES[item.slot]}]`);
 
       setPlayer(prev => {
           if (!prev) return null;
@@ -481,7 +572,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#121212] text-gray-100 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white relative">
       
-      {/* Exploration Interaction Modal */}
       {interaction && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
             <div className={`
@@ -490,12 +580,10 @@ export default function App() {
                   interaction.type === 'REWARD' ? 'border-amber-500 shadow-amber-900/40 max-w-sm' : 
                   interaction.type === 'MERCHANT' ? 'border-amber-700 shadow-amber-900/40 max-w-lg' : 'border-slate-500 max-w-sm'}
             `}>
-                {/* Header */}
                 <h2 className={`text-2xl font-bold mb-4 ${interaction.type === 'COMBAT' ? 'text-red-500' : interaction.type === 'REWARD' ? 'text-amber-400' : interaction.type === 'MERCHANT' ? 'text-amber-300' : 'text-slate-300'}`}>
                     {interaction.type === 'COMBAT' ? '⚔️ 遭遇强敌' : interaction.type === 'REWARD' ? '🎁 意外发现' : interaction.type === 'MERCHANT' ? '⚖️ 游方散修' : '👣 平静之地'}
                 </h2>
 
-                {/* Content */}
                 <div className="mb-6 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
                     
                     {interaction.type === 'COMBAT' && interaction.enemy && (
@@ -519,7 +607,7 @@ export default function App() {
                     {interaction.type === 'REWARD' && interaction.reward && (
                         <>
                             <div className={`w-20 h-20 bg-slate-800 rounded-lg border-2 ${interaction.reward.type === 'ITEM' ? 'border-emerald-600' : 'border-yellow-500'} flex items-center justify-center text-4xl mb-3`}>
-                                {interaction.reward.type === 'ITEM' ? ((interaction.reward.value as Item).type === 'CONSUMABLE' ? '📚' : '⚔️') : '💎'}
+                                {interaction.reward.type === 'ITEM' ? ((interaction.reward.value as Item).icon || '📦') : '💎'}
                             </div>
                             <div className={`text-lg font-bold ${interaction.reward.type === 'ITEM' && (interaction.reward.value as Item).rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>
                                 {interaction.reward.type === 'ITEM' ? (interaction.reward.value as Item).name : `灵石 x${interaction.reward.value}`}
@@ -568,7 +656,7 @@ export default function App() {
                                                 <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center text-xl">{item.icon}</div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className={`text-sm font-bold truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                                                    <div className="text-[10px] text-slate-400">{getRealmName(item.reqLevel, config.realms)}</div>
+                                                    <div className="text-[10px] text-slate-400">{getRealmName(item.reqLevel, config.realms)} | {item.type}</div>
                                                 </div>
                                                 <Button 
                                                     size="sm" 
@@ -618,7 +706,6 @@ export default function App() {
                     )}
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 w-full">
                     {interaction.type !== 'MERCHANT' && (
                         <Button 
@@ -674,7 +761,34 @@ export default function App() {
         </div>
       )}
 
-      {/* Acquired Card Modal */}
+      {/* Refine Result Modal */}
+      {refineResult && (
+        <div className="fixed inset-0 z-[210] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+             <div className={`
+                p-8 rounded-xl border-4 max-w-sm w-full shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col items-center text-center
+                ${refineResult.success ? 'bg-amber-950 border-amber-400 shadow-amber-900/50' : 'bg-gray-900 border-gray-600'}
+             `}>
+                 <div className="text-6xl mb-4 animate-bounce-slight">
+                     {refineResult.success ? '💊' : '💨'}
+                 </div>
+                 <h2 className={`text-3xl font-bold mb-2 ${refineResult.success ? 'text-amber-300' : 'text-gray-400'}`}>
+                     {refineResult.success ? '炼制成功!' : '炼制失败'}
+                 </h2>
+                 <p className="text-slate-300 mb-6">
+                     {refineResult.success ? `获得: ${refineResult.item?.name}` : '炉火不稳，材料化为灰烬...'}
+                 </p>
+                 <Button 
+                    variant={refineResult.success ? 'primary' : 'secondary'}
+                    onClick={() => setRefineResult(null)}
+                    size="lg"
+                    className="w-full"
+                 >
+                     确定
+                 </Button>
+             </div>
+        </div>
+      )}
+
       {acquiredCard && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-8 max-w-sm w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] flex flex-col items-center transform scale-100 transition-all">
@@ -723,6 +837,7 @@ export default function App() {
         <HomeView 
           player={player} 
           realms={config.realms}
+          itemsConfig={config.items}
           onStartAdventure={startAdventure} 
           onEquipItem={handleEquip}
           onUseItem={handleUseItem}
@@ -731,6 +846,8 @@ export default function App() {
             setView(GameView.START);
           }}
           onBreakthrough={handleBreakthrough}
+          onRefine={handleRefine}
+          isRefining={isRefining}
         />
       )}
 

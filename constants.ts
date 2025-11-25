@@ -33,7 +33,7 @@ export const ELEMENT_CONFIG: Record<ElementType, { color: string, icon: string, 
     [ElementType.SWORD]: { color: 'text-slate-200', icon: '⚔️', bg: 'bg-slate-700' },
 };
 
-// Helper to generate default levels for backward compatibility logic
+// Helper to generate default levels
 const generateLevels = (
     count: number, 
     names: string[], 
@@ -42,7 +42,7 @@ const generateLevels = (
     atk: number, 
     def: number, 
     spi: number, 
-    spd: number,
+    spd: number, 
     cost: number,
     chance: number
 ): RealmLevelConfig[] => {
@@ -69,9 +69,9 @@ export const DEFAULT_REALMS: RealmRank[] = [
       levels: generateLevels(
           10, 
           ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满'],
-          100, // Exp
-          10, 2, 0, 1, 1, // Growth
-          50, 1.0 // Cost, Chance
+          100, 
+          10, 2, 0, 1, 1, 
+          50, 1.0 
       )
   },
   { 
@@ -144,7 +144,6 @@ export const getRealmName = (level: number, realms: RealmRank[] = DEFAULT_REALMS
     return `未知境界 Lv.${level}`;
 };
 
-// Helper to init empty elements
 export const createZeroElementStats = (): Record<ElementType, number> => ({
     [ElementType.METAL]: 0,
     [ElementType.WOOD]: 0,
@@ -159,9 +158,7 @@ export const createZeroElementStats = (): Record<ElementType, number> => ({
     [ElementType.SWORD]: 0,
 });
 
-// Helper to generate Skill Books
 export const generateSkillBook = (level: number, element: ElementType): Item => {
-    // Find realm based on level
     const realm = DEFAULT_REALMS.find(r => level >= r.rangeStart && level <= r.rangeEnd) || DEFAULT_REALMS[0];
     const basePrice = 50 * (Math.floor(level / 5) + 1);
     
@@ -178,7 +175,7 @@ export const generateSkillBook = (level: number, element: ElementType): Item => 
     };
 };
 
-// --- Initial Manual Content (Starters) ---
+// --- Initial Manual Content ---
 
 export const BASIC_STRIKE: Card = {
   id: 'c_strike',
@@ -320,6 +317,7 @@ const MANUAL_ITEMS = [WOODEN_SWORD, IRON_SWORD, LEATHER_ARMOR, JADE_PENDANT];
 const GENERATED_CARDS: Card[] = [];
 const GENERATED_ITEMS: Item[] = [];
 const GENERATED_BOOKS: Item[] = [];
+const GENERATED_ALCHEMY_ITEMS: Item[] = [];
 
 // Adjusted Levels for New Realm Ranges
 const REALMS_GEN_CONFIG = [
@@ -357,13 +355,29 @@ const ICON_POOLS: Record<EquipmentSlot, string[]> = {
     belt: ['🎗️', '🥋']
 };
 
+const MATERIAL_NAMES = ['灵草', '妖丹', '矿石', '灵泉', '火精', '异木', '玄铁', '玉髓', '兽骨', '魂石'];
+const MATERIAL_ICONS = ['🌿', '🔮', '🪨', '💧', '🔥', '🪵', '⚒️', '💎', '🦴', '👻'];
+
+const PILL_TYPES = [
+    { name: '大力丸', stat: 'attack', icon: '🔴' },
+    { name: '护体丹', stat: 'defense', icon: '🛡️' },
+    { name: '益寿丹', stat: 'maxHp', icon: '❤️' },
+    { name: '养神丹', stat: 'maxSpirit', icon: '🌀' },
+    { name: '神行丹', stat: 'speed', icon: '👟' },
+    // 5 Element pills
+    { name: '金灵丹', element: ElementType.METAL, icon: '🌕' },
+    { name: '木灵丹', element: ElementType.WOOD, icon: '🌲' },
+    { name: '水灵丹', element: ElementType.WATER, icon: '💧' },
+    { name: '火灵丹', element: ElementType.FIRE, icon: '🔥' },
+    { name: '土灵丹', element: ElementType.EARTH, icon: '🧱' },
+];
+
 const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randPick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
-    // 1. Generate 10 Standard Cards per Realm
+    // 1. Cards Generation
     for (let i = 0; i < 10; i++) {
-        // Guarantee at least some cards are Attack type (first 3) to ensure enemies have weapons
         let type;
         if (i < 3) {
             type = CardType.ATTACK;
@@ -383,10 +397,8 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         else cost = randInt(1, 4);
         if (cost > 5) cost = 5;
 
-        // Calculate element cost (usually roughly equal to spirit cost or slightly less)
         const elemCost = Math.max(1, Math.floor(cost * (0.5 + Math.random() * 0.5)));
 
-        // Names
         let nameSuffix = '';
         if (type === CardType.ATTACK) nameSuffix = randPick(['剑诀', '掌', '指', '斩', '拳', '印', '雷', '火']);
         else if (type === CardType.DEFEND) nameSuffix = randPick(['护盾', '罩', '身法', '格挡', '钟', '甲']);
@@ -410,15 +422,15 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         });
     }
 
-    // 2. Generate Growth Cards (New Feature): 1 for each Element per Realm
+    // 2. Growth Cards
     Object.values(ElementType).forEach((element, idx) => {
-        const val = Math.max(1, Math.floor(realm.limit * 0.2)); // Roughly 20% of stat limit for this realm
+        const val = Math.max(1, Math.floor(realm.limit * 0.2)); 
         GENERATED_CARDS.push({
             id: `gen_c_growth_${realm.level}_${element}`,
             name: `${realm.prefix}·${element}源`,
             cost: 1,
             element: element,
-            elementCost: 1, // Cheap to cast, but uses the resource it boosts
+            elementCost: 1,
             type: CardType.GROWTH,
             value: val,
             description: `本场战斗中，${element}属性上限增加${val}点，并恢复等量属性。`,
@@ -428,7 +440,7 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         });
     });
 
-    // 3. Generate 10 Items per Realm
+    // 3. Items Generation
     for (let i = 0; i < 10; i++) {
         const slot = EQUIP_SLOTS_LIST[i % EQUIP_SLOTS_LIST.length]; 
         const slotName = randPick(EQUIP_NAMES[slot]);
@@ -449,19 +461,15 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
             statBonus.speed = randInt(1, Math.ceil(realm.limit / 5)) || 1;
         }
         
-        // Items give elemental affinity bonuses randomly
         const numElements = randInt(1, 2);
         for(let e=0; e<numElements; e++) {
             const el = Object.values(ElementType)[randInt(0, 10)];
-            // Affinity bonus roughly 10% of realm limit, min 1
             const bonus = Math.max(1, Math.floor(realm.limit * 0.1));
             // @ts-ignore
             statBonus.elementalAffinities[el] += bonus;
         }
 
         const itemName = `${realm.prefix}·${slotName}`;
-        
-        // Calculate Price based on rarity and realm level
         const rarityMultipliers = { common: 10, rare: 50, epic: 200, legendary: 1000 };
         const price = Math.floor(realm.level * rarityMultipliers[rarity] + randInt(0, 50));
 
@@ -479,22 +487,107 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         });
     }
 
-    // 4. Generate Skill Books (One for each element for this realm)
+    // 4. Skill Books
     Object.values(ElementType).forEach(elem => {
         GENERATED_BOOKS.push(generateSkillBook(realm.level, elem));
     });
+
+    // 5. Alchemy Generation (Materials, Pills, Recipes)
+    
+    // 5a. Materials (10 per realm)
+    const realmMaterials: Item[] = [];
+    for(let m=0; m<10; m++) {
+        const matName = `${realm.name}${MATERIAL_NAMES[m]}`;
+        const mat: Item = {
+            id: `mat_${realm.level}_${m}`,
+            name: matName,
+            icon: MATERIAL_ICONS[m],
+            type: 'MATERIAL',
+            description: `产自${realm.name}的${MATERIAL_NAMES[m]}，是炼制${realm.name}丹药的材料。`,
+            rarity: m > 7 ? 'epic' : m > 4 ? 'rare' : 'common',
+            reqLevel: realm.level,
+            price: (m + 1) * 10 * Math.ceil(realm.level/5),
+            statBonus: { elementalAffinities: createZeroElementStats() }
+        };
+        realmMaterials.push(mat);
+        GENERATED_ALCHEMY_ITEMS.push(mat);
+    }
+
+    // 5b. Pills & Recipes (10 types per realm)
+    PILL_TYPES.forEach((pt, idx) => {
+        const isElement = !!pt.element;
+        // Pill Stat Calculation
+        const statBonus: Partial<Stats> = { elementalAffinities: createZeroElementStats() };
+        let desc = "";
+        let val = 0;
+        
+        if (isElement) {
+             val = Math.max(1, Math.floor(realm.limit * 0.1));
+             // @ts-ignore
+             statBonus.elementalAffinities[pt.element] = val;
+             desc = `永久增加${val}点${pt.element}属性亲和。`;
+        } else {
+             val = Math.max(1, Math.floor(realm.limit * 0.1));
+             // HP needs higher scaling
+             if (pt.stat === 'maxHp') val *= 10;
+             if (pt.stat === 'attack') val = Math.max(1, Math.floor(val / 2));
+             // @ts-ignore
+             statBonus[pt.stat] = val;
+             desc = `永久增加${val}点${pt.name.replace('丹','')}。`;
+        }
+
+        const pillId = `pill_${realm.level}_${idx}`;
+        const pill: Item = {
+            id: pillId,
+            name: `${realm.prefix}·${pt.name}`,
+            icon: pt.icon,
+            type: 'PILL',
+            description: desc,
+            rarity: 'rare',
+            reqLevel: realm.level,
+            price: 500 * Math.ceil(realm.level / 5),
+            statBonus: statBonus,
+            maxUsage: 10 // Hardcap usage
+        };
+        GENERATED_ALCHEMY_ITEMS.push(pill);
+
+        // Recipe
+        // Pick 2-4 random materials from THIS realm
+        const matCount = randInt(2, 4);
+        const recipeMaterials = [];
+        for(let k=0; k<matCount; k++) {
+             const mat = randPick(realmMaterials);
+             recipeMaterials.push({ itemId: mat.id, count: randInt(1, 3) });
+        }
+
+        const recipe: Item = {
+            id: `recipe_${realm.level}_${idx}`,
+            name: `丹方: ${pill.name}`,
+            icon: '📜',
+            type: 'RECIPE',
+            description: `记录了炼制${pill.name}的方法。需: ${recipeMaterials.map(rm => {
+                const m = realmMaterials.find(x => x.id === rm.itemId);
+                return `${m?.name}x${rm.count}`;
+            }).join(', ')}`,
+            rarity: 'rare',
+            reqLevel: realm.level,
+            price: pill.price * 2,
+            statBonus: { elementalAffinities: createZeroElementStats() },
+            recipeResult: pillId,
+            recipeMaterials: recipeMaterials,
+            successRate: 0.5 + (Math.random() * 0.4) // 50% - 90%
+        };
+        GENERATED_ALCHEMY_ITEMS.push(recipe);
+    });
+
 });
 
-// Combine Cards and Items FIRST
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
-export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS];
+export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS];
 
 // --- Procedural Generation: Enemies ---
 
 const GENERATED_ENEMIES: EnemyTemplate[] = [];
-
-// Config for enemy generation: 5 Realms x 10 Enemies
-// Updated level ranges to match the new compressed realm system
 const ENEMY_REALM_CONFIG = [
     { name: '炼气', minLv: 1, maxLv: 10, hpRange: [30, 80], atkRange: [3, 8], spirit: 5, elementLimit: 5, prefix: ['狂暴', '变异', '剧毒', '赤血', '幽暗', '灵动', '坚硬', '疾风', '魔化', '幼年'] },
     { name: '筑基', minLv: 11, maxLv: 14, hpRange: [150, 300], atkRange: [15, 25], spirit: 15, elementLimit: 20, prefix: ['千年', '玄铁', '紫炎', '寒冰', '鬼面', '铁甲', '幻影', '血手', '噬魂', '飞天'] },
@@ -506,29 +599,24 @@ const ENEMY_REALM_CONFIG = [
 const ENEMY_BASE_NAMES = ['妖狼', '巨蟒', '魔猿', '剑修', '散人', '鬼王', '灵狐', '石魔', '花妖', '巨虫'];
 
 ENEMY_REALM_CONFIG.forEach((config) => {
-    // Generate 10 enemies for this realm
     for (let i = 0; i < 10; i++) {
         const level = randInt(config.minLv, config.maxLv);
         const name = `${randPick(config.prefix)}${ENEMY_BASE_NAMES[i % ENEMY_BASE_NAMES.length]}`;
         
-        // Strategy: Ensure enemy has at least one Attack card that matches their Realm and Element.
-        // 1. Find all ATTACK cards in this Realm
         const realmAttackCards = INITIAL_CARDS.filter(c => 
             c.type === CardType.ATTACK && 
             c.reqLevel >= config.minLv && 
-            c.reqLevel <= config.maxLv + 2 // Allow slightly higher level cards for variety
+            c.reqLevel <= config.maxLv + 2
         );
 
         let mainElement: ElementType;
         let primaryCardId: string;
 
         if (realmAttackCards.length > 0) {
-            // Pick a random card from available attack cards in this realm
             const card = randPick(realmAttackCards);
             mainElement = card.element;
             primaryCardId = card.id;
         } else {
-             // Fallback: look for any attack card <= level (should be rare given generation logic)
              const anyAttack = INITIAL_CARDS.filter(c => c.type === CardType.ATTACK && c.reqLevel <= level);
              if (anyAttack.length > 0) {
                  const card = randPick(anyAttack);
@@ -541,15 +629,11 @@ ENEMY_REALM_CONFIG.forEach((config) => {
         }
 
         const affs = createZeroElementStats();
-        // Give them plenty of element affinity so they can cast cards
-        // Updated logic: use elementLimit from config
         affs[mainElement] = randInt(Math.floor(config.elementLimit * 0.5), config.elementLimit);
         
-        // Start deck with the signature attack card
         const deck: string[] = [primaryCardId];
-        const deckSize = 3 + Math.floor(level / 5); // Adjusted deck size scaling for compressed levels
+        const deckSize = 3 + Math.floor(level / 5);
         
-        // Fill rest of deck with valid cards for this level
         const validCards = INITIAL_CARDS.filter(c => c.reqLevel <= level + 1); 
         
         if (validCards.length > 0) {
@@ -560,7 +644,7 @@ ENEMY_REALM_CONFIG.forEach((config) => {
 
         GENERATED_ENEMIES.push({
             name: name,
-            minPlayerLevel: config.minLv, // Group by realm start
+            minPlayerLevel: config.minLv,
             baseStats: {
                 maxHp: randInt(config.hpRange[0], config.hpRange[1]),
                 hp: randInt(config.hpRange[0], config.hpRange[1]),
@@ -578,7 +662,6 @@ ENEMY_REALM_CONFIG.forEach((config) => {
 
 
 export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
-  // Basic Start Enemies
   {
     name: '野猪',
     baseStats: { maxHp: 60, hp: 60, maxSpirit: 10, spirit: 10, attack: 6, defense: 0, speed: 8, elementalAffinities: { ...createZeroElementStats(), [ElementType.EARTH]: 2 } },
@@ -591,7 +674,6 @@ export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
     cardIds: ['c_strike', 'c_strike'],
     minPlayerLevel: 1,
   },
-  // Generated Enemies
   ...GENERATED_ENEMIES
 ];
 
@@ -611,7 +693,6 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
     attack: 5,
     defense: 0,
     speed: 10,
-    // Basic affinity set to 1 for all as requested
     elementalAffinities: {
         [ElementType.METAL]: 1,
         [ElementType.WOOD]: 1,
@@ -643,10 +724,7 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
       deck.push(config.cards[0]);
   }
 
-  // Deep copy stats to avoid reference issues
   const initialStats: Stats = JSON.parse(JSON.stringify(config.playerInitialStats));
-  
-  // Use Realm Level 1 Exp Req
   const firstRealm = config.realms[0];
   const firstLevelExp = firstRealm && firstRealm.levels[0] ? firstRealm.levels[0].expReq : 100;
 
@@ -673,22 +751,21 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
         accessory: null,
         ring: null,
     },
+    learnedRecipes: [],
+    pillUsage: {}
   };
 };
 
 export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig): Enemy => {
-  
   let possibleEnemies = config.enemies.filter(e => 
       e.minPlayerLevel <= playerLevel + 1 && 
-      e.minPlayerLevel >= Math.max(1, playerLevel - 3) // Adjusted search range for compressed levels
+      e.minPlayerLevel >= Math.max(1, playerLevel - 3)
   );
   
-  // Fallback: just get anything lower than player level
   if (possibleEnemies.length === 0) {
       possibleEnemies = config.enemies.filter(e => e.minPlayerLevel <= playerLevel);
   }
 
-  // Fallback: Get weakest
   if (possibleEnemies.length === 0) {
      if (config.enemies.length > 0) {
         possibleEnemies = config.enemies.sort((a,b) => a.minPlayerLevel - b.minPlayerLevel).slice(0,1);
@@ -702,18 +779,13 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   }
   
   const template = possibleEnemies[Math.floor(Math.random() * possibleEnemies.length)];
-  
-  // Small variance in stats
   const difficultyMultiplier = 1 + (Math.random() * 0.2 - 0.1); 
   
   const enemyDeck = template.cardIds
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is Card => !!c);
   
-  // Fallback if deck is empty for some reason (e.g. broken ids in config)
   if (enemyDeck.length === 0 && config.cards.length > 0) {
-      // Logic for random enemy deck generation if config is broken
-      // Try to find attack card matching main affinity
       let mainAffinity = ElementType.SWORD;
       let maxAff = -1;
       // @ts-ignore
@@ -731,7 +803,6 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
           enemyDeck.push(config.cards[0]);
       }
       
-      // Add one more random
       const levelAppropriateCards = config.cards.filter(c => c.reqLevel <= playerLevel);
       if (levelAppropriateCards.length > 0) {
           enemyDeck.push(levelAppropriateCards[Math.floor(Math.random() * levelAppropriateCards.length)]);
@@ -743,7 +814,7 @@ export const getRandomEnemyFromConfig = (playerLevel: number, config: GameConfig
   return {
     id: `enemy_${Date.now()}`,
     name: template.name,
-    level: template.minPlayerLevel, // Use template level as base
+    level: template.minPlayerLevel, 
     avatarUrl: `https://picsum.photos/seed/${template.name}/200/200`,
     stats: {
       maxHp: Math.floor(template.baseStats.maxHp * difficultyMultiplier),
