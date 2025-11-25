@@ -67,6 +67,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const availablePills = localConfig.items.filter(i => i.type === 'PILL');
+  const availableMaterials = localConfig.items.filter(i => i.type === 'MATERIAL');
+
   const handleSave = () => {
     onSave(localConfig);
   };
@@ -776,17 +779,21 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                           <div className="bg-slate-900/50 p-2 rounded flex flex-col gap-2">
                               <div className="flex gap-4">
                                   <div className="flex flex-col">
-                                      <label className="text-[10px] text-slate-500">产出物品ID</label>
-                                      <input 
+                                      <label className="text-[10px] text-slate-500">产出丹药</label>
+                                      <select 
                                           value={item.recipeResult || ''}
                                           onChange={(e) => {
                                               const newItems = [...localConfig.items];
                                               newItems[realIndex].recipeResult = e.target.value;
                                               setLocalConfig({...localConfig, items: newItems});
                                           }}
-                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-32"
-                                          placeholder="Pill ID"
-                                      />
+                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-32 py-1 text-white"
+                                      >
+                                          <option value="">选择丹药...</option>
+                                          {availablePills.map(p => (
+                                              <option key={p.id} value={p.id}>{p.name}</option>
+                                          ))}
+                                      </select>
                                   </div>
                                   <div className="flex flex-col">
                                       <label className="text-[10px] text-slate-500">成功率 (0-1)</label>
@@ -801,43 +808,74 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                               newItems[realIndex].successRate = parseFloat(e.target.value);
                                               setLocalConfig({...localConfig, items: newItems});
                                           }}
-                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-16"
+                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-16 py-0.5"
                                       />
                                   </div>
                               </div>
                               <div className="border-t border-slate-700 pt-1">
-                                  <label className="text-[10px] text-slate-500">所需材料</label>
-                                  <div className="flex flex-wrap gap-2 mb-1">
-                                      {item.recipeMaterials?.map((rm, idx) => (
-                                          <div key={idx} className="bg-slate-700 rounded px-2 py-0.5 text-xs flex items-center gap-1">
-                                              <span>{rm.itemId} x{rm.count}</span>
-                                              <button onClick={() => {
-                                                  const newItems = [...localConfig.items];
-                                                  const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                                  newMats.splice(idx, 1);
-                                                  newItems[realIndex].recipeMaterials = newMats;
-                                                  setLocalConfig({...localConfig, items: newItems});
-                                              }} className="text-red-400">×</button>
-                                          </div>
-                                      ))}
+                                  <label className="text-[10px] text-slate-500 block mb-1">所需材料</label>
+                                  <div className="flex flex-col gap-1 mb-2">
+                                      {item.recipeMaterials?.map((rm, idx) => {
+                                          const matItem = availableMaterials.find(m => m.id === rm.itemId);
+                                          return (
+                                              <div key={idx} className="bg-slate-700 rounded px-2 py-1 text-xs flex items-center gap-2">
+                                                  <select
+                                                      value={rm.itemId}
+                                                      onChange={(e) => {
+                                                          const newItems = [...localConfig.items];
+                                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
+                                                          newMats[idx] = { ...newMats[idx], itemId: e.target.value };
+                                                          newItems[realIndex].recipeMaterials = newMats;
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}
+                                                      className="bg-slate-800 border border-slate-600 rounded px-1 text-white w-32"
+                                                  >
+                                                      {availableMaterials.map(m => (
+                                                          <option key={m.id} value={m.id}>{m.name}</option>
+                                                      ))}
+                                                      {!availableMaterials.some(m => m.id === rm.itemId) && <option value={rm.itemId}>未知({rm.itemId})</option>}
+                                                  </select>
+                                                  <span>x</span>
+                                                  <input 
+                                                      type="number" 
+                                                      value={rm.count}
+                                                      min="1"
+                                                      onChange={(e) => {
+                                                          const newItems = [...localConfig.items];
+                                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
+                                                          newMats[idx] = { ...newMats[idx], count: parseInt(e.target.value) };
+                                                          newItems[realIndex].recipeMaterials = newMats;
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}
+                                                      className="w-12 bg-slate-800 border border-slate-600 rounded px-1"
+                                                  />
+                                                  <button onClick={() => {
+                                                      const newItems = [...localConfig.items];
+                                                      const newMats = [...(newItems[realIndex].recipeMaterials || [])];
+                                                      newMats.splice(idx, 1);
+                                                      newItems[realIndex].recipeMaterials = newMats;
+                                                      setLocalConfig({...localConfig, items: newItems});
+                                                  }} className="text-red-400 hover:text-red-300 ml-auto">×</button>
+                                              </div>
+                                          );
+                                      })}
                                   </div>
-                                  <div className="flex gap-2">
-                                      <input id={`mat_id_${item.id}`} placeholder="Material ID" className="bg-slate-800 text-xs px-2 py-0.5 rounded w-24" />
-                                      <input id={`mat_count_${item.id}`} type="number" placeholder="Cnt" className="bg-slate-800 text-xs px-2 py-0.5 rounded w-12" />
-                                      <button onClick={() => {
-                                          const idInput = document.getElementById(`mat_id_${item.id}`) as HTMLInputElement;
-                                          const countInput = document.getElementById(`mat_count_${item.id}`) as HTMLInputElement;
-                                          if(idInput.value && countInput.value) {
-                                              const newItems = [...localConfig.items];
-                                              const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                              newMats.push({ itemId: idInput.value, count: parseInt(countInput.value) });
-                                              newItems[realIndex].recipeMaterials = newMats;
-                                              setLocalConfig({...localConfig, items: newItems});
-                                              idInput.value = '';
-                                              countInput.value = '';
+                                  <button 
+                                      onClick={() => {
+                                          if(availableMaterials.length === 0) {
+                                              alert("请先创建药材物品");
+                                              return;
                                           }
-                                      }} className="text-xs bg-slate-700 px-2 rounded">+</button>
-                                  </div>
+                                          const newItems = [...localConfig.items];
+                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
+                                          newMats.push({ itemId: availableMaterials[0].id, count: 1 });
+                                          newItems[realIndex].recipeMaterials = newMats;
+                                          setLocalConfig({...localConfig, items: newItems});
+                                      }} 
+                                      className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded w-full"
+                                  >
+                                      + 添加药材
+                                  </button>
                               </div>
                           </div>
                       )}
