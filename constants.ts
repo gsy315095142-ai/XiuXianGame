@@ -115,6 +115,8 @@ export const createZeroElementStats = (): Record<ElementType, number> => ({
 export const generateSkillBook = (level: number, element: ElementType): Item => {
     // Find realm based on level
     const realm = DEFAULT_REALMS.find(r => level >= r.rangeStart && level <= r.rangeEnd) || DEFAULT_REALMS[0];
+    const basePrice = 50 * (Math.floor(level / 5) + 1);
+    
     return {
         id: `book_${element}_${level}_${Date.now()}_${Math.floor(Math.random()*1000)}`,
         name: `《${element}·${realm.name}心法》`,
@@ -123,7 +125,8 @@ export const generateSkillBook = (level: number, element: ElementType): Item => 
         description: `使用后随机领悟一张${realm.name}${element}属性卡牌。`,
         rarity: 'rare',
         reqLevel: realm.rangeStart,
-        statBonus: { elementalAffinities: createZeroElementStats() }
+        statBonus: { elementalAffinities: createZeroElementStats() },
+        price: basePrice
     };
 };
 
@@ -220,6 +223,7 @@ export const WOODEN_SWORD: Item = {
   description: '一把普通的桃木剑，略微提升攻击力与木系亲和。',
   rarity: 'common',
   reqLevel: 1,
+  price: 20,
 };
 
 export const IRON_SWORD: Item = {
@@ -232,6 +236,7 @@ export const IRON_SWORD: Item = {
   description: '凡铁锻造的剑。',
   rarity: 'common',
   reqLevel: 5,
+  price: 100,
 };
 
 export const LEATHER_ARMOR: Item = {
@@ -244,6 +249,7 @@ export const LEATHER_ARMOR: Item = {
   description: '野兽毛皮制成的护甲。',
   rarity: 'common',
   reqLevel: 2,
+  price: 50,
 };
 
 export const JADE_PENDANT: Item = {
@@ -255,7 +261,8 @@ export const JADE_PENDANT: Item = {
     statBonus: { maxSpirit: 2, elementalAffinities: { ...createZeroElementStats(), [ElementType.WATER]: 1, [ElementType.WOOD]: 1 } },
     description: '温润的玉佩，能滋养神识。',
     rarity: 'rare',
-    reqLevel: 3
+    reqLevel: 3,
+    price: 300,
 };
 
 const MANUAL_ITEMS = [WOODEN_SWORD, IRON_SWORD, LEATHER_ARMOR, JADE_PENDANT];
@@ -378,6 +385,7 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         const slot = EQUIP_SLOTS_LIST[i % EQUIP_SLOTS_LIST.length]; 
         const slotName = randPick(EQUIP_NAMES[slot]);
         const icon = randPick(ICON_POOLS[slot]);
+        const rarity = i > 7 ? 'legendary' : i > 5 ? 'epic' : i > 3 ? 'rare' : 'common';
         
         const statBonus: Partial<Stats> = { elementalAffinities: createZeroElementStats() };
         
@@ -404,6 +412,10 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         }
 
         const itemName = `${realm.prefix}·${slotName}`;
+        
+        // Calculate Price based on rarity and realm level
+        const rarityMultipliers = { common: 10, rare: 50, epic: 200, legendary: 1000 };
+        const price = Math.floor(realm.level * rarityMultipliers[rarity] + randInt(0, 50));
 
         GENERATED_ITEMS.push({
             id: `gen_eq_${realm.level}_${i}`,
@@ -413,8 +425,9 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
             slot: slot,
             statBonus: statBonus,
             description: `${realm.name}修士使用的${slotName}。蕴含五行之力。`,
-            rarity: i > 7 ? 'legendary' : i > 5 ? 'epic' : i > 3 ? 'rare' : 'common',
-            reqLevel: realm.level
+            rarity: rarity,
+            reqLevel: realm.level,
+            price: price
         });
     }
 
@@ -565,6 +578,12 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
         [ElementType.SWORD]: 1,
     }
   },
+  eventWeights: {
+      merchant: 0.15,
+      treasure: 0.25,
+      battle: 0.30,
+      empty: 0.30
+  }
 };
 
 export const generatePlayerFromConfig = (config: GameConfig): Player => {

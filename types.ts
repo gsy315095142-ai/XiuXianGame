@@ -35,6 +35,7 @@ export enum NodeType {
   BATTLE = '战斗',
   TREASURE = '宝物',
   BOSS = '领主',
+  MERCHANT = '游商',
 }
 
 export interface RealmRank {
@@ -71,6 +72,7 @@ export interface Item {
   description: string;
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   reqLevel: number;
+  price: number; // New: Purchase price in Gold
 }
 
 export interface Card {
@@ -147,4 +149,10 @@ export interface GameConfig {
   realms: RealmRank[];
   playerInitialDeckIds: string[];
   playerInitialStats: Stats;
+  eventWeights: {
+      merchant: number;
+      treasure: number; // Reward node (Item or Gold)
+      battle: number;
+      empty: number;
+  };
 }

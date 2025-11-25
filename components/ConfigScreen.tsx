@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -22,6 +24,7 @@ const createEmptyItem = (type: ItemType): Item => ({
   description: '描述...',
   rarity: 'common',
   reqLevel: 1,
+  price: 50,
   statBonus: { attack: 0, elementalAffinities: createZeroElementStats() }
 });
 
@@ -65,6 +68,12 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         const generalData = [
             { Key: 'mapNodeCount', Value: localConfig.mapNodeCount },
             { Key: 'itemDropRate', Value: localConfig.itemDropRate },
+            // Map Event Weights
+            { Key: 'weight_merchant', Value: localConfig.eventWeights?.merchant ?? 0.15 },
+            { Key: 'weight_treasure', Value: localConfig.eventWeights?.treasure ?? 0.25 },
+            { Key: 'weight_battle', Value: localConfig.eventWeights?.battle ?? 0.30 },
+            { Key: 'weight_empty', Value: localConfig.eventWeights?.empty ?? 0.30 },
+
             { Key: 'player_maxHp', Value: localConfig.playerInitialStats.maxHp },
             { Key: 'player_maxSpirit', Value: localConfig.playerInitialStats.maxSpirit },
             { Key: 'player_attack', Value: localConfig.playerInitialStats.attack },
@@ -95,6 +104,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                 description: item.description,
                 rarity: item.rarity,
                 reqLevel: item.reqLevel,
+                price: item.price || 0,
                 stat_attack: item.statBonus?.attack || 0,
                 stat_defense: item.statBonus?.defense || 0,
                 stat_maxHp: item.statBonus?.maxHp || 0,
@@ -180,6 +190,13 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                   if (map['mapNodeCount']) newConfig.mapNodeCount = parseInt(map['mapNodeCount']);
                   if (map['itemDropRate']) newConfig.itemDropRate = parseFloat(map['itemDropRate']);
                   
+                  // Map Weights
+                  const wMerchant = parseFloat(map['weight_merchant'] || 0.15);
+                  const wTreasure = parseFloat(map['weight_treasure'] || 0.25);
+                  const wBattle = parseFloat(map['weight_battle'] || 0.30);
+                  const wEmpty = parseFloat(map['weight_empty'] || 0.30);
+                  newConfig.eventWeights = { merchant: wMerchant, treasure: wTreasure, battle: wBattle, empty: wEmpty };
+                  
                   const affs = createZeroElementStats();
                   Object.values(ElementType).forEach(el => {
                       if (map[`player_affinity_${el}`]) affs[el] = parseInt(map[`player_affinity_${el}`]);
@@ -230,6 +247,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         description: r.description,
                         rarity: r.rarity,
                         reqLevel: r.reqLevel,
+                        price: r.price || 0,
                         statBonus: {
                             attack: r.stat_attack || 0,
                             defense: r.stat_defense || 0,
@@ -358,6 +376,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           
           {activeTab === 'realms' && (
             <div className="space-y-4">
+               {/* Realm Config UI (unchanged) */}
                <div className="flex justify-between items-center mb-2">
                    <h3 className="text-lg font-bold text-slate-200">修仙境界划分</h3>
                </div>
@@ -443,8 +462,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                     />
                             </div>
                           </div>
-                          
-                          {/* Sub-Ranks Config */}
                           <div className="flex flex-col mt-2 border-t border-slate-700 pt-2">
                               <label className="text-[10px] text-slate-400">小境界名称 (用逗号分隔，按顺序对应等级)</label>
                               <input 
@@ -453,7 +470,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                   value={(realm.subRanks || []).join(',')}
                                   onChange={(e) => {
                                       const newRealms = [...localConfig.realms];
-                                      // Allow clearing
                                       const val = e.target.value;
                                       newRealms[idx].subRanks = val ? val.split(',') : [];
                                       setLocalConfig({...localConfig, realms: newRealms});
@@ -477,11 +493,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         onChange={(e) => setLocalConfig({...localConfig, mapNodeCount: parseInt(e.target.value)})}
                         className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
                     />
-                    <p className="text-xs text-slate-500 mt-1">每次外出历练生成的地图格子数。</p>
                 </div>
-
                 <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <label className="block text-sm text-slate-400 mb-1">物品掉落率 (0-1)</label>
+                    <label className="block text-sm text-slate-400 mb-1">宝箱获得物品概率 (0-1)</label>
                     <input 
                         type="number"
                         step="0.05"
@@ -491,7 +505,65 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         onChange={(e) => setLocalConfig({...localConfig, itemDropRate: parseFloat(e.target.value)})}
                         className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
                     />
-                    <p className="text-xs text-slate-500 mt-1">在宝箱节点获得物品的概率。若未获得物品，则获得灵石。</p>
+                    <div className="text-[10px] text-slate-500 mt-1">剩余概率为获得灵石</div>
+                </div>
+
+                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                    <h4 className="text-sm text-slate-200 font-bold mb-3 border-b border-slate-600 pb-2">事件触发权重</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-amber-300 mb-1">⚖️ 游商权重</label>
+                            <input 
+                                type="number"
+                                step="0.1"
+                                value={localConfig.eventWeights?.merchant ?? 0.15}
+                                onChange={(e) => setLocalConfig({
+                                    ...localConfig, 
+                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), merchant: parseFloat(e.target.value) } 
+                                })}
+                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-yellow-300 mb-1">🎁 宝物权重</label>
+                            <input 
+                                type="number"
+                                step="0.1"
+                                value={localConfig.eventWeights?.treasure ?? 0.25}
+                                onChange={(e) => setLocalConfig({
+                                    ...localConfig, 
+                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), treasure: parseFloat(e.target.value) } 
+                                })}
+                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-red-400 mb-1">⚔️ 战斗权重</label>
+                            <input 
+                                type="number"
+                                step="0.1"
+                                value={localConfig.eventWeights?.battle ?? 0.30}
+                                onChange={(e) => setLocalConfig({
+                                    ...localConfig, 
+                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), battle: parseFloat(e.target.value) } 
+                                })}
+                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">🍃 空地权重</label>
+                            <input 
+                                type="number"
+                                step="0.1"
+                                value={localConfig.eventWeights?.empty ?? 0.30}
+                                onChange={(e) => setLocalConfig({
+                                    ...localConfig, 
+                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), empty: parseFloat(e.target.value) } 
+                                })}
+                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
           )}
@@ -581,6 +653,23 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                             >
                                 {levelOptions}
                             </select>
+
+                            {/* Price Input */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-yellow-500 text-xs">💰</span>
+                                <input 
+                                    type="number"
+                                    value={item.price || 0}
+                                    onChange={(e) => {
+                                        const newItems = [...localConfig.items];
+                                        newItems[realIndex].price = parseInt(e.target.value);
+                                        setLocalConfig({...localConfig, items: newItems});
+                                    }}
+                                    className="bg-slate-900 border border-slate-600 rounded px-1 py-1 text-xs w-16 text-yellow-300"
+                                    placeholder="价格"
+                                    title="购买价格"
+                                />
+                            </div>
                       </div>
                       
                       <div className="grid grid-cols-4 gap-2">
@@ -634,6 +723,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           
           {activeTab === 'enemies' && (
              <div className="space-y-4">
+                {/* Enemy Config UI (unchanged logic) */}
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-bold text-slate-200">敌人配置</h3>
                     <Button size="sm" onClick={() => setLocalConfig({...localConfig, enemies: [...localConfig.enemies, createEmptyEnemy()]})}>
@@ -772,6 +862,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
           {activeTab === 'cards' && (
              <div className="space-y-4">
+                {/* Card Config UI (unchanged) */}
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-bold text-slate-200">卡牌库 ({localConfig.cards.length})</h3>
                     <Button size="sm" onClick={() => setLocalConfig({...localConfig, cards: [...localConfig.cards, createEmptyCard()]})}>
@@ -865,8 +956,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                 }} className="w-10 bg-slate-900 rounded px-1" />
                             </div>
                         </div>
-                        
-                        {/* New: Tags Config (e.g. Pierce) */}
                         <div className="flex gap-2 mt-1">
                            <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer">
                                 <input 
@@ -885,7 +974,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                 穿刺效果
                            </label>
                         </div>
-
                         <textarea 
                         value={card.description} 
                         onChange={(e) => {
@@ -903,7 +991,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
           {activeTab === 'player' && (
              <div className="space-y-6">
-                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                 {/* Player config UI (unchanged) */}
+                 <div className="bg-slate-800 p-4 rounded border border-slate-700">
                     <h4 className="text-slate-400 text-sm mb-2">基础属性</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {['maxHp', 'maxSpirit', 'attack', 'speed'].map(stat => (
@@ -947,7 +1036,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
                 <div>
                   <h3 className="text-lg font-bold text-slate-200 mb-3">初始牌组</h3>
-                   {/* Deck selector same as before */}
                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {localConfig.cards.map(card => {
                        const count = localConfig.playerInitialDeckIds.filter(id => id === card.id).length;

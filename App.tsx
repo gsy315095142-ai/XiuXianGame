@@ -1,4 +1,7 @@
 
+
+
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -14,7 +17,8 @@ import { Button } from './components/Button';
 type NodeInteraction = 
   | { type: 'COMBAT', node: MapNode, enemy: Enemy }
   | { type: 'REWARD', node: MapNode, reward: { type: 'ITEM' | 'GOLD', value: Item | number, message: string } }
-  | { type: 'EMPTY', node: MapNode };
+  | { type: 'EMPTY', node: MapNode }
+  | { type: 'MERCHANT', node: MapNode, inventory: Item[] };
 
 export default function App() {
   // --- Game State ---
@@ -35,6 +39,9 @@ export default function App() {
   const [acquiredCard, setAcquiredCard] = useState<Card | null>(null);
   const [interaction, setInteraction] = useState<NodeInteraction | null>(null);
   
+  // Shop State (Transient)
+  const [merchantTab, setMerchantTab] = useState<'BUY' | 'SELL'>('BUY');
+
   // --- Start Logic ---
   const handleStartGame = () => {
     const newPlayer = generatePlayerFromConfig(config);
@@ -46,13 +53,29 @@ export default function App() {
 
   const generateMap = () => {
     const count = config.mapNodeCount;
-    const nodes: MapNode[] = Array.from({ length: count }, (_, i) => ({
-      id: i,
-      type: Math.random() > 0.7 ? NodeType.TREASURE : Math.random() > 0.4 ? NodeType.BATTLE : NodeType.EMPTY,
-      visited: false,
-      x: 0, 
-      y: 0
-    }));
+    // Get weights or default
+    const w = config.eventWeights || { merchant: 0.15, treasure: 0.25, battle: 0.30, empty: 0.30 };
+    const totalWeight = w.merchant + w.treasure + w.battle + w.empty;
+
+    const nodes: MapNode[] = Array.from({ length: count }, (_, i) => {
+        const rand = Math.random() * totalWeight;
+        let type = NodeType.EMPTY;
+        
+        // Weighted Random Selection
+        let cum = 0;
+        if (rand < (cum += w.merchant)) type = NodeType.MERCHANT;
+        else if (rand < (cum += w.treasure)) type = NodeType.TREASURE;
+        else if (rand < (cum += w.battle)) type = NodeType.BATTLE;
+        else type = NodeType.EMPTY;
+
+        return {
+            id: i,
+            type: type,
+            visited: false,
+            x: 0, 
+            y: 0
+        };
+    });
     // Ensure node 0 is safe
     nodes[0].type = NodeType.EMPTY;
     // Ensure last node is Boss
@@ -114,6 +137,28 @@ export default function App() {
         });
       }
     } 
+    else if (node.type === NodeType.MERCHANT) {
+        // Generate Merchant Inventory
+        const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
+        let validItems = config.items;
+        if (currentRealm) {
+             // Filter roughly by level so merchant isn't selling garbage or god-tier only
+             validItems = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
+        }
+        if (validItems.length === 0) validItems = config.items;
+
+        // Pick 4-8 random items
+        const count = 4 + Math.floor(Math.random() * 5);
+        const shopInventory: Item[] = [];
+        for(let i=0; i<count; i++) {
+            const item = validItems[Math.floor(Math.random() * validItems.length)];
+            // Avoid duplicates in display id
+            shopInventory.push({ ...item, id: `${item.id}_shop_${i}` });
+        }
+
+        setInteraction({ type: 'MERCHANT', node, inventory: shopInventory });
+        setMerchantTab('BUY');
+    }
     else {
         // Empty Node
         setInteraction({ type: 'EMPTY', node });
@@ -145,12 +190,58 @@ export default function App() {
                   return { ...prev, gold: prev.gold + (reward.value as number) };
               }
           });
+      } else if (type === 'MERCHANT') {
+          // Just close modal, player has finished trading
       } else {
           // Empty node, just moved
       }
 
       setInteraction(null);
   };
+
+  // Merchant Logic
+  const handleBuyItem = (item: Item) => {
+      if (!player) return;
+      if (player.gold < item.price) {
+          alert("灵石不足！");
+          return;
+      }
+      
+      setPlayer(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              gold: prev.gold - item.price,
+              inventory: [...prev.inventory, { ...item, id: `bought_${Date.now()}_${item.id}` }]
+          };
+      });
+      
+      // Remove bought item from shop list (optional, maybe infinite stock? let's remove for realism)
+      if (interaction?.type === 'MERCHANT') {
+          setInteraction(prev => {
+              if (prev?.type !== 'MERCHANT') return prev;
+              return {
+                  ...prev,
+                  inventory: prev.inventory.filter(i => i.id !== item.id)
+              }
+          });
+      }
+  };
+
+  const handleSellItem = (item: Item) => {
+      if (!player) return;
+      const sellPrice = Math.floor(item.price * 0.5); // Sell for 50% value
+
+      setPlayer(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              gold: prev.gold + sellPrice,
+              inventory: prev.inventory.filter(i => i.id !== item.id)
+          };
+      });
+  };
+
 
   const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
     setPlayer(prev => {
@@ -328,16 +419,18 @@ export default function App() {
       {interaction && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
             <div className={`
-                bg-slate-900 border-2 rounded-xl p-6 max-w-sm w-full shadow-2xl flex flex-col items-center
-                ${interaction.type === 'COMBAT' ? 'border-red-600 shadow-red-900/40' : interaction.type === 'REWARD' ? 'border-amber-500 shadow-amber-900/40' : 'border-slate-500'}
+                bg-slate-900 border-2 rounded-xl p-6 shadow-2xl flex flex-col items-center max-h-[80vh] w-full
+                ${interaction.type === 'COMBAT' ? 'border-red-600 shadow-red-900/40 max-w-sm' : 
+                  interaction.type === 'REWARD' ? 'border-amber-500 shadow-amber-900/40 max-w-sm' : 
+                  interaction.type === 'MERCHANT' ? 'border-amber-700 shadow-amber-900/40 max-w-lg' : 'border-slate-500 max-w-sm'}
             `}>
                 {/* Header */}
-                <h2 className={`text-2xl font-bold mb-4 ${interaction.type === 'COMBAT' ? 'text-red-500' : interaction.type === 'REWARD' ? 'text-amber-400' : 'text-slate-300'}`}>
-                    {interaction.type === 'COMBAT' ? '⚔️ 遭遇强敌' : interaction.type === 'REWARD' ? '🎁 意外发现' : '👣 平静之地'}
+                <h2 className={`text-2xl font-bold mb-4 ${interaction.type === 'COMBAT' ? 'text-red-500' : interaction.type === 'REWARD' ? 'text-amber-400' : interaction.type === 'MERCHANT' ? 'text-amber-300' : 'text-slate-300'}`}>
+                    {interaction.type === 'COMBAT' ? '⚔️ 遭遇强敌' : interaction.type === 'REWARD' ? '🎁 意外发现' : interaction.type === 'MERCHANT' ? '⚖️ 游方散修' : '👣 平静之地'}
                 </h2>
 
                 {/* Content */}
-                <div className="mb-6 w-full flex flex-col items-center">
+                <div className="mb-6 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
                     
                     {interaction.type === 'COMBAT' && interaction.enemy && (
                         <>
@@ -376,6 +469,78 @@ export default function App() {
                         </>
                     )}
 
+                    {interaction.type === 'MERCHANT' && (
+                        <div className="w-full">
+                            <div className="text-center text-slate-300 text-sm mb-4 italic">"道友请留步，在这个荒郊野外相遇也是缘分，不如互通有无？"</div>
+                            
+                            <div className="flex justify-between items-center mb-4 bg-slate-950 p-2 rounded border border-slate-700">
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setMerchantTab('BUY')}
+                                        className={`px-3 py-1 rounded text-sm font-bold ${merchantTab === 'BUY' ? 'bg-amber-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        购买
+                                    </button>
+                                    <button 
+                                        onClick={() => setMerchantTab('SELL')}
+                                        className={`px-3 py-1 rounded text-sm font-bold ${merchantTab === 'SELL' ? 'bg-emerald-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        出售
+                                    </button>
+                                </div>
+                                <div className="text-yellow-400 font-mono font-bold text-sm">
+                                    💰 {player?.gold}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
+                                {merchantTab === 'BUY' ? (
+                                    <>
+                                        {interaction.inventory.length === 0 && <div className="text-center text-slate-500 py-4">已被买空</div>}
+                                        {interaction.inventory.map((item) => (
+                                            <div key={item.id} className="flex items-center gap-2 bg-slate-800 p-2 rounded border border-slate-700">
+                                                <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center text-xl">{item.icon}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`text-sm font-bold truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
+                                                    <div className="text-[10px] text-slate-400">{getRealmName(item.reqLevel, config.realms)}</div>
+                                                </div>
+                                                <Button 
+                                                    size="sm" 
+                                                    onClick={() => handleBuyItem(item)}
+                                                    disabled={(player?.gold || 0) < item.price}
+                                                    className="shrink-0 text-xs px-2 py-1"
+                                                >
+                                                    💰 {item.price}
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        {player?.inventory.length === 0 && <div className="text-center text-slate-500 py-4">你的储物袋空空如也</div>}
+                                        {player?.inventory.map((item) => (
+                                            <div key={item.id} className="flex items-center gap-2 bg-slate-800 p-2 rounded border border-slate-700">
+                                                <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center text-xl">{item.icon}</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`text-sm font-bold truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
+                                                    <div className="text-[10px] text-slate-400">回收价</div>
+                                                </div>
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="primary"
+                                                    onClick={() => handleSellItem(item)}
+                                                    className="shrink-0 text-xs px-2 py-1 bg-emerald-800 hover:bg-emerald-700 border-emerald-600"
+                                                >
+                                                    +{Math.floor(item.price * 0.5)}
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {interaction.type === 'EMPTY' && (
                          <>
                             <div className="text-5xl mb-3">🍃</div>
@@ -389,19 +554,21 @@ export default function App() {
 
                 {/* Actions */}
                 <div className="flex gap-3 w-full">
-                    <Button 
-                        variant="secondary" 
-                        className="flex-1"
-                        onClick={() => setInteraction(null)}
-                    >
-                        {interaction.type === 'COMBAT' ? '暂且退避' : '取消'}
-                    </Button>
+                    {interaction.type !== 'MERCHANT' && (
+                        <Button 
+                            variant="secondary" 
+                            className="flex-1"
+                            onClick={() => setInteraction(null)}
+                        >
+                            {interaction.type === 'COMBAT' ? '暂且退避' : '取消'}
+                        </Button>
+                    )}
                     <Button 
                         variant={interaction.type === 'COMBAT' ? 'danger' : 'primary'} 
                         className="flex-1"
                         onClick={handleInteractionConfirm}
                     >
-                        {interaction.type === 'COMBAT' ? '开始战斗' : interaction.type === 'REWARD' ? '收入囊中' : '继续前行'}
+                        {interaction.type === 'COMBAT' ? '开始战斗' : interaction.type === 'REWARD' ? '收入囊中' : interaction.type === 'MERCHANT' ? '告辞' : '继续前行'}
                     </Button>
                 </div>
             </div>

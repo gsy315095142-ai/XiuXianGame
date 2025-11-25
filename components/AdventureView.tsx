@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { MapNode, NodeType } from '../types';
 import { Button } from './Button';
@@ -28,8 +29,6 @@ export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentL
             {mapNodes.map((node) => {
                 const isCurrent = node.id === currentLocationId;
                 // Simple adjacency logic for demo: Can click any visited or adjacent node
-                // But for "Preview" logic, maybe we allow clicking any node to see what's there?
-                // Usually games restrict movement. Let's keep restriction but use the new handler.
                 const isAvailable = !node.visited && (currentLocationId === null || Math.abs(node.id - currentLocationId) <= 1); 
 
                 let icon = '❓';
@@ -41,6 +40,9 @@ export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentL
                 } else if (node.type === NodeType.BOSS) {
                     icon = '👿';
                     bgClass = 'bg-red-900/80 border-red-500 animate-pulse';
+                } else if (node.type === NodeType.MERCHANT) {
+                    icon = '⚖️';
+                    bgClass = 'bg-amber-900/60 border-amber-600';
                 } else if (node.type === NodeType.TREASURE) {
                     // Usually hidden until visited, but for debug/demo logic we might show hints
                     // icon = '❓'; 
@@ -71,7 +73,7 @@ export const AdventureView: React.FC<AdventureViewProps> = ({ mapNodes, currentL
         </div>
         
         <div className="mt-6 text-center text-slate-400 text-sm bg-black/50 p-2 rounded">
-            点击 <span className="text-white font-bold">❓</span> 区域进行探索。可能会遇到敌人或宝藏。
+            点击 <span className="text-white font-bold">❓</span> 区域进行探索。可能会遇到敌人、宝藏或游商。
         </div>
       </div>
     </div>
