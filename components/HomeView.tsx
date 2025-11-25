@@ -139,7 +139,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
 
         {/* Center: Visual Scene (Expands) */}
         <div className="flex-1 relative rounded-3xl border-2 border-emerald-900 overflow-hidden bg-black flex flex-col items-center justify-center shadow-2xl group">
-            <img src="https://picsum.photos/seed/dongfu_bg/1920/1080" alt="Dongfu" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[20s]" />
+            {/* UPDATED BACKGROUND IMAGE */}
+            <img src="https://res.cloudinary.com/daily-now/image/upload/f_auto,q_auto/v1/posts/e424269229e3943e067f938c53df28d8?_a=BAMCkGwi0" alt="Dongfu" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[20s]" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-slate-900/80"></div>
             
             <div className="relative z-10 flex flex-col items-center animate-bounce-slight w-full max-w-2xl px-4">
