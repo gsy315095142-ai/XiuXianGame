@@ -318,6 +318,7 @@ const GENERATED_CARDS: Card[] = [];
 const GENERATED_ITEMS: Item[] = [];
 const GENERATED_BOOKS: Item[] = [];
 const GENERATED_ALCHEMY_ITEMS: Item[] = [];
+const GENERATED_FORGE_ITEMS: Item[] = [];
 
 // Adjusted Levels for New Realm Ranges
 const REALMS_GEN_CONFIG = [
@@ -357,6 +358,11 @@ const ICON_POOLS: Record<EquipmentSlot, string[]> = {
 
 const MATERIAL_NAMES = ['灵草', '妖丹', '矿石', '灵泉', '火精', '异木', '玄铁', '玉髓', '兽骨', '魂石'];
 const MATERIAL_ICONS = ['🌿', '🔮', '🪨', '💧', '🔥', '🪵', '⚒️', '💎', '🦴', '👻'];
+
+const FORGE_MAT_NAMES = ['精铁', '赤铜', '星砂', '秘银', '寒铁', '雷木', '金精', '龙鳞', '凤羽', '定海石'];
+const FORGE_MAT_ICONS = ['🧱', '🔶', '✨', '💿', '🧊', '⚡', '🔱', '🐉', '🪶', '🗿'];
+const ARTIFACT_NAMES = ['混元珠', '照妖镜', '翻天印', '紫金铃', '捆仙绳'];
+const ARTIFACT_ICONS = ['🔮', '🪞', '🧱', '🔔', '🎗️'];
 
 const PILL_TYPES = [
     { name: '大力丸', stat: 'attack', icon: '🔴' },
@@ -580,10 +586,86 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         GENERATED_ALCHEMY_ITEMS.push(recipe);
     });
 
+    // 6. Forge Generation (Materials, Blueprints, Artifacts)
+    
+    // 6a. Forge Materials (10 per realm)
+    const forgeMaterials: Item[] = [];
+    for(let m=0; m<10; m++) {
+        const matName = `${realm.name}${FORGE_MAT_NAMES[m]}`;
+        const mat: Item = {
+            id: `fmat_${realm.level}_${m}`,
+            name: matName,
+            icon: FORGE_MAT_ICONS[m],
+            type: 'FORGE_MATERIAL',
+            description: `产自${realm.name}的${FORGE_MAT_NAMES[m]}，是炼制${realm.name}法宝的珍贵材料。`,
+            rarity: m > 7 ? 'epic' : m > 4 ? 'rare' : 'common',
+            reqLevel: realm.level,
+            price: (m + 1) * 20 * Math.ceil(realm.level/5),
+            statBonus: { elementalAffinities: createZeroElementStats() }
+        };
+        forgeMaterials.push(mat);
+        GENERATED_FORGE_ITEMS.push(mat);
+    }
+
+    // 6b. Artifacts & Blueprints (5 per realm)
+    ARTIFACT_NAMES.forEach((an, idx) => {
+        const artId = `art_${realm.level}_${idx}`;
+        const bonus = Math.max(1, Math.floor(realm.limit * 0.2));
+        
+        // Random stats for artifact
+        const statBonus: Partial<Stats> = { 
+            elementalAffinities: createZeroElementStats(),
+            maxSpirit: randInt(5, 10) * Math.ceil(realm.level/5),
+            attack: randInt(1, realm.limit),
+            defense: randInt(1, Math.ceil(realm.limit/2))
+        };
+
+        const artifact: Item = {
+            id: artId,
+            name: `${realm.prefix}·${an}`,
+            icon: ARTIFACT_ICONS[idx],
+            type: 'ARTIFACT',
+            slot: 'accessory', // Just a default, artifacts use special slots anyway
+            description: `炼制而成的${realm.name}本命法宝，威力不俗。`,
+            rarity: 'epic',
+            reqLevel: realm.level,
+            price: 2000 * Math.ceil(realm.level / 5),
+            statBonus: statBonus
+        };
+        GENERATED_FORGE_ITEMS.push(artifact);
+
+        // Blueprint
+        const matCount = randInt(2, 4);
+        const forgeRequirements = [];
+        for(let k=0; k<matCount; k++) {
+             const mat = randPick(forgeMaterials);
+             forgeRequirements.push({ itemId: mat.id, count: randInt(2, 5) });
+        }
+
+        const blueprint: Item = {
+            id: `bp_${realm.level}_${idx}`,
+            name: `图纸: ${artifact.name}`,
+            icon: '🗺️',
+            type: 'FORGE_BLUEPRINT',
+            description: `记录了打造${artifact.name}的方法。需: ${forgeRequirements.map(rm => {
+                const m = forgeMaterials.find(x => x.id === rm.itemId);
+                return `${m?.name}x${rm.count}`;
+            }).join(', ')}`,
+            rarity: 'rare',
+            reqLevel: realm.level,
+            price: artifact.price * 0.5,
+            statBonus: { elementalAffinities: createZeroElementStats() },
+            recipeResult: artId,
+            recipeMaterials: forgeRequirements,
+            successRate: 0.4 + (Math.random() * 0.3) // 40% - 70%
+        };
+        GENERATED_FORGE_ITEMS.push(blueprint);
+    });
+
 });
 
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
-export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS];
+export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS, ...GENERATED_FORGE_ITEMS];
 
 // --- Procedural Generation: Enemies ---
 
@@ -793,7 +875,8 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
     artifacts: Array(config.artifactSlotConfigs.length).fill(null),
     unlockedArtifactCount: 1, // Default 1 unlocked
     learnedRecipes: [],
-    pillUsage: {}
+    pillUsage: {},
+    learnedBlueprints: []
   };
 };
 

@@ -61,7 +61,15 @@ export interface RealmRank {
   levels: RealmLevelConfig[];
 }
 
-export type ItemType = 'EQUIPMENT' | 'CONSUMABLE' | 'ARTIFACT' | 'MATERIAL' | 'RECIPE' | 'PILL';
+export type ItemType = 
+    | 'EQUIPMENT' 
+    | 'CONSUMABLE' 
+    | 'ARTIFACT' 
+    | 'MATERIAL' 
+    | 'RECIPE' 
+    | 'PILL'
+    | 'FORGE_BLUEPRINT' // New: Artifact Blueprint
+    | 'FORGE_MATERIAL'; // New: Artifact Material
 
 export type EquipmentSlot = 
   | 'mainWeapon' 
@@ -87,11 +95,11 @@ export interface Item {
   reqLevel: number;
   price: number; 
   
-  // Alchemy Fields
+  // Alchemy & Forge Fields
   maxUsage?: number; // For PILL: Max times a player can use this specific pill
-  recipeResult?: string; // For RECIPE: The ID of the item (Pill) it creates
-  recipeMaterials?: { itemId: string; count: number }[]; // For RECIPE: Materials required
-  successRate?: number; // For RECIPE: 0.0 - 1.0
+  recipeResult?: string; // For RECIPE/BLUEPRINT: The ID of the item (Pill/Artifact) it creates
+  recipeMaterials?: { itemId: string; count: number }[]; // For RECIPE/BLUEPRINT: Materials required
+  successRate?: number; // For RECIPE/BLUEPRINT: 0.0 - 1.0
 }
 
 export interface Card {
@@ -142,6 +150,9 @@ export interface Player extends Entity {
   // Alchemy State
   learnedRecipes: string[]; // List of Recipe Item IDs
   pillUsage: Record<string, number>; // Pill Item ID -> Count Used
+
+  // Forge State
+  learnedBlueprints: string[]; // List of Blueprint Item IDs
 }
 
 export interface Enemy extends Entity {

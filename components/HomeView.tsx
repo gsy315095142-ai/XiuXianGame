@@ -16,6 +16,7 @@ interface HomeViewProps {
   onEndGame: () => void;
   onBreakthrough: () => void;
   onRefine: (recipeId: string, materials: {itemId: string, count: number}[]) => void;
+  onCraft: (blueprintId: string, materials: {itemId: string, count: number}[]) => void;
   isRefining: boolean;
   itemsConfig: Item[];
   // New props for artifacts
@@ -25,11 +26,12 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ 
-    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, isRefining, itemsConfig,
+    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, onCraft, isRefining, itemsConfig,
     artifactConfigs = [], onUnlockArtifactSlot, onUnequipArtifact
 }) => {
-  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'mapSelect'>('none');
+  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'forge' | 'mapSelect'>('none');
   const [selectedRecipe, setSelectedRecipe] = useState<Item | null>(null);
+  const [selectedBlueprint, setSelectedBlueprint] = useState<Item | null>(null);
 
   const realmName = getRealmName(player.level, realms);
   
@@ -44,7 +46,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const breakthroughChance = levelConfig ? (levelConfig.breakthroughChance * 100) : 0;
   
   const alchemyUnlockLevel = 5; // Qi Refining Layer 5
+  const forgeUnlockLevel = 11; // Foundation (Zhuji) start
   const isAlchemyUnlocked = player.level >= alchemyUnlockLevel;
+  const isForgeUnlocked = player.level >= forgeUnlockLevel;
 
   const equipmentSlots: EquipmentSlot[] = [
     'mainWeapon', 'offWeapon', 
@@ -60,11 +64,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const learnedRecipesList = player.learnedRecipes
     .map(rid => itemsConfig.find(i => i.id === rid))
     .filter((i): i is Item => !!i);
+  
+  const learnedBlueprintsList = player.learnedBlueprints
+    .map(rid => itemsConfig.find(i => i.id === rid))
+    .filter((i): i is Item => !!i);
+
     
-  // Check materials for selected recipe
-  const getMaterialStatus = (recipe: Item) => {
-      if (!recipe.recipeMaterials) return { sufficient: false, mats: [] };
-      const mats = recipe.recipeMaterials.map(rm => {
+  // Check materials for selected recipe/blueprint
+  const getMaterialStatus = (item: Item) => {
+      if (!item.recipeMaterials) return { sufficient: false, mats: [] };
+      const mats = item.recipeMaterials.map(rm => {
           const matItem = itemsConfig.find(i => i.id === rm.itemId);
           const ownedCountByName = player.inventory.filter(i => i.name === matItem?.name).length;
           
@@ -83,6 +92,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const currentRecipeStatus = selectedRecipe ? getMaterialStatus(selectedRecipe) : null;
   const targetPill = selectedRecipe ? itemsConfig.find(i => i.id === selectedRecipe.recipeResult) : null;
+
+  const currentBlueprintStatus = selectedBlueprint ? getMaterialStatus(selectedBlueprint) : null;
+  const targetArtifact = selectedBlueprint ? itemsConfig.find(i => i.id === selectedBlueprint.recipeResult) : null;
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-6 space-y-6 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white min-w-[1200px] overflow-x-auto">
@@ -140,6 +152,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     title={!isAlchemyUnlocked ? '需炼气五层解锁' : ''}
                 >
                      <span className="mr-3 text-2xl">🔥</span> 炼丹房 {!isAlchemyUnlocked && <span className="text-sm ml-auto">🔒 5级解锁</span>}
+                </Button>
+                <Button 
+                    variant={activeMenu === 'forge' ? 'primary' : 'secondary'} 
+                    onClick={() => isForgeUnlocked ? setActiveMenu(activeMenu === 'forge' ? 'none' : 'forge') : null}
+                    className={`justify-start text-xl py-5 px-6 ${!isForgeUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={!isForgeUnlocked ? '需筑基期解锁' : ''}
+                >
+                     <span className="mr-3 text-2xl">⚒️</span> 炼器房 {!isForgeUnlocked && <span className="text-sm ml-auto">🔒 筑基解锁</span>}
                 </Button>
             </div>
         </div>
@@ -326,8 +346,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
          </Button>
       </div>
 
-      {/* ... [Modals: MapSelect, Alchemy, Bag/Deck are largely unchanged, just ensure props passed correctly] ... */}
-      
       {/* Map Selection Modal */}
       {activeMenu === 'mapSelect' && (
           <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
@@ -396,15 +414,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
       )}
       
-      {/* Alchemy Modal - Copied from prev, simplified for brevity here, assumes same structure */}
+      {/* Alchemy Modal */}
       {activeMenu === 'alchemy' && (
           <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
-              {/* ... (Existing Alchemy UI) ... */}
               <div className="w-full max-w-6xl h-[85vh] bg-slate-900 border-2 border-amber-700 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
                   <button onClick={() => setActiveMenu('none')} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl z-50">✕</button>
-                  {/* ... Furnace UI Content ... */}
+                  
+                   <div className="bg-slate-950 p-6 border-b border-amber-900/50 flex items-center gap-4">
+                        <span className="text-4xl">🔥</span>
+                        <div>
+                            <h3 className="text-3xl font-bold text-amber-200">炼丹房</h3>
+                            <p className="text-amber-500/60 text-sm">以天地为炉，炼万物为丹。</p>
+                        </div>
+                   </div>
+
                    <div className="flex-1 flex overflow-hidden">
                       <div className="w-80 border-r border-slate-700 bg-slate-800/40 p-4 overflow-y-auto custom-scrollbar">
+                           <h4 className="text-slate-500 font-bold mb-4 uppercase text-xs tracking-widest">已掌握丹方</h4>
                            <div className="space-y-2">
                               {learnedRecipesList.map(recipe => (
                                   <button
@@ -416,27 +442,163 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                       {selectedRecipe?.id === recipe.id && <span>✨</span>}
                                   </button>
                               ))}
+                              {learnedRecipesList.length === 0 && <div className="text-slate-600 text-center py-10">暂无丹方</div>}
                           </div>
                       </div>
                       <div className="flex-1 flex flex-col items-center relative bg-slate-900">
                           {selectedRecipe && targetPill ? (
-                             <div className="p-10 flex flex-col items-center w-full">
-                                  <div className="text-3xl font-bold text-amber-200 mb-2">{targetPill.name}</div>
-                                  <Button 
-                                      size="lg" 
-                                      className="mt-10 w-64"
-                                      disabled={!currentRecipeStatus?.sufficient || isRefining}
-                                      onClick={() => {
-                                          if(selectedRecipe.recipeMaterials) {
-                                              onRefine(selectedRecipe.id, selectedRecipe.recipeMaterials);
-                                          }
-                                      }}
-                                  >
-                                      {isRefining ? '炼制中...' : '开始炼制'}
-                                  </Button>
+                             <div className="flex-1 w-full flex flex-col">
+                                 <div className="flex-1 flex items-center justify-center p-8 relative">
+                                      {/* Furnace Visual */}
+                                      <div className="relative">
+                                          <div className={`text-[120px] filter drop-shadow-[0_0_30px_rgba(245,158,11,0.5)] ${isRefining ? 'animate-bounce-slight' : ''}`}>鼎</div>
+                                          {isRefining && <div className="absolute inset-0 flex items-center justify-center text-6xl animate-ping opacity-50">🔥</div>}
+                                      </div>
+                                      
+                                      {/* Target Info */}
+                                      <div className="absolute top-8 right-8 bg-slate-800 p-4 rounded-xl border border-slate-700 w-64">
+                                          <div className="text-4xl mb-2 text-center">{targetPill.icon}</div>
+                                          <div className="text-xl font-bold text-center text-amber-200 mb-1">{targetPill.name}</div>
+                                          <div className="text-xs text-slate-400 text-center mb-3">{targetPill.description}</div>
+                                          <div className="text-center text-emerald-400 font-bold text-sm bg-black/30 py-1 rounded">
+                                              成功率: {((selectedRecipe.successRate || 0.5) * 100).toFixed(0)}%
+                                          </div>
+                                      </div>
+                                 </div>
+
+                                 {/* Materials Check */}
+                                 <div className="h-1/3 bg-slate-950 border-t border-slate-800 p-6">
+                                     <h4 className="text-slate-400 font-bold mb-4 flex items-center gap-2">
+                                         <span>🌿</span> 所需药材
+                                     </h4>
+                                     <div className="flex gap-6 justify-center">
+                                         {currentRecipeStatus?.mats.map((mat, i) => (
+                                             <div key={i} className={`flex flex-col items-center p-3 rounded-lg border-2 ${mat.ok ? 'bg-slate-900 border-emerald-900' : 'bg-red-900/10 border-red-900'}`}>
+                                                 <div className="text-3xl mb-2">{mat.icon}</div>
+                                                 <div className={`font-bold text-sm ${mat.ok ? 'text-slate-300' : 'text-red-400'}`}>{mat.name}</div>
+                                                 <div className={`text-xs mt-1 font-mono ${mat.ok ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                     {mat.owned} / {mat.needed}
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                     <div className="mt-6 flex justify-center">
+                                         <Button 
+                                              size="lg" 
+                                              className="w-64 py-3 text-lg"
+                                              disabled={!currentRecipeStatus?.sufficient || isRefining}
+                                              onClick={() => {
+                                                  if(selectedRecipe.recipeMaterials) {
+                                                      onRefine(selectedRecipe.id, selectedRecipe.recipeMaterials);
+                                                  }
+                                              }}
+                                          >
+                                              {isRefining ? '炼制中...' : '🔥 开始炼丹'}
+                                          </Button>
+                                     </div>
+                                 </div>
                              </div>
                           ) : (
-                              <div className="text-slate-500 mt-20">请选择丹方</div>
+                              <div className="text-slate-500 mt-20 flex flex-col items-center">
+                                  <span className="text-6xl mb-4 opacity-30">📜</span>
+                                  <span>请从左侧选择丹方</span>
+                              </div>
+                          )}
+                      </div>
+                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* Forge Modal (Crafting) */}
+      {activeMenu === 'forge' && (
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+              <div className="w-full max-w-6xl h-[85vh] bg-slate-900 border-2 border-orange-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
+                  <button onClick={() => setActiveMenu('none')} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl z-50">✕</button>
+                  
+                   <div className="bg-slate-950 p-6 border-b border-orange-900/50 flex items-center gap-4">
+                        <span className="text-4xl">⚒️</span>
+                        <div>
+                            <h3 className="text-3xl font-bold text-orange-200">炼器房</h3>
+                            <p className="text-orange-500/60 text-sm">千锤百炼，铸造神兵利器。</p>
+                        </div>
+                   </div>
+
+                   <div className="flex-1 flex overflow-hidden">
+                      <div className="w-80 border-r border-slate-700 bg-slate-800/40 p-4 overflow-y-auto custom-scrollbar">
+                           <h4 className="text-slate-500 font-bold mb-4 uppercase text-xs tracking-widest">已掌握图纸</h4>
+                           <div className="space-y-2">
+                              {learnedBlueprintsList.map(bp => (
+                                  <button
+                                      key={bp.id}
+                                      onClick={() => setSelectedBlueprint(bp)}
+                                      className={`w-full text-left p-4 rounded-xl text-lg font-bold transition-all flex items-center justify-between border ${selectedBlueprint?.id === bp.id ? 'bg-orange-900/80 border-orange-600 text-orange-100 shadow-lg translate-x-1' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                                  >
+                                      <span>{bp.name}</span>
+                                      {selectedBlueprint?.id === bp.id && <span>✨</span>}
+                                  </button>
+                              ))}
+                              {learnedBlueprintsList.length === 0 && <div className="text-slate-600 text-center py-10">暂无图纸</div>}
+                          </div>
+                      </div>
+                      <div className="flex-1 flex flex-col items-center relative bg-slate-900">
+                          {selectedBlueprint && targetArtifact ? (
+                             <div className="flex-1 w-full flex flex-col">
+                                 <div className="flex-1 flex items-center justify-center p-8 relative">
+                                      {/* Anvil Visual */}
+                                      <div className="relative">
+                                          <div className={`text-[120px] filter drop-shadow-[0_0_30px_rgba(234,88,12,0.5)] ${isRefining ? 'animate-bounce' : ''}`}>🛡️</div>
+                                          {isRefining && <div className="absolute -top-10 left-10 text-6xl animate-ping opacity-80">🔨</div>}
+                                      </div>
+                                      
+                                      {/* Target Info */}
+                                      <div className="absolute top-8 right-8 bg-slate-800 p-4 rounded-xl border border-slate-700 w-64">
+                                          <div className="text-4xl mb-2 text-center">{targetArtifact.icon}</div>
+                                          <div className="text-xl font-bold text-center text-orange-200 mb-1">{targetArtifact.name}</div>
+                                          <div className="text-xs text-slate-400 text-center mb-3">{targetArtifact.description}</div>
+                                          <div className="text-center text-emerald-400 font-bold text-sm bg-black/30 py-1 rounded">
+                                              成功率: {((selectedBlueprint.successRate || 0.4) * 100).toFixed(0)}%
+                                          </div>
+                                      </div>
+                                 </div>
+
+                                 {/* Materials Check */}
+                                 <div className="h-1/3 bg-slate-950 border-t border-slate-800 p-6">
+                                     <h4 className="text-slate-400 font-bold mb-4 flex items-center gap-2">
+                                         <span>🧱</span> 所需器材
+                                     </h4>
+                                     <div className="flex gap-6 justify-center">
+                                         {currentBlueprintStatus?.mats.map((mat, i) => (
+                                             <div key={i} className={`flex flex-col items-center p-3 rounded-lg border-2 ${mat.ok ? 'bg-slate-900 border-emerald-900' : 'bg-red-900/10 border-red-900'}`}>
+                                                 <div className="text-3xl mb-2">{mat.icon}</div>
+                                                 <div className={`font-bold text-sm ${mat.ok ? 'text-slate-300' : 'text-red-400'}`}>{mat.name}</div>
+                                                 <div className={`text-xs mt-1 font-mono ${mat.ok ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                     {mat.owned} / {mat.needed}
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                     <div className="mt-6 flex justify-center">
+                                         <Button 
+                                              size="lg" 
+                                              className="w-64 py-3 text-lg bg-orange-700 border-orange-600 hover:bg-orange-600 shadow-[0_0_20px_rgba(234,88,12,0.4)]"
+                                              disabled={!currentBlueprintStatus?.sufficient || isRefining}
+                                              onClick={() => {
+                                                  if(selectedBlueprint.recipeMaterials) {
+                                                      onCraft(selectedBlueprint.id, selectedBlueprint.recipeMaterials);
+                                                  }
+                                              }}
+                                          >
+                                              {isRefining ? '锻造中...' : '⚒️ 开始炼器'}
+                                          </Button>
+                                     </div>
+                                 </div>
+                             </div>
+                          ) : (
+                              <div className="text-slate-500 mt-20 flex flex-col items-center">
+                                  <span className="text-6xl mb-4 opacity-30">🗺️</span>
+                                  <span>请从左侧选择图纸</span>
+                              </div>
                           )}
                       </div>
                    </div>
@@ -464,7 +626,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                     const canEquip = player.level >= item.reqLevel;
                                     const isArtifact = item.type === 'ARTIFACT';
                                     const isEquipable = item.type === 'EQUIPMENT' || isArtifact;
-                                    const isConsumable = item.type === 'CONSUMABLE' || item.type === 'RECIPE' || item.type === 'PILL';
+                                    const isConsumable = item.type === 'CONSUMABLE' || item.type === 'RECIPE' || item.type === 'PILL' || item.type === 'FORGE_BLUEPRINT';
                                     
                                     return (
                                         <div key={idx} className="bg-slate-800 p-4 rounded-xl border border-slate-600 flex flex-col justify-between hover:bg-slate-700/80 transition-colors shadow-lg group">
@@ -478,7 +640,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                         {item.type === 'EQUIPMENT' ? `装备 · ${item.slot ? SLOT_NAMES[item.slot] : '未知'}` : 
                                                             item.type === 'ARTIFACT' ? '本命法宝' : 
                                                             item.type === 'MATERIAL' ? '药材' :
+                                                            item.type === 'FORGE_MATERIAL' ? '器材' :
                                                             item.type === 'RECIPE' ? '丹方' :
+                                                            item.type === 'FORGE_BLUEPRINT' ? '图纸' :
                                                             item.type === 'PILL' ? '丹药' : '道具'}
                                                     </div>
                                                 </div>
@@ -503,7 +667,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                         className="flex-1 text-sm font-bold"
                                                         onClick={() => onUseItem(item)}
                                                     >
-                                                        {item.type === 'RECIPE' ? '学习' : '使用'}
+                                                        {item.type === 'RECIPE' || item.type === 'FORGE_BLUEPRINT' ? '学习' : '使用'}
                                                     </Button>
                                                 )}
                                             </div>

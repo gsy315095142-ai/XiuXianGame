@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -43,7 +44,7 @@ export default function App() {
   // Breakthrough Result State
   const [breakthroughResult, setBreakthroughResult] = useState<{success: boolean, message: string, statsGained?: string} | null>(null);
   
-  // Alchemy State
+  // Alchemy & Forge State
   const [isRefining, setIsRefining] = useState(false);
   const [refineResult, setRefineResult] = useState<{success: boolean, item?: Item} | null>(null);
 
@@ -285,7 +286,36 @@ export default function App() {
                   setRefineResult({ success: true, item: newPill });
               } else setRefineResult({ success: false });
           } else setRefineResult({ success: false });
-      }, 3000); // 3 seconds for faster UX
+      }, 3000); 
+  };
+
+  const handleCraftArtifact = (blueprintId: string, materials: {itemId: string, count: number}[]) => {
+      if (!player) return;
+      const blueprint = config.items.find(i => i.id === blueprintId);
+      if (!blueprint) return;
+
+      let newInventory = [...player.inventory];
+      for (const mat of materials) {
+          for(let c=0; c<mat.count; c++) {
+             const idx = newInventory.findIndex(i => i.id === mat.itemId || i.id.startsWith(mat.itemId) || i.name === config.items.find(ci => ci.id === mat.itemId)?.name);
+             if (idx > -1) newInventory.splice(idx, 1);
+          }
+      }
+
+      setPlayer(prev => prev ? ({...prev, inventory: newInventory}) : null);
+      setIsRefining(true); // Reuse refining state for animation
+
+      setTimeout(() => {
+          setIsRefining(false);
+          if (Math.random() <= (blueprint.successRate || 0.5)) {
+              const artifactItem = config.items.find(i => i.id === blueprint.recipeResult);
+              if (artifactItem) {
+                  const newArt = { ...artifactItem, id: `crafted_${Date.now()}_${artifactItem.id}` };
+                  setPlayer(prev => prev ? ({...prev, inventory: [...prev.inventory, newArt]}) : null);
+                  setRefineResult({ success: true, item: newArt });
+              } else setRefineResult({ success: false });
+          } else setRefineResult({ success: false });
+      }, 3000);
   };
 
   const handleUseItem = (item: Item) => {
@@ -295,6 +325,12 @@ export default function App() {
           if (player.learnedRecipes.includes(item.id)) { alert("已掌握"); return; }
           setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id), learnedRecipes: [...prev.learnedRecipes, item.id] }) : null);
           alert(`掌握丹方：[${item.name}]`); return;
+      }
+
+      if (item.type === 'FORGE_BLUEPRINT') {
+          if (player.learnedBlueprints.includes(item.id)) { alert("已掌握"); return; }
+          setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id), learnedBlueprints: [...prev.learnedBlueprints, item.id] }) : null);
+          alert(`掌握炼器图纸：[${item.name}]`); return;
       }
       
       if (item.type === 'PILL') {
@@ -333,7 +369,6 @@ export default function App() {
       // Skill Book
       if (item.id.startsWith('book') || item.name.includes('心法')) {
           const realm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
-          // Find element from description or ID logic
           const elements = Object.values(ElementType);
           const matchedElement = elements.find(e => item.name.includes(e));
           const elem = matchedElement || ElementType.SWORD; // Default
@@ -368,7 +403,7 @@ export default function App() {
                   break;
               }
           }
-          if (slotIndex === -1) slotIndex = 0;
+          if (slotIndex === -1) slotIndex = 0; // Swap first if full
 
           const existingItem = player.artifacts[slotIndex];
           let newInventory = player.inventory.filter(i => i.id !== item.id);
@@ -502,6 +537,7 @@ export default function App() {
           onEndGame={() => { setPlayer(null); setView(GameView.START); }}
           onBreakthrough={handleBreakthrough}
           onRefine={handleRefine}
+          onCraft={handleCraftArtifact}
           isRefining={isRefining}
           artifactConfigs={config.artifactSlotConfigs}
           onUnlockArtifactSlot={handleUnlockArtifactSlot}
@@ -673,7 +709,7 @@ export default function App() {
           </div>
       )}
       
-      {/* --- Alchemy Refine Result Modal --- */}
+      {/* --- Alchemy/Forge Refine Result Modal --- */}
       {refineResult && (
            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur animate-fade-in">
               <div className="bg-slate-900 p-8 rounded-2xl border-2 border-emerald-500 max-w-md text-center shadow-2xl flex flex-col items-center">
