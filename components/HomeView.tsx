@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -79,7 +77,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, maps, onStar
   const targetPill = selectedRecipe ? itemsConfig.find(i => i.id === selectedRecipe.recipeResult) : null;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-6 space-y-6 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white">
+    <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-6 space-y-6 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white min-w-[1200px] overflow-x-auto">
       {/* Header */}
       <header className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-slate-700 shadow-2xl backdrop-blur z-20 shrink-0">
         <div className="flex items-center gap-6">
@@ -139,7 +137,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, maps, onStar
         </div>
 
         {/* Center: Visual Scene (Expands) */}
-        <div className="flex-1 relative rounded-3xl border-2 border-emerald-900 overflow-hidden bg-black flex flex-col items-center justify-center shadow-2xl group">
+        <div className="flex-1 relative rounded-3xl border-2 border-emerald-900 overflow-hidden bg-black flex flex-col items-center justify-center shadow-2xl group min-w-0">
             {/* UPDATED BACKGROUND IMAGE */}
             <img src="https://res.cloudinary.com/daily-now/image/upload/f_auto,q_auto/v1/posts/e424269229e3943e067f938c53df28d8?_a=BAMCkGwi0" alt="Dongfu" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[20s]" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-slate-900/80"></div>
@@ -466,7 +464,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, maps, onStar
 
       {/* Bag / Deck Modal (Full Screen) */}
       {(activeMenu === 'bag' || activeMenu === 'deck') && (
-          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-8 animate-fade-in">
                 <div className="w-full max-w-7xl h-[85vh] bg-slate-900 border-2 border-slate-600 rounded-2xl flex flex-col p-8 shadow-2xl relative">
                     {/* Close Button */}
                     <button onClick={() => setActiveMenu('none')} className="absolute top-6 right-6 text-slate-400 hover:text-white text-4xl">✕</button>

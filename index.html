@@ -6,14 +6,40 @@
     <title>郭郭修仙 0.2.25112301</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
       body {
         background-color: #1a1a1a;
         color: #e5e5e5;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       }
+      #root {
+        height: 100%;
+      }
+      /* Global Animations */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      
+      @keyframes bounceSlight {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+      .animate-bounce-slight {
+        animation: bounceSlight 2s ease-in-out infinite;
+      }
+
       /* Custom scrollbar for a more game-like feel */
       ::-webkit-scrollbar {
         width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
         background: #2d3748; 

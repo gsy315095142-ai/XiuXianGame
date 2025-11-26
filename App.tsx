@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -97,10 +95,6 @@ export default function App() {
     if (!player) return;
 
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
-      // Scale enemy level based on map reqLevel or player level? 
-      // Usually map level + some randomness, or strictly player level.
-      // Let's use player level but constrained by map difficulty if we had max level for map.
-      // For now, keep dynamic scaling to player level for fun.
       const enemy = getRandomEnemyFromConfig(player.level, config);
       setInteraction({ type: 'COMBAT', node, enemy });
     } 
@@ -144,16 +138,26 @@ export default function App() {
     else if (node.type === NodeType.MERCHANT) {
         const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
         let validItems = config.items;
+        
+        // Try to find items near player level
         if (currentRealm) {
-             validItems = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
+             const filtered = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
+             if (filtered.length > 0) validItems = filtered;
         }
-        if (validItems.length === 0) validItems = config.items;
+        
+        // Absolute fallback to prevent crash
+        if (validItems.length === 0) {
+            validItems = [{ id: 'dummy', name: '石头', type: 'MATERIAL', icon: '🪨', description: '普通的石头', rarity: 'common', reqLevel: 1, price: 1 }];
+        }
 
         const count = 4 + Math.floor(Math.random() * 5);
         const shopInventory: Item[] = [];
         for(let i=0; i<count; i++) {
             const item = validItems[Math.floor(Math.random() * validItems.length)];
-            shopInventory.push({ ...item, id: `${item.id}_shop_${i}` });
+            // Ensure item exists before spreading
+            if (item) {
+                shopInventory.push({ ...item, id: `${item.id}_shop_${i}` });
+            }
         }
 
         setInteraction({ type: 'MERCHANT', node, inventory: shopInventory });
@@ -174,19 +178,23 @@ export default function App() {
       setCurrentNode(node.id);
 
       if (type === 'COMBAT') {
-          const enemy = (interaction as any).enemy;
-          setActiveEnemy(enemy);
-          setView(GameView.COMBAT);
+          // Narrowing type safely
+          if ('enemy' in interaction) {
+             setActiveEnemy(interaction.enemy);
+             setView(GameView.COMBAT);
+          }
       } else if (type === 'REWARD') {
-          const reward = (interaction as any).reward;
-          setPlayer(prev => {
-              if (!prev) return null;
-              if (reward.type === 'ITEM') {
-                  return { ...prev, inventory: [...prev.inventory, reward.value as Item] };
-              } else {
-                  return { ...prev, gold: prev.gold + (reward.value as number) };
-              }
-          });
+          if ('reward' in interaction) {
+            const reward = interaction.reward;
+            setPlayer(prev => {
+                if (!prev) return null;
+                if (reward.type === 'ITEM') {
+                    return { ...prev, inventory: [...prev.inventory, reward.value as Item] };
+                } else {
+                    return { ...prev, gold: prev.gold + (reward.value as number) };
+                }
+            });
+          }
       }
 
       setInteraction(null);
@@ -246,7 +254,11 @@ export default function App() {
         return updatedPlayer;
     });
     
-    if (activeEnemy?.name.includes('领主') || (currentNode !== null && currentNode === mapNodes.length - 1)) {
+    // Safety check for activeEnemy
+    const isBoss = activeEnemy?.name.includes('领主') || false;
+    const isLastNode = currentNode !== null && currentNode === mapNodes.length - 1;
+    
+    if (isBoss || isLastNode) {
          setView(GameView.HOME);
     } else {
         setView(GameView.ADVENTURE);
@@ -576,7 +588,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-100 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white relative">
+    <div className="min-h-screen bg-[#121212] text-gray-100 font-sans selection:bg-emerald-500 selection:text-white relative">
+      <style>{`
+          .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+      `}</style>
       
       {interaction && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -592,7 +607,7 @@ export default function App() {
 
                 <div className="mb-6 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
                     
-                    {interaction.type === 'COMBAT' && interaction.enemy && (
+                    {interaction.type === 'COMBAT' && 'enemy' in interaction && (
                         <>
                             <div className="relative mb-3">
                                 <img src={interaction.enemy.avatarUrl} className="w-24 h-24 rounded-full border-4 border-red-800" alt="Enemy" />
@@ -610,7 +625,7 @@ export default function App() {
                         </>
                     )}
 
-                    {interaction.type === 'REWARD' && interaction.reward && (
+                    {interaction.type === 'REWARD' && 'reward' in interaction && (
                         <>
                             <div className={`w-20 h-20 bg-slate-800 rounded-lg border-2 ${interaction.reward.type === 'ITEM' ? 'border-emerald-600' : 'border-yellow-500'} flex items-center justify-center text-4xl mb-3`}>
                                 {interaction.reward.type === 'ITEM' ? ((interaction.reward.value as Item).icon || '📦') : '💎'}
@@ -629,7 +644,7 @@ export default function App() {
                         </>
                     )}
 
-                    {interaction.type === 'MERCHANT' && (
+                    {interaction.type === 'MERCHANT' && 'inventory' in interaction && (
                         <div className="w-full">
                             <div className="text-center text-slate-300 text-sm mb-4 italic">"道友请留步，在这个荒郊野外相遇也是缘分，不如互通有无？"</div>
                             
