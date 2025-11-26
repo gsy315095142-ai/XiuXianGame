@@ -721,6 +721,13 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   cards: INITIAL_CARDS,
   enemies: INITIAL_ENEMY_TEMPLATES,
   realms: DEFAULT_REALMS,
+  artifactSlotConfigs: [
+      { id: 0, reqLevel: 1, cost: 0 },
+      { id: 1, reqLevel: 10, cost: 1000 },
+      { id: 2, reqLevel: 20, cost: 5000 },
+      { id: 3, reqLevel: 30, cost: 20000 },
+      { id: 4, reqLevel: 40, cost: 100000 },
+  ],
   playerInitialDeckIds: ['c_strike', 'c_strike', 'c_strike', 'c_defend', 'c_defend', 'c_meditate', 'c_fireball', 'c_heal'],
   playerInitialStats: {
     maxHp: 100,
@@ -782,6 +789,9 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
         accessory: null,
         ring: null,
     },
+    // Initialize Artifacts
+    artifacts: Array(config.artifactSlotConfigs.length).fill(null),
+    unlockedArtifactCount: 1, // Default 1 unlocked
     learnedRecipes: [],
     pillUsage: {}
   };

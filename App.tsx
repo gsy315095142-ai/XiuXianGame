@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -57,30 +58,24 @@ export default function App() {
 
   const generateMap = (mapConfig: GameMap) => {
     const count = mapConfig.nodeCount;
-    // Get weights from map config
     const w = mapConfig.eventWeights;
     const totalWeight = w.merchant + w.treasure + w.battle + w.empty;
 
     const nodes: MapNode[] = Array.from({ length: count }, (_, i) => {
         const rand = Math.random() * totalWeight;
         let type = NodeType.EMPTY;
-        
         let cum = 0;
         if (rand < (cum += w.merchant)) type = NodeType.MERCHANT;
         else if (rand < (cum += w.treasure)) type = NodeType.TREASURE;
         else if (rand < (cum += w.battle)) type = NodeType.BATTLE;
         else type = NodeType.EMPTY;
 
-        return {
-            id: i,
-            type: type,
-            visited: false,
-            x: 0, 
-            y: 0
-        };
+        return { id: i, type: type, visited: false, x: 0, y: 0 };
     });
-    nodes[0].type = NodeType.EMPTY;
-    nodes[nodes.length - 1].type = NodeType.BOSS;
+    // Ensure start is empty and end is boss
+    if (nodes.length > 0) nodes[0].type = NodeType.EMPTY;
+    if (nodes.length > 1) nodes[nodes.length - 1].type = NodeType.BOSS;
+    
     setMapNodes(nodes);
     setCurrentNode(null);
   };
@@ -93,154 +88,98 @@ export default function App() {
 
   const handleNodeClick = (node: MapNode) => {
     if (!player) return;
-
+    
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
       const enemy = getRandomEnemyFromConfig(player.level, config);
       setInteraction({ type: 'COMBAT', node, enemy });
     } 
     else if (node.type === NodeType.TREASURE) {
       const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
-      
+      // Chance for item vs gold
       if (Math.random() < config.itemDropRate && config.items.length > 0) {
-        let validItems: Item[] = [];
-        if (currentRealm) {
-            validItems = config.items.filter(i => i.reqLevel >= currentRealm.rangeStart && i.reqLevel <= currentRealm.rangeEnd);
+        let validItems = config.items;
+        if (currentRealm) { 
+            const filtered = config.items.filter(i => i.reqLevel >= currentRealm.rangeStart && i.reqLevel <= currentRealm.rangeEnd); 
+            if (filtered.length > 0) validItems = filtered;
         }
-        if (validItems.length === 0) validItems = config.items;
         
         const item = validItems[Math.floor(Math.random() * validItems.length)];
-        
-        setInteraction({
-            type: 'REWARD',
-            node,
-            reward: {
-                type: 'ITEM',
-                value: item,
-                message: '发现了一个古朴的宝箱，里面似乎藏着宝物...'
-            }
-        });
+        setInteraction({ type: 'REWARD', node, reward: { type: 'ITEM', value: item, message: '发现了一个古朴的宝箱。' } });
       } else {
          const min = currentRealm.minGoldDrop || 10;
          const max = currentRealm.maxGoldDrop || 50;
-         const foundGold = Math.floor(Math.random() * (max - min + 1)) + min;
-         
-         setInteraction({
-            type: 'REWARD',
-            node,
-            reward: {
-                type: 'GOLD',
-                value: foundGold,
-                message: '发现了一个遗落的钱袋。'
-            }
-        });
+         const goldAmount = Math.floor(Math.random() * (max - min + 1)) + min;
+         setInteraction({ type: 'REWARD', node, reward: { type: 'GOLD', value: goldAmount, message: '发现了一个遗落的钱袋。' } });
       }
     } 
     else if (node.type === NodeType.MERCHANT) {
         const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
         let validItems = config.items;
-        
-        // Try to find items near player level
-        if (currentRealm) {
-             const filtered = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
-             if (filtered.length > 0) validItems = filtered;
+        // Filter items roughly near player level (+/- 5 levels)
+        if (currentRealm) { 
+            const filtered = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5); 
+            if (filtered.length > 0) validItems = filtered; 
         }
         
-        // Absolute fallback to prevent crash
-        if (validItems.length === 0) {
-            validItems = [{ id: 'dummy', name: '石头', type: 'MATERIAL', icon: '🪨', description: '普通的石头', rarity: 'common', reqLevel: 1, price: 1 }];
-        }
-
+        // Fallback
+        if (validItems.length === 0) validItems = [{ id: 'dummy', name: '石头', type: 'MATERIAL', icon: '🪨', description: '普通的石头', rarity: 'common', reqLevel: 1, price: 1 }];
+        
         const count = 4 + Math.floor(Math.random() * 5);
         const shopInventory: Item[] = [];
         for(let i=0; i<count; i++) {
             const item = validItems[Math.floor(Math.random() * validItems.length)];
-            // Ensure item exists before spreading
-            if (item) {
-                shopInventory.push({ ...item, id: `${item.id}_shop_${i}` });
-            }
+            if(item) shopInventory.push({ ...item, id: `${item.id}_shop_${i}_${Date.now()}` });
         }
-
         setInteraction({ type: 'MERCHANT', node, inventory: shopInventory });
         setMerchantTab('BUY');
     }
-    else {
-        setInteraction({ type: 'EMPTY', node });
+    else { 
+        setInteraction({ type: 'EMPTY', node }); 
     }
   };
 
   const handleInteractionConfirm = () => {
       if (!interaction || !player) return;
-
       const { node, type } = interaction;
-
+      
+      // Mark visited and move
       const newNodes = mapNodes.map(n => n.id === node.id ? { ...n, visited: true } : n);
       setMapNodes(newNodes);
       setCurrentNode(node.id);
-
-      if (type === 'COMBAT') {
-          // Narrowing type safely
-          if ('enemy' in interaction) {
-             setActiveEnemy(interaction.enemy);
-             setView(GameView.COMBAT);
-          }
-      } else if (type === 'REWARD') {
-          if ('reward' in interaction) {
-            const reward = interaction.reward;
-            setPlayer(prev => {
-                if (!prev) return null;
-                if (reward.type === 'ITEM') {
-                    return { ...prev, inventory: [...prev.inventory, reward.value as Item] };
-                } else {
-                    return { ...prev, gold: prev.gold + (reward.value as number) };
-                }
-            });
-          }
+      
+      if (type === 'COMBAT' && 'enemy' in interaction) { 
+          setActiveEnemy(interaction.enemy); 
+          setView(GameView.COMBAT); 
       }
-
+      else if (type === 'REWARD' && 'reward' in interaction) {
+          const reward = interaction.reward;
+          setPlayer(prev => {
+                if (!prev) return null;
+                if (reward.type === 'ITEM') { return { ...prev, inventory: [...prev.inventory, reward.value as Item] }; } 
+                else { return { ...prev, gold: prev.gold + (reward.value as number) }; }
+          });
+      }
       setInteraction(null);
   };
 
   const handleBuyItem = (item: Item) => {
       if (!player) return;
-      if (player.gold < item.price) {
-          alert("灵石不足！");
-          return;
-      }
+      if (player.gold < item.price) { alert("灵石不足！"); return; }
       
-      setPlayer(prev => {
-          if (!prev) return null;
-          return {
-              ...prev,
-              gold: prev.gold - item.price,
-              inventory: [...prev.inventory, { ...item, id: `bought_${Date.now()}_${item.id}` }]
-          };
-      });
+      const boughtItem = { ...item, id: `bought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` };
       
+      setPlayer(prev => prev ? ({ ...prev, gold: prev.gold - item.price, inventory: [...prev.inventory, boughtItem] }) : null);
+      
+      // Remove from merchant stock
       if (interaction?.type === 'MERCHANT') {
-          setInteraction(prev => {
-              if (prev?.type !== 'MERCHANT') return prev;
-              return {
-                  ...prev,
-                  inventory: prev.inventory.filter(i => i.id !== item.id)
-              }
-          });
+          setInteraction(prev => prev?.type === 'MERCHANT' ? { ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) } : prev);
       }
   };
 
   const handleSellItem = (item: Item) => {
       if (!player) return;
-      const sellPrice = Math.floor(item.price * 0.5); 
-
-      setPlayer(prev => {
-          if (!prev) return null;
-          return {
-              ...prev,
-              gold: prev.gold + sellPrice,
-              inventory: prev.inventory.filter(i => i.id !== item.id)
-          };
-      });
+      setPlayer(prev => prev ? ({ ...prev, gold: prev.gold + Math.floor(item.price * 0.5), inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
   };
-
 
   const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
     setPlayer(prev => {
@@ -248,276 +187,167 @@ export default function App() {
         let updatedPlayer = { ...prev };
         updatedPlayer.exp += rewards.exp;
         updatedPlayer.gold += rewards.gold;
-        if (rewards.drops.length > 0) {
-            updatedPlayer.inventory = [...updatedPlayer.inventory, ...rewards.drops];
-        }
+        if (rewards.drops.length > 0) updatedPlayer.inventory = [...updatedPlayer.inventory, ...rewards.drops];
         return updatedPlayer;
     });
-    
-    // Safety check for activeEnemy
-    const isBoss = activeEnemy?.name.includes('领主') || false;
+    const isBoss = activeEnemy?.name.includes('领主') || (activeEnemy?.difficulty || 0) > 100; // Simplified boss check
     const isLastNode = currentNode !== null && currentNode === mapNodes.length - 1;
     
-    if (isBoss || isLastNode) {
-         setView(GameView.HOME);
+    // Boss defeat or last node logic
+    if (currentNode !== null && mapNodes[currentNode].type === NodeType.BOSS) {
+         setView(GameView.HOME); 
     } else {
-        setView(GameView.ADVENTURE);
+         setView(GameView.ADVENTURE);
     }
     setActiveEnemy(null);
   };
 
   const handleCombatLose = () => {
-    setPlayer(prev => prev ? ({
-        ...prev,
-        stats: { ...prev.stats, hp: Math.floor(prev.stats.maxHp * 0.1) } 
-    }) : null);
+    setPlayer(prev => prev ? ({ ...prev, stats: { ...prev.stats, hp: Math.floor(prev.stats.maxHp * 0.1) } }) : null);
     setView(GameView.HOME);
     setActiveEnemy(null);
   };
 
   const handleBreakthrough = () => {
       if (!player) return;
-      
       const currentRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
       if (!currentRealm) return;
-
+      
+      // 0-indexed level in levels array
       const levelIndex = player.level - currentRealm.rangeStart;
       const levelConfig = currentRealm.levels[levelIndex];
-
-      if (!levelConfig) {
-          console.error("Missing level config");
-          return;
-      }
-
+      
+      if (!levelConfig) return;
       const cost = levelConfig.breakthroughCost;
-      const chance = levelConfig.breakthroughChance;
-
-      if (player.gold < cost) {
-          alert(`灵石不足！突破需要 ${cost} 灵石。`);
-          return;
-      }
-
+      
+      if (player.gold < cost) { alert(`灵石不足！需要 ${cost}`); return; }
+      
       setPlayer(prev => prev ? ({ ...prev, gold: prev.gold - cost }) : null);
 
-      const roll = Math.random();
-      if (roll <= chance) {
+      if (Math.random() <= levelConfig.breakthroughChance) {
+          const newLevel = player.level + 1;
+          const nextRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd) || currentRealm;
+          const nextLevelIndex = newLevel - nextRealm.rangeStart;
+          const nextLevelConfig = nextRealm.levels[nextLevelIndex];
+          
+          const hpGain = nextLevelConfig ? nextLevelConfig.hpGrowth : 0;
+          const atkGain = nextLevelConfig ? nextLevelConfig.atkGrowth : 0;
+          
+          setBreakthroughResult({ success: true, message: '突破成功！', statsGained: `HP+${hpGain}, 攻+${atkGain}, 防+${nextLevelConfig?.defGrowth||0}` });
           setPlayer(prev => {
               if (!prev) return null;
-              const newLevel = prev.level + 1;
-              const expLeft = prev.exp - prev.maxExp; 
-              
-              const nextRealm = config.realms.find(r => newLevel >= r.rangeStart && newLevel <= r.rangeEnd) || currentRealm;
-              const nextLevelIndex = newLevel - nextRealm.rangeStart;
-              const nextLevelConfig = nextRealm.levels[nextLevelIndex];
-              
-              const hpGain = nextLevelConfig ? nextLevelConfig.hpGrowth : 0;
-              const atkGain = nextLevelConfig ? nextLevelConfig.atkGrowth : 0;
-              const defGain = nextLevelConfig ? nextLevelConfig.defGrowth : 0;
-              const spiGain = nextLevelConfig ? nextLevelConfig.spiritGrowth : 0;
-              const spdGain = nextLevelConfig ? nextLevelConfig.speedGrowth : 0;
-              const nextMaxExp = nextLevelConfig ? nextLevelConfig.expReq : prev.maxExp * 2;
-
-              const statsGainedMsg = `HP+${hpGain}, 攻+${atkGain}, 防+${defGain}, 神+${spiGain}, 速+${spdGain}`;
-
-              setBreakthroughResult({
-                  success: true,
-                  message: '突破成功！境界提升！',
-                  statsGained: statsGainedMsg
-              });
-
               return {
                   ...prev,
                   level: newLevel,
-                  exp: expLeft,
-                  maxExp: nextMaxExp,
+                  exp: Math.max(0, prev.exp - prev.maxExp),
+                  maxExp: nextLevelConfig ? nextLevelConfig.expReq : prev.maxExp * 2,
                   stats: {
                       ...prev.stats,
                       maxHp: prev.stats.maxHp + hpGain,
                       hp: prev.stats.maxHp + hpGain, 
                       attack: prev.stats.attack + atkGain,
-                      defense: prev.stats.defense + defGain,
-                      maxSpirit: prev.stats.maxSpirit + spiGain,
-                      spirit: prev.stats.maxSpirit + spiGain,
-                      speed: prev.stats.speed + spdGain,
+                      defense: prev.stats.defense + (nextLevelConfig?.defGrowth||0),
+                      maxSpirit: prev.stats.maxSpirit + (nextLevelConfig?.spiritGrowth||0),
+                      spirit: prev.stats.maxSpirit + (nextLevelConfig?.spiritGrowth||0),
+                      speed: prev.stats.speed + (nextLevelConfig?.speedGrowth||0),
                   }
               };
           });
       } else {
-          setBreakthroughResult({
-              success: false,
-              message: '突破失败... 灵力逆流，损失了部分灵石，境界未得寸进。',
-          });
+          setBreakthroughResult({ success: false, message: '突破失败...' });
       }
   };
 
-  // --- Alchemy Logic ---
   const handleRefine = (recipeId: string, materials: {itemId: string, count: number}[]) => {
       if (!player) return;
-      
       const recipe = config.items.find(i => i.id === recipeId);
       if (!recipe) return;
-
-      // Deduct materials (find one by one and remove)
+      
       let newInventory = [...player.inventory];
       for (const mat of materials) {
           for(let c=0; c<mat.count; c++) {
-             // Try exact ID match first, then base ID, then Name (for safety)
+             // Find matching item in inventory (handling unique IDs)
              const idx = newInventory.findIndex(i => i.id === mat.itemId || i.id.startsWith(mat.itemId) || i.name === config.items.find(ci => ci.id === mat.itemId)?.name);
-             if (idx > -1) {
-                 newInventory.splice(idx, 1);
-             }
+             if (idx > -1) newInventory.splice(idx, 1);
           }
       }
+      
       setPlayer(prev => prev ? ({...prev, inventory: newInventory}) : null);
-
       setIsRefining(true);
-
-      // Wait 10 seconds
+      
       setTimeout(() => {
           setIsRefining(false);
-          const roll = Math.random();
-          if (roll <= (recipe.successRate || 0.5)) {
-              // Success
+          if (Math.random() <= (recipe.successRate || 0.5)) {
               const pillItem = config.items.find(i => i.id === recipe.recipeResult);
               if (pillItem) {
-                  // Unique ID for inventory
                   const newPill = { ...pillItem, id: `refined_${Date.now()}_${pillItem.id}` };
                   setPlayer(prev => prev ? ({...prev, inventory: [...prev.inventory, newPill]}) : null);
                   setRefineResult({ success: true, item: newPill });
-              } else {
-                   // Config error fallback
-                   setRefineResult({ success: false });
-              }
-          } else {
-              // Fail
-              setRefineResult({ success: false });
-          }
-      }, 10000);
+              } else setRefineResult({ success: false });
+          } else setRefineResult({ success: false });
+      }, 3000); // 3 seconds for faster UX
   };
 
   const handleUseItem = (item: Item) => {
       if (!player) return;
       
-      // Recipe Learning
       if (item.type === 'RECIPE') {
-          if (player.learnedRecipes.includes(item.id)) {
-              alert("你已经掌握了这门丹方，无需重复研读。");
-              return;
-          }
-          setPlayer(prev => {
-              if(!prev) return null;
-              return {
-                  ...prev,
-                  inventory: prev.inventory.filter(i => i.id !== item.id),
-                  learnedRecipes: [...prev.learnedRecipes, item.id]
-              };
-          });
-          alert(`恭喜！你掌握了丹方：[${item.name}]。`);
-          return;
+          if (player.learnedRecipes.includes(item.id)) { alert("已掌握"); return; }
+          setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id), learnedRecipes: [...prev.learnedRecipes, item.id] }) : null);
+          alert(`掌握丹方：[${item.name}]`); return;
       }
-
-      // Pill Consumption
+      
       if (item.type === 'PILL') {
-          // Check Realm
           const pillRealm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
           const playerRealm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd);
+          if (pillRealm && playerRealm && playerRealm.rangeStart < pillRealm.rangeStart) { alert("境界不足，无法承受药力！"); return; }
           
-          if (!pillRealm || !playerRealm) return; // Should not happen
-          
-          // Must be same Major Realm or higher (by rangeStart check)
-          if (playerRealm.rangeStart < pillRealm.rangeStart) {
-               alert(`你的境界不足以炼化此丹药！(需${pillRealm.name})`);
-               return;
-          }
-
-          // Check Usage Limit (based on base item ID)
-          // Find base ID by removing unique prefix if present or checking config
-          const configItem = config.items.find(i => item.name === i.name && i.type === 'PILL'); // Name matching is safer due to instance IDs
+          const configItem = config.items.find(i => item.name === i.name && i.type === 'PILL');
           const baseId = configItem?.id || item.id;
-          
           const usedCount = player.pillUsage[baseId] || 0;
-          const max = item.maxUsage || 1;
           
-          if (usedCount >= max) {
-              alert("丹毒堆积，此丹药已达到耐药上限，无法再服用！");
-              return;
-          }
-
-          // Apply Stats
+          if (usedCount >= (item.maxUsage || 1)) { alert("该丹药耐药性已达上限，无法继续服用！"); return; }
+          
           setPlayer(prev => {
               if(!prev) return null;
               const newStats = { ...prev.stats };
-              
               if (item.statBonus?.attack) newStats.attack += item.statBonus.attack;
               if (item.statBonus?.defense) newStats.defense += item.statBonus.defense;
-              if (item.statBonus?.maxHp) {
-                  newStats.maxHp += item.statBonus.maxHp;
-                  newStats.hp += item.statBonus.maxHp;
-              }
-              if (item.statBonus?.maxSpirit) {
-                  newStats.maxSpirit += item.statBonus.maxSpirit;
-                  newStats.spirit += item.statBonus.maxSpirit;
-              }
               if (item.statBonus?.speed) newStats.speed += item.statBonus.speed;
-
+              if (item.statBonus?.maxSpirit) { newStats.maxSpirit += item.statBonus.maxSpirit; newStats.spirit += item.statBonus.maxSpirit; }
+              if (item.statBonus?.maxHp) { newStats.maxHp += item.statBonus.maxHp; newStats.hp += item.statBonus.maxHp; }
               if (item.statBonus?.elementalAffinities) {
-                   Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
+                   Object.entries(item.statBonus.elementalAffinities).forEach(([k,v]) => {
                        // @ts-ignore
-                       newStats.elementalAffinities[k] += v;
+                       newStats.elementalAffinities[k] = (newStats.elementalAffinities[k] || 0) + (v as number);
                    });
               }
-
+              
               const newUsage = { ...prev.pillUsage };
               newUsage[baseId] = usedCount + 1;
-
-              return {
-                  ...prev,
-                  stats: newStats,
-                  inventory: prev.inventory.filter(i => i.id !== item.id),
-                  pillUsage: newUsage
-              }
+              return { ...prev, stats: newStats, inventory: prev.inventory.filter(i => i.id !== item.id), pillUsage: newUsage }
           });
-          
-          alert("丹药入腹，化作滚滚热流，你的实力提升了！");
-          return;
+          alert("服用成功，属性提升！"); return;
       }
-
+      
       // Skill Book
-      const parts = item.id.split('_');
-      if (parts[0] === 'book') {
-          const elem = parts[1] as ElementType;
-          const bookLevel = parseInt(parts[2]);
-
-          const realm = config.realms.find(r => bookLevel >= r.rangeStart && bookLevel <= r.rangeEnd);
+      if (item.id.startsWith('book') || item.name.includes('心法')) {
+          const realm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
+          // Find element from description or ID logic
+          const elements = Object.values(ElementType);
+          const matchedElement = elements.find(e => item.name.includes(e));
+          const elem = matchedElement || ElementType.SWORD; // Default
           
-          if (!realm) {
-              alert("这本心法残缺不全，无法领悟！");
-              return;
-          }
-
-          const validCards = config.cards.filter(c => 
-              c.element === elem && 
-              c.reqLevel >= realm.rangeStart &&
-              c.reqLevel <= realm.rangeEnd + 5
-          );
-
+          const validCards = config.cards.filter(c => c.element === elem && Math.abs(c.reqLevel - item.reqLevel) <= 5);
+          
           if (validCards.length > 0) {
               const newCard = validCards[Math.floor(Math.random() * validCards.length)];
-              setPlayer(prev => {
-                  if (!prev) return null;
-                  return {
-                      ...prev,
-                      deck: [...prev.deck, newCard],
-                      inventory: prev.inventory.filter(i => i.id !== item.id) 
-                  };
-              });
+              setPlayer(prev => prev ? ({ ...prev, deck: [...prev.deck, newCard], inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
               setAcquiredCard(newCard);
           } else {
-              alert(`你研读了${item.name}，却发现书中记载的法术早已失传...`);
-              setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
+               alert("领悟失败，没有领悟到新的招式。");
+               setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
           }
-      } else {
-          // Other consumables logic if added
       }
   };
 
@@ -525,332 +355,138 @@ export default function App() {
       if (!player) return;
       
       if (player.level < (item.reqLevel || 1)) {
-          alert(`你的境界不足，无法驾驭此宝物！(需要: ${getRealmName(item.reqLevel || 1, config.realms)})`);
+          alert(`境界不足！(需: ${getRealmName(item.reqLevel || 1, config.realms)})`);
           return;
       }
 
-      if (item.type !== 'EQUIPMENT' && item.type !== 'ARTIFACT') {
-          alert("此物品无法装备！");
+      // --- ARTIFACT LOGIC ---
+      if (item.type === 'ARTIFACT') {
+          let slotIndex = -1;
+          for (let i = 0; i < player.unlockedArtifactCount; i++) {
+              if (player.artifacts[i] === null) {
+                  slotIndex = i;
+                  break;
+              }
+          }
+          if (slotIndex === -1) slotIndex = 0;
+
+          const existingItem = player.artifacts[slotIndex];
+          let newInventory = player.inventory.filter(i => i.id !== item.id);
+          if (existingItem) newInventory.push(existingItem);
+
+          setPlayer(prev => {
+              if (!prev) return null;
+              const newStats = calculateStatsDelta(prev.stats, item, existingItem);
+              const newArtifacts = [...prev.artifacts];
+              newArtifacts[slotIndex] = item;
+
+              return {
+                  ...prev,
+                  stats: newStats,
+                  artifacts: newArtifacts,
+                  inventory: newInventory
+              };
+          });
           return;
       }
 
-      if (!item.slot) {
-          alert("此装备位置未知，无法装备！");
-          return;
-      }
+      if (item.type !== 'EQUIPMENT') { alert("无法装备"); return; }
+      if (!item.slot) { alert("位置未知"); return; }
 
       const existingItem = player.equipment[item.slot];
       let newInventory = player.inventory.filter(i => i.id !== item.id);
-      if (existingItem) {
-          newInventory.push(existingItem);
-      }
+      if (existingItem) newInventory.push(existingItem);
 
       setPlayer(prev => {
           if (!prev) return null;
-          
-          const attackDiff = (item.statBonus?.attack || 0) - (existingItem?.statBonus?.attack || 0);
-          const defenseDiff = (item.statBonus?.defense || 0) - (existingItem?.statBonus?.defense || 0);
-          const maxHpDiff = (item.statBonus?.maxHp || 0) - (existingItem?.statBonus?.maxHp || 0);
-          const maxSpiritDiff = (item.statBonus?.maxSpirit || 0) - (existingItem?.statBonus?.maxSpirit || 0);
-          const speedDiff = (item.statBonus?.speed || 0) - (existingItem?.statBonus?.speed || 0);
-
-          const newAffinities = { ...prev.stats.elementalAffinities };
-          
-          if (existingItem?.statBonus?.elementalAffinities) {
-               Object.entries(existingItem.statBonus.elementalAffinities).forEach(([k, v]) => {
-                   newAffinities[k as ElementType] -= (v as number);
-               });
-          }
-          if (item.statBonus?.elementalAffinities) {
-              Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
-                   newAffinities[k as ElementType] = (newAffinities[k as ElementType] || 0) + (v as number);
-               });
-          }
-
+          const newStats = calculateStatsDelta(prev.stats, item, existingItem);
           return {
             ...prev,
-            stats: {
-                ...prev.stats,
-                attack: prev.stats.attack + attackDiff,
-                defense: prev.stats.defense + defenseDiff,
-                maxHp: prev.stats.maxHp + maxHpDiff,
-                maxSpirit: prev.stats.maxSpirit + maxSpiritDiff,
-                speed: prev.stats.speed + speedDiff,
-                elementalAffinities: newAffinities
-            },
-            equipment: {
-                ...prev.equipment,
-                [item.slot!]: item
-            },
+            stats: newStats,
+            equipment: { ...prev.equipment, [item.slot!]: item },
             inventory: newInventory
           };
       });
   };
 
+  const calculateStatsDelta = (currentStats: any, newItem: Item, oldItem: Item | null) => {
+      const stats = { ...currentStats };
+      const add = (i: Item | null, factor: number) => {
+          if (!i || !i.statBonus) return;
+          if (i.statBonus.attack) stats.attack += i.statBonus.attack * factor;
+          if (i.statBonus.defense) stats.defense += i.statBonus.defense * factor;
+          if (i.statBonus.maxHp) { stats.maxHp += i.statBonus.maxHp * factor; stats.hp += i.statBonus.maxHp * factor; }
+          if (i.statBonus.maxSpirit) { stats.maxSpirit += i.statBonus.maxSpirit * factor; stats.spirit += i.statBonus.maxSpirit * factor; }
+          if (i.statBonus.speed) stats.speed += i.statBonus.speed * factor;
+          if (i.statBonus.elementalAffinities) {
+               Object.entries(i.statBonus.elementalAffinities).forEach(([k,v]) => {
+                   // @ts-ignore
+                   stats.elementalAffinities[k] = (stats.elementalAffinities[k] || 0) + (v as number) * factor;
+               });
+          }
+      };
+      add(oldItem, -1); 
+      add(newItem, 1);
+      return stats;
+  };
+
+  const handleUnequipArtifact = (index: number) => {
+      if (!player) return;
+      const item = player.artifacts[index];
+      if (!item) return;
+
+      setPlayer(prev => {
+          if (!prev) return null;
+          const newStats = calculateStatsDelta(prev.stats, { ...item, statBonus: {} } as Item, item); 
+          const newArtifacts = [...prev.artifacts];
+          newArtifacts[index] = null;
+          return {
+              ...prev,
+              stats: newStats,
+              artifacts: newArtifacts,
+              inventory: [...prev.inventory, item]
+          };
+      });
+  };
+
+  const handleUnlockArtifactSlot = (index: number) => {
+      if (!player) return;
+      const slotConfig = config.artifactSlotConfigs.find(c => c.id === index);
+      if (!slotConfig) return;
+
+      if (player.level < slotConfig.reqLevel) {
+          alert(`境界不足！需要达到 ${getRealmName(slotConfig.reqLevel, config.realms)}`);
+          return;
+      }
+      if (player.gold < slotConfig.cost) {
+          alert(`灵石不足！需要 ${slotConfig.cost} 灵石`);
+          return;
+      }
+
+      setPlayer(prev => {
+          if (!prev) return null;
+          return {
+              ...prev,
+              gold: prev.gold - slotConfig.cost,
+              unlockedArtifactCount: prev.unlockedArtifactCount + 1
+          };
+      });
+  };
+
   return (
-    <div className="min-h-screen bg-[#121212] text-gray-100 font-sans selection:bg-emerald-500 selection:text-white relative">
-      <style>{`
-          .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
-      `}</style>
-      
-      {interaction && (
-        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-            <div className={`
-                bg-slate-900 border-2 rounded-xl p-6 shadow-2xl flex flex-col items-center max-h-[80vh] w-full
-                ${interaction.type === 'COMBAT' ? 'border-red-600 shadow-red-900/40 max-w-sm' : 
-                  interaction.type === 'REWARD' ? 'border-amber-500 shadow-amber-900/40 max-w-sm' : 
-                  interaction.type === 'MERCHANT' ? 'border-amber-700 shadow-amber-900/40 max-w-lg' : 'border-slate-500 max-w-sm'}
-            `}>
-                <h2 className={`text-2xl font-bold mb-4 ${interaction.type === 'COMBAT' ? 'text-red-500' : interaction.type === 'REWARD' ? 'text-amber-400' : interaction.type === 'MERCHANT' ? 'text-amber-300' : 'text-slate-300'}`}>
-                    {interaction.type === 'COMBAT' ? '⚔️ 遭遇强敌' : interaction.type === 'REWARD' ? '🎁 意外发现' : interaction.type === 'MERCHANT' ? '⚖️ 游方散修' : '👣 平静之地'}
-                </h2>
-
-                <div className="mb-6 w-full flex flex-col items-center overflow-y-auto custom-scrollbar">
-                    
-                    {interaction.type === 'COMBAT' && 'enemy' in interaction && (
-                        <>
-                            <div className="relative mb-3">
-                                <img src={interaction.enemy.avatarUrl} className="w-24 h-24 rounded-full border-4 border-red-800" alt="Enemy" />
-                                <div className="absolute -bottom-2 -right-2 bg-black/80 text-red-400 text-xs px-2 py-1 rounded border border-red-600">
-                                    Lv.{interaction.enemy.level}
-                                </div>
-                            </div>
-                            <div className="text-xl font-bold text-red-200">{interaction.enemy.name}</div>
-                            <div className="text-sm text-red-400 mt-1 font-mono">
-                                境界: {getRealmName(interaction.enemy.level, config.realms)}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-2 text-center">
-                                此地妖气冲天，似乎有一场恶战...
-                            </div>
-                        </>
-                    )}
-
-                    {interaction.type === 'REWARD' && 'reward' in interaction && (
-                        <>
-                            <div className={`w-20 h-20 bg-slate-800 rounded-lg border-2 ${interaction.reward.type === 'ITEM' ? 'border-emerald-600' : 'border-yellow-500'} flex items-center justify-center text-4xl mb-3`}>
-                                {interaction.reward.type === 'ITEM' ? ((interaction.reward.value as Item).icon || '📦') : '💎'}
-                            </div>
-                            <div className={`text-lg font-bold ${interaction.reward.type === 'ITEM' && (interaction.reward.value as Item).rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>
-                                {interaction.reward.type === 'ITEM' ? (interaction.reward.value as Item).name : `灵石 x${interaction.reward.value}`}
-                            </div>
-                            {interaction.reward.type === 'ITEM' && (
-                                <div className="text-xs text-slate-500 mt-1 max-w-[200px] text-center">
-                                    {(interaction.reward.value as Item).description}
-                                </div>
-                            )}
-                            <div className="text-sm text-slate-400 mt-3 text-center italic">
-                                "{interaction.reward.message}"
-                            </div>
-                        </>
-                    )}
-
-                    {interaction.type === 'MERCHANT' && 'inventory' in interaction && (
-                        <div className="w-full">
-                            <div className="text-center text-slate-300 text-sm mb-4 italic">"道友请留步，在这个荒郊野外相遇也是缘分，不如互通有无？"</div>
-                            
-                            <div className="flex justify-between items-center mb-4 bg-slate-950 p-2 rounded border border-slate-700">
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => setMerchantTab('BUY')}
-                                        className={`px-3 py-1 rounded text-sm font-bold ${merchantTab === 'BUY' ? 'bg-amber-700 text-white' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        购买
-                                    </button>
-                                    <button 
-                                        onClick={() => setMerchantTab('SELL')}
-                                        className={`px-3 py-1 rounded text-sm font-bold ${merchantTab === 'SELL' ? 'bg-emerald-700 text-white' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        出售
-                                    </button>
-                                </div>
-                                <div className="text-yellow-400 font-mono font-bold text-sm">
-                                    💰 {player?.gold}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
-                                {merchantTab === 'BUY' ? (
-                                    <>
-                                        {interaction.inventory.length === 0 && <div className="text-center text-slate-500 py-4">已被买空</div>}
-                                        {interaction.inventory.map((item) => (
-                                            <div key={item.id} className="flex items-center gap-2 bg-slate-800 p-2 rounded border border-slate-700">
-                                                <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center text-xl">{item.icon}</div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className={`text-sm font-bold truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                                                    <div className="text-[10px] text-slate-400">{getRealmName(item.reqLevel, config.realms)} | {item.type}</div>
-                                                </div>
-                                                <Button 
-                                                    size="sm" 
-                                                    onClick={() => handleBuyItem(item)}
-                                                    disabled={(player?.gold || 0) < item.price}
-                                                    className="shrink-0 text-xs px-2 py-1"
-                                                >
-                                                    💰 {item.price}
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </>
-                                ) : (
-                                    <>
-                                        {player?.inventory.length === 0 && <div className="text-center text-slate-500 py-4">你的储物袋空空如也</div>}
-                                        {player?.inventory.map((item) => (
-                                            <div key={item.id} className="flex items-center gap-2 bg-slate-800 p-2 rounded border border-slate-700">
-                                                <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center text-xl">{item.icon}</div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className={`text-sm font-bold truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                                                    <div className="text-[10px] text-slate-400">回收价</div>
-                                                </div>
-                                                <Button 
-                                                    size="sm" 
-                                                    variant="primary"
-                                                    onClick={() => handleSellItem(item)}
-                                                    className="shrink-0 text-xs px-2 py-1 bg-emerald-800 hover:bg-emerald-700 border-emerald-600"
-                                                >
-                                                    +{Math.floor(item.price * 0.5)}
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {interaction.type === 'EMPTY' && (
-                         <>
-                            <div className="text-5xl mb-3">🍃</div>
-                            <div className="text-slate-400 text-center">
-                                四周静悄悄的，没有什么特别的发现。<br/>
-                                是一个修整的好地方。
-                            </div>
-                         </>
-                    )}
-                </div>
-
-                <div className="flex gap-3 w-full">
-                    {interaction.type !== 'MERCHANT' && (
-                        <Button 
-                            variant="secondary" 
-                            className="flex-1"
-                            onClick={() => setInteraction(null)}
-                        >
-                            {interaction.type === 'COMBAT' ? '暂且退避' : '取消'}
-                        </Button>
-                    )}
-                    <Button 
-                        variant={interaction.type === 'COMBAT' ? 'danger' : 'primary'} 
-                        className="flex-1"
-                        onClick={handleInteractionConfirm}
-                    >
-                        {interaction.type === 'COMBAT' ? '开始战斗' : interaction.type === 'REWARD' ? '收入囊中' : interaction.type === 'MERCHANT' ? '告辞' : '继续前行'}
-                    </Button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* Breakthrough Result Modal */}
-      {breakthroughResult && (
-        <div className="fixed inset-0 z-[210] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-             <div className={`
-                p-8 rounded-xl border-4 max-w-sm w-full shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col items-center text-center
-                ${breakthroughResult.success ? 'bg-emerald-950 border-emerald-400 shadow-emerald-900/50' : 'bg-red-950 border-red-500 shadow-red-900/50'}
-             `}>
-                 <div className="text-6xl mb-4 animate-bounce-slight">
-                     {breakthroughResult.success ? '⚡' : '💥'}
-                 </div>
-                 <h2 className={`text-3xl font-bold mb-2 ${breakthroughResult.success ? 'text-emerald-300' : 'text-red-400'}`}>
-                     {breakthroughResult.success ? '突破成功!' : '突破失败'}
-                 </h2>
-                 <p className="text-slate-300 mb-6">
-                     {breakthroughResult.message}
-                 </p>
-                 {breakthroughResult.statsGained && (
-                     <div className="bg-black/40 p-3 rounded mb-6 text-sm text-emerald-200 font-mono">
-                         {breakthroughResult.statsGained}
-                     </div>
-                 )}
-                 <Button 
-                    variant={breakthroughResult.success ? 'primary' : 'secondary'}
-                    onClick={() => setBreakthroughResult(null)}
-                    size="lg"
-                    className="w-full"
-                 >
-                     {breakthroughResult.success ? '感受力量' : '再接再厉'}
-                 </Button>
-             </div>
-        </div>
-      )}
-
-      {/* Refine Result Modal */}
-      {refineResult && (
-        <div className="fixed inset-0 z-[210] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-             <div className={`
-                p-8 rounded-xl border-4 max-w-sm w-full shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col items-center text-center
-                ${refineResult.success ? 'bg-amber-950 border-amber-400 shadow-amber-900/50' : 'bg-gray-900 border-gray-600'}
-             `}>
-                 <div className="text-6xl mb-4 animate-bounce-slight">
-                     {refineResult.success ? '💊' : '💨'}
-                 </div>
-                 <h2 className={`text-3xl font-bold mb-2 ${refineResult.success ? 'text-amber-300' : 'text-gray-400'}`}>
-                     {refineResult.success ? '炼制成功!' : '炼制失败'}
-                 </h2>
-                 <p className="text-slate-300 mb-6">
-                     {refineResult.success ? `获得: ${refineResult.item?.name}` : '炉火不稳，材料化为灰烬...'}
-                 </p>
-                 <Button 
-                    variant={refineResult.success ? 'primary' : 'secondary'}
-                    onClick={() => setRefineResult(null)}
-                    size="lg"
-                    className="w-full"
-                 >
-                     确定
-                 </Button>
-             </div>
-        </div>
-      )}
-
-      {acquiredCard && (
-        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-8 max-w-sm w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] flex flex-col items-center transform scale-100 transition-all">
-                <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300 mb-6 tracking-widest text-center">
-                    ✨ 顿悟 ✨
-                </h2>
-                <div className="mb-6 transform scale-110">
-                    <CardItem card={acquiredCard} isPlayable={false} />
-                </div>
-                <div className="text-center text-slate-300 mb-8">
-                    你研读了心法，灵光一闪<br/>
-                    成功领悟了招式<br/>
-                    <span className="font-bold text-emerald-400 text-lg mt-2 block">[{acquiredCard.name}]</span>
-                </div>
-                <Button 
-                    variant="primary" 
-                    size="lg" 
-                    className="w-full"
-                    onClick={() => setAcquiredCard(null)}
-                >
-                    收入囊中
-                </Button>
-            </div>
-        </div>
-      )}
-
+    <div className="h-full w-full font-sans selection:bg-emerald-500 selection:text-white">
       {view === GameView.START && (
         <StartScreen 
-          onStart={handleStartGame}
-          onConfig={() => setView(GameView.CONFIG)}
+            onStart={handleStartGame} 
+            onConfig={() => setView(GameView.CONFIG)} 
         />
       )}
 
       {view === GameView.CONFIG && (
         <ConfigScreen 
-          config={config}
-          onSave={(newConfig) => {
-            setConfig(newConfig);
-            setView(GameView.START);
-          }}
-          onCancel={() => setView(GameView.START)}
+            config={config} 
+            onSave={(c) => { setConfig(c); setView(GameView.START); }} 
+            onCancel={() => setView(GameView.START)} 
         />
       )}
 
@@ -858,38 +494,208 @@ export default function App() {
         <HomeView 
           player={player} 
           realms={config.realms}
-          maps={config.maps} // Pass maps
+          maps={config.maps}
           itemsConfig={config.items}
-          onStartAdventure={handleSelectMap} // Changed to select map handler
+          onStartAdventure={handleSelectMap}
           onEquipItem={handleEquip}
           onUseItem={handleUseItem}
-          onEndGame={() => {
-            setPlayer(null);
-            setView(GameView.START);
-          }}
+          onEndGame={() => { setPlayer(null); setView(GameView.START); }}
           onBreakthrough={handleBreakthrough}
           onRefine={handleRefine}
           isRefining={isRefining}
+          artifactConfigs={config.artifactSlotConfigs}
+          onUnlockArtifactSlot={handleUnlockArtifactSlot}
+          onUnequipArtifact={handleUnequipArtifact}
         />
       )}
 
       {view === GameView.ADVENTURE && player && (
         <AdventureView 
-          mapNodes={mapNodes} 
-          currentLocationId={currentNode} 
-          onNodeClick={handleNodeClick}
-          onRetreat={() => setView(GameView.HOME)}
+            mapNodes={mapNodes} 
+            currentLocationId={currentNode} 
+            onNodeClick={handleNodeClick}
+            onRetreat={() => setView(GameView.HOME)}
         />
       )}
 
       {view === GameView.COMBAT && player && activeEnemy && (
         <CombatView 
-          player={player} 
-          enemy={activeEnemy}
-          onWin={handleCombatWin}
-          onLose={handleCombatLose}
+            player={player} 
+            enemy={activeEnemy}
+            onWin={handleCombatWin}
+            onLose={handleCombatLose}
         />
       )}
+
+      {/* --- Global Interaction Modal (Events / Merchant) --- */}
+      {interaction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-4">
+              <div className="bg-slate-900 border-2 border-emerald-600 rounded-xl p-6 w-full max-w-lg shadow-2xl relative">
+                  
+                  {interaction.type === 'EMPTY' && (
+                      <div className="text-center py-8">
+                          <div className="text-6xl mb-4">🍃</div>
+                          <h3 className="text-2xl font-bold text-slate-300">空无一物</h3>
+                          <p className="text-slate-500 mt-2">这里什么都没有，继续前进吧。</p>
+                      </div>
+                  )}
+
+                  {interaction.type === 'COMBAT' && (
+                      <div className="text-center">
+                          <h3 className="text-2xl font-bold text-red-500 mb-4">遭遇强敌!</h3>
+                          <div className="flex justify-center mb-6">
+                              <div className="relative">
+                                  <img src={interaction.enemy.avatarUrl} className="w-32 h-32 rounded-full border-4 border-red-800" />
+                                  <div className="absolute -bottom-3 bg-red-900 px-3 py-1 rounded text-white font-bold text-sm border border-red-500 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                                      {interaction.enemy.name} (Lv.{interaction.enemy.level})
+                                  </div>
+                              </div>
+                          </div>
+                          <p className="text-slate-400 mb-6">你感知到前方有一股危险的气息，是否迎战？</p>
+                      </div>
+                  )}
+
+                  {interaction.type === 'REWARD' && (
+                      <div className="text-center">
+                          <h3 className="text-2xl font-bold text-yellow-400 mb-4">获得机缘</h3>
+                          <div className="text-6xl mb-4 animate-bounce-slight">
+                              {interaction.reward.type === 'GOLD' ? '💰' : '🎁'}
+                          </div>
+                          <p className="text-white text-lg font-bold mb-2">{interaction.reward.message}</p>
+                          <div className="bg-slate-800 p-3 rounded text-emerald-300 border border-slate-700 inline-block px-8">
+                              {interaction.reward.type === 'GOLD' ? `${interaction.reward.value} 灵石` : (interaction.reward.value as Item).name}
+                          </div>
+                      </div>
+                  )}
+
+                  {interaction.type === 'MERCHANT' && (
+                      <div className="h-[60vh] flex flex-col">
+                          <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+                              <h3 className="text-2xl font-bold text-amber-400 flex items-center gap-2">
+                                  <span>⚖️</span> 云游商人
+                              </h3>
+                              <div className="flex gap-2">
+                                  <Button size="sm" variant={merchantTab === 'BUY' ? 'primary' : 'secondary'} onClick={() => setMerchantTab('BUY')}>购买</Button>
+                                  <Button size="sm" variant={merchantTab === 'SELL' ? 'primary' : 'secondary'} onClick={() => setMerchantTab('SELL')}>出售</Button>
+                              </div>
+                          </div>
+                          
+                          <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                              {merchantTab === 'BUY' ? (
+                                  <div className="grid grid-cols-2 gap-3">
+                                      {interaction.inventory.map(item => (
+                                          <div key={item.id} className="bg-slate-800 p-3 rounded border border-slate-700 flex flex-col gap-2">
+                                              <div className="flex gap-2">
+                                                  <div className="text-2xl">{item.icon}</div>
+                                                  <div className="min-w-0">
+                                                      <div className="font-bold text-sm truncate text-white">{item.name}</div>
+                                                      <div className="text-xs text-yellow-400">💰 {item.price}</div>
+                                                  </div>
+                                              </div>
+                                              <Button size="sm" onClick={() => handleBuyItem(item)} disabled={(player?.gold || 0) < item.price}>
+                                                  购买
+                                              </Button>
+                                          </div>
+                                      ))}
+                                      {interaction.inventory.length === 0 && <div className="col-span-2 text-center text-slate-500 py-10">商品已售空</div>}
+                                  </div>
+                              ) : (
+                                  <div className="grid grid-cols-2 gap-3">
+                                      {player?.inventory.map(item => (
+                                          <div key={item.id} className="bg-slate-800 p-3 rounded border border-slate-700 flex flex-col gap-2">
+                                              <div className="flex gap-2">
+                                                  <div className="text-2xl">{item.icon}</div>
+                                                  <div className="min-w-0">
+                                                      <div className="font-bold text-sm truncate text-white">{item.name}</div>
+                                                      <div className="text-xs text-yellow-400">回收价: {Math.floor(item.price * 0.5)}</div>
+                                                  </div>
+                                              </div>
+                                              <Button size="sm" variant="outline" onClick={() => handleSellItem(item)}>
+                                                  出售
+                                              </Button>
+                                          </div>
+                                      ))}
+                                      {player?.inventory.length === 0 && <div className="col-span-2 text-center text-slate-500 py-10">背包为空</div>}
+                                  </div>
+                              )}
+                          </div>
+                          
+                          <div className="mt-4 pt-2 border-t border-slate-700 flex justify-between items-center text-yellow-400 font-bold">
+                              <span>持有灵石: {player?.gold}</span>
+                          </div>
+                      </div>
+                  )}
+
+                  <div className="mt-6 flex justify-end gap-4">
+                      {interaction.type === 'COMBAT' && (
+                          <Button variant="secondary" onClick={() => setInteraction(null)}>绕道而行</Button>
+                      )}
+                      <Button variant="primary" onClick={handleInteractionConfirm} className="w-full">
+                          {interaction.type === 'COMBAT' ? '开始战斗' : interaction.type === 'MERCHANT' ? '离开' : '确定'}
+                      </Button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* --- Acquired Card Modal --- */}
+      {acquiredCard && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur animate-fade-in">
+              <div className="flex flex-col items-center gap-6 p-8 animate-bounce-slight">
+                  <h2 className="text-4xl font-bold text-yellow-300 drop-shadow-[0_0_10px_orange]">✨ 领悟新功法 ✨</h2>
+                  <div className="transform scale-150">
+                      <CardItem card={acquiredCard} isPlayable={false} />
+                  </div>
+                  <Button size="lg" onClick={() => setAcquiredCard(null)} className="mt-8 px-12 text-xl">
+                      收下
+                  </Button>
+              </div>
+          </div>
+      )}
+
+      {/* --- Breakthrough Result Modal --- */}
+      {breakthroughResult && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur animate-fade-in">
+              <div className={`bg-slate-900 p-8 rounded-2xl border-2 ${breakthroughResult.success ? 'border-amber-500' : 'border-red-500'} max-w-md text-center shadow-2xl`}>
+                  <div className="text-6xl mb-4">{breakthroughResult.success ? '⚡' : '💥'}</div>
+                  <h3 className={`text-3xl font-bold mb-4 ${breakthroughResult.success ? 'text-amber-400' : 'text-red-400'}`}>
+                      {breakthroughResult.message}
+                  </h3>
+                  {breakthroughResult.success && (
+                      <div className="bg-slate-800 p-4 rounded text-emerald-300 font-mono mb-6">
+                          {breakthroughResult.statsGained}
+                      </div>
+                  )}
+                  <Button size="lg" onClick={() => setBreakthroughResult(null)} className="w-full">
+                      确定
+                  </Button>
+              </div>
+          </div>
+      )}
+      
+      {/* --- Alchemy Refine Result Modal --- */}
+      {refineResult && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur animate-fade-in">
+              <div className="bg-slate-900 p-8 rounded-2xl border-2 border-emerald-500 max-w-md text-center shadow-2xl flex flex-col items-center">
+                  {refineResult.success ? (
+                      <>
+                        <h3 className="text-3xl font-bold text-emerald-400 mb-6">炼制成功!</h3>
+                        <div className="text-6xl mb-4 animate-bounce-slight">{refineResult.item?.icon}</div>
+                        <div className="text-xl font-bold text-white mb-2">{refineResult.item?.name}</div>
+                        <div className="text-slate-400 text-sm mb-8">{refineResult.item?.description}</div>
+                      </>
+                  ) : (
+                      <>
+                        <h3 className="text-3xl font-bold text-red-500 mb-6">炼制失败...</h3>
+                        <div className="text-6xl mb-4 grayscale opacity-50">🔥</div>
+                        <p className="text-slate-400 mb-8">火候未到，材料化为了一滩废渣。</p>
+                      </>
+                  )}
+                  <Button size="lg" onClick={() => setRefineResult(null)} className="w-full">确定</Button>
+              </div>
+           </div>
+      )}
+
     </div>
   );
 }

@@ -135,6 +135,10 @@ export interface Player extends Entity {
   inventory: Item[];
   equipment: Record<EquipmentSlot, Item | null>;
   
+  // Artifacts
+  artifacts: (Item | null)[]; // Dynamic slots
+  unlockedArtifactCount: number;
+
   // Alchemy State
   learnedRecipes: string[]; // List of Recipe Item IDs
   pillUsage: Record<string, number>; // Pill Item ID -> Count Used
@@ -178,6 +182,12 @@ export interface GameMap {
     };
 }
 
+export interface ArtifactSlotConfig {
+    id: number; // 0-indexed
+    reqLevel: number;
+    cost: number;
+}
+
 export interface GameConfig {
   itemDropRate: number; // Global drop rate for now, could be per map later
   maps: GameMap[];
@@ -185,6 +195,7 @@ export interface GameConfig {
   cards: Card[];
   enemies: EnemyTemplate[];
   realms: RealmRank[];
+  artifactSlotConfigs: ArtifactSlotConfig[];
   playerInitialDeckIds: string[];
   playerInitialStats: Stats;
 }

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -121,7 +120,8 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             { Key: 'player_attack', Value: localConfig.playerInitialStats.attack },
             { Key: 'player_defense', Value: localConfig.playerInitialStats.defense },
             { Key: 'player_speed', Value: localConfig.playerInitialStats.speed },
-            ...Object.entries(localConfig.playerInitialStats.elementalAffinities).map(([k, v]) => ({ Key: `player_affinity_${k}`, Value: v }))
+            ...Object.entries(localConfig.playerInitialStats.elementalAffinities).map(([k, v]) => ({ Key: `player_affinity_${k}`, Value: v })),
+            { Key: 'artifactSlots_json', Value: JSON.stringify(localConfig.artifactSlotConfigs) }
         ];
         const wsGeneral = XLSX.utils.json_to_sheet(generalData);
         XLSX.utils.book_append_sheet(wb, wsGeneral, "General");
@@ -247,6 +247,10 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                   
                   if (map['itemDropRate']) newConfig.itemDropRate = parseFloat(map['itemDropRate']);
                   
+                  if (map['artifactSlots_json']) {
+                      newConfig.artifactSlotConfigs = JSON.parse(map['artifactSlots_json']);
+                  }
+
                   const affs = createZeroElementStats();
                   Object.values(ElementType).forEach(el => {
                       if (map[`player_affinity_${el}`]) affs[el] = parseInt(map[`player_affinity_${el}`]);
@@ -443,759 +447,595 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           {renderTabButton('player', '🧘 玩家初始')}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-900/50 custom-scrollbar">
           
           {activeTab === 'realms' && (
-            <div className="space-y-4">
-               <div className="flex justify-between items-center mb-2">
-                   <h3 className="text-lg font-bold text-slate-200">修仙境界划分</h3>
-               </div>
-               <div className="space-y-6">
-                  {localConfig.realms.map((realm, idx) => (
-                      <div key={idx} className="bg-slate-800 rounded border border-slate-700 overflow-hidden">
-                          <div className="bg-slate-700/50 p-3 flex gap-4 items-center border-b border-slate-600">
-                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-slate-400">大境界名称:</label>
-                                <input 
-                                    value={realm.name}
-                                    onChange={(e) => {
-                                        const newRealms = [...localConfig.realms];
-                                        newRealms[idx].name = e.target.value;
-                                        setLocalConfig({...localConfig, realms: newRealms});
-                                    }}
-                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-32"
-                                />
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <label className="text-xs text-slate-400">起始等级:</label>
-                                <input 
-                                    type="number"
-                                    value={realm.rangeStart}
-                                    onChange={(e) => {
-                                        const val = parseInt(e.target.value);
-                                        const newRealms = [...localConfig.realms];
-                                        newRealms[idx].rangeStart = val;
-                                        newRealms[idx].rangeEnd = val + newRealms[idx].levels.length - 1;
-                                        setLocalConfig({...localConfig, realms: newRealms});
-                                    }}
-                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm w-16"
-                                />
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400">结束等级: {realm.rangeEnd}</span>
-                             </div>
+              <div className="space-y-8">
+                  {localConfig.realms.map((realm, rIdx) => (
+                      <div key={rIdx} className="bg-slate-800 p-4 rounded border border-slate-700">
+                          <div className="flex justify-between mb-4 items-center">
+                              <h3 className="text-xl font-bold text-emerald-400">{realm.name}</h3>
+                              <div className="flex gap-4 text-sm text-slate-400">
+                                  <span>等级范围: {realm.rangeStart} - {realm.rangeEnd}</span>
+                                  <div className="flex items-center gap-2">
+                                      <span>掉落灵石:</span>
+                                      <input 
+                                        type="number" className="w-16 bg-slate-900 px-1" value={realm.minGoldDrop} 
+                                        onChange={e => {
+                                            const newRealms = [...localConfig.realms];
+                                            newRealms[rIdx].minGoldDrop = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, realms: newRealms});
+                                        }}
+                                      />
+                                      <span>-</span>
+                                      <input 
+                                        type="number" className="w-16 bg-slate-900 px-1" value={realm.maxGoldDrop} 
+                                        onChange={e => {
+                                            const newRealms = [...localConfig.realms];
+                                            newRealms[rIdx].maxGoldDrop = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, realms: newRealms});
+                                        }}
+                                      />
+                                  </div>
+                              </div>
                           </div>
                           
                           <div className="overflow-x-auto">
-                              <table className="w-full text-left border-collapse">
+                              <table className="w-full text-xs text-left">
                                   <thead>
-                                      <tr className="bg-slate-900/50 text-[10px] text-slate-400 uppercase">
-                                          <th className="p-2 border-r border-slate-700 w-10">Lv</th>
-                                          <th className="p-2 border-r border-slate-700 min-w-[100px]">小境界名称</th>
-                                          <th className="p-2 border-r border-slate-700 w-20">突破XP</th>
-                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">HP+</th>
-                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">攻+</th>
-                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">防+</th>
-                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">神+</th>
-                                          <th className="p-2 border-r border-slate-700 w-16 text-green-400">速+</th>
-                                          <th className="p-2 border-r border-slate-700 w-20 text-yellow-400">消耗(灵石)</th>
-                                          <th className="p-2 w-16 text-blue-400">成功率</th>
-                                          <th className="p-2 w-10"></th>
+                                      <tr className="bg-slate-900 text-slate-400">
+                                          <th className="p-2">Level</th>
+                                          <th className="p-2">小境界名称</th>
+                                          <th className="p-2">升级经验</th>
+                                          <th className="p-2">HP成长</th>
+                                          <th className="p-2">攻成长</th>
+                                          <th className="p-2">防成长</th>
+                                          <th className="p-2">神成长</th>
+                                          <th className="p-2">速成长</th>
+                                          <th className="p-2">突破灵石</th>
+                                          <th className="p-2">成功率(0-1)</th>
+                                          <th className="p-2">操作</th>
                                       </tr>
                                   </thead>
                                   <tbody>
                                       {realm.levels.map((level, lIdx) => (
-                                          <tr key={lIdx} className="border-b border-slate-700 hover:bg-slate-700/30">
-                                              <td className="p-2 text-center text-xs text-slate-500">{realm.rangeStart + lIdx}</td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input 
-                                                      value={level.name}
-                                                      onChange={(e) => {
-                                                          const newRealms = [...localConfig.realms];
-                                                          newRealms[idx].levels[lIdx].name = e.target.value;
-                                                          setLocalConfig({...localConfig, realms: newRealms});
-                                                      }}
-                                                      className="w-full bg-transparent border-b border-slate-600 focus:border-emerald-500 outline-none text-xs"
-                                                  />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.expReq} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].expReq = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.hpGrowth} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].hpGrowth = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.atkGrowth} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].atkGrowth = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.defGrowth} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].defGrowth = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.spiritGrowth} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].spiritGrowth = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.speedGrowth} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].speedGrowth = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-emerald-300" />
-                                              </td>
-                                              <td className="p-2 border-r border-slate-700">
-                                                  <input type="number" value={level.breakthroughCost} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].breakthroughCost = parseInt(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-yellow-300" />
-                                              </td>
-                                              <td className="p-2">
-                                                  <input type="number" step="0.05" max="1" min="0" value={level.breakthroughChance} onChange={(e) => {
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels[lIdx].breakthroughChance = parseFloat(e.target.value);
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="w-full bg-transparent text-xs text-right outline-none text-blue-300" />
-                                              </td>
-                                              <td className="p-2 text-center">
-                                                  <button onClick={() => {
-                                                      if(realm.levels.length <= 1) return;
-                                                      const newRealms = [...localConfig.realms];
-                                                      newRealms[idx].levels.splice(lIdx, 1);
-                                                      newRealms[idx].rangeEnd = newRealms[idx].rangeStart + newRealms[idx].levels.length - 1;
-                                                      setLocalConfig({...localConfig, realms: newRealms});
-                                                  }} className="text-red-500 hover:text-white text-xs">×</button>
-                                              </td>
+                                          <tr key={lIdx} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                              <td className="p-2 font-bold text-emerald-600">{realm.rangeStart + lIdx}</td>
+                                              <td className="p-2"><input className="bg-slate-900 w-20 px-1" value={level.name} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].name = e.target.value;
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><input type="number" className="bg-slate-900 w-16 px-1" value={level.expReq} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].expReq = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><input type="number" className="bg-slate-900 w-12 px-1 text-green-300" value={level.hpGrowth} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].hpGrowth = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                               <td className="p-2"><input type="number" className="bg-slate-900 w-12 px-1 text-red-300" value={level.atkGrowth} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].atkGrowth = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                               <td className="p-2"><input type="number" className="bg-slate-900 w-12 px-1 text-blue-300" value={level.defGrowth} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].defGrowth = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                               <td className="p-2"><input type="number" className="bg-slate-900 w-12 px-1 text-purple-300" value={level.spiritGrowth} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].spiritGrowth = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><input type="number" className="bg-slate-900 w-12 px-1 text-yellow-300" value={level.speedGrowth} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].speedGrowth = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><input type="number" className="bg-slate-900 w-16 px-1 text-amber-500" value={level.breakthroughCost} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].breakthroughCost = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><input type="number" step="0.1" className="bg-slate-900 w-12 px-1" value={level.breakthroughChance} onChange={e => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels[lIdx].breakthroughChance = parseFloat(e.target.value);
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }} /></td>
+                                              <td className="p-2"><button className="text-red-500" onClick={() => {
+                                                  const newRealms = [...localConfig.realms];
+                                                  newRealms[rIdx].levels.splice(lIdx, 1);
+                                                  newRealms[rIdx].rangeEnd--; // Simplified logic, ideally recalculate ranges
+                                                  setLocalConfig({...localConfig, realms: newRealms});
+                                              }}>Del</button></td>
                                           </tr>
                                       ))}
                                   </tbody>
                               </table>
-                              <div className="p-2 bg-slate-900/30 flex justify-center">
-                                  <Button size="sm" variant="secondary" onClick={() => {
-                                      const newRealms = [...localConfig.realms];
-                                      const prevLevel = newRealms[idx].levels[newRealms[idx].levels.length - 1];
-                                      newRealms[idx].levels.push(createDefaultLevelConfig(newRealms[idx].levels.length, prevLevel));
-                                      newRealms[idx].rangeEnd = newRealms[idx].rangeStart + newRealms[idx].levels.length - 1;
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }} className="w-full text-xs py-1 text-slate-400 hover:text-white">+ 添加层级</Button>
-                              </div>
+                              <Button size="sm" className="mt-2" onClick={() => {
+                                   const newRealms = [...localConfig.realms];
+                                   const levels = newRealms[rIdx].levels;
+                                   const last = levels[levels.length - 1];
+                                   levels.push(createDefaultLevelConfig(levels.length, last));
+                                   newRealms[rIdx].rangeEnd++;
+                                   setLocalConfig({...localConfig, realms: newRealms});
+                              }}>+ 增加等级</Button>
                           </div>
                       </div>
                   ))}
-               </div>
-            </div>
+              </div>
           )}
 
           {activeTab === 'map' && (
-             <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-slate-200">地图配置</h3>
-                    <Button size="sm" onClick={() => setLocalConfig({...localConfig, maps: [...localConfig.maps, createEmptyMap()]})}>
-                        + 新增地图
-                    </Button>
-                </div>
-                
-                <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <label className="block text-sm text-slate-400 mb-1">全局宝箱掉落率 (0-1)</label>
-                    <input 
-                        type="number"
-                        step="0.05"
-                        max="1"
-                        min="0"
-                        value={localConfig.itemDropRate}
-                        onChange={(e) => setLocalConfig({...localConfig, itemDropRate: parseFloat(e.target.value)})}
-                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
-                    />
-                </div>
-
-                <div className="grid gap-6">
-                    {localConfig.maps.map((map, idx) => (
-                        <div key={map.id} className="bg-slate-800 p-4 rounded border border-slate-700 relative group">
-                            <button 
-                                className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
-                                onClick={() => {
-                                    if(localConfig.maps.length <= 1) {
-                                        alert("至少需要保留一张地图");
-                                        return;
-                                    }
-                                    const newMaps = localConfig.maps.filter((_, i) => i !== idx);
-                                    setLocalConfig({...localConfig, maps: newMaps});
-                                }}
-                            >
-                                🗑️
-                            </button>
-                            
-                            <div className="flex flex-wrap gap-4 mb-4 items-center">
-                                <div className="text-3xl bg-slate-900 p-2 rounded">
-                                    <input 
-                                        value={map.icon}
-                                        onChange={(e) => {
-                                            const newMaps = [...localConfig.maps];
-                                            newMaps[idx].icon = e.target.value;
-                                            setLocalConfig({...localConfig, maps: newMaps});
-                                        }}
-                                        className="bg-transparent w-8 text-center outline-none"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-[10px] text-slate-500 uppercase">地图名称</label>
-                                    <input 
-                                        value={map.name}
-                                        onChange={(e) => {
-                                            const newMaps = [...localConfig.maps];
-                                            newMaps[idx].name = e.target.value;
-                                            setLocalConfig({...localConfig, maps: newMaps});
-                                        }}
-                                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-emerald-300 font-bold"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 uppercase">节点数量</label>
-                                    <input 
-                                        type="number"
-                                        value={map.nodeCount}
-                                        onChange={(e) => {
-                                            const newMaps = [...localConfig.maps];
-                                            newMaps[idx].nodeCount = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, maps: newMaps});
-                                        }}
-                                        className="w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 uppercase">最低境界要求</label>
-                                    <select 
-                                        value={map.reqLevel}
-                                        onChange={(e) => {
-                                            const newMaps = [...localConfig.maps];
-                                            newMaps[idx].reqLevel = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, maps: newMaps});
-                                        }}
-                                        className="w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs"
-                                    >
-                                        {levelOptions}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div className="mb-4">
-                                <label className="text-[10px] text-slate-500 uppercase">描述</label>
-                                <textarea 
-                                    value={map.description}
-                                    onChange={(e) => {
-                                        const newMaps = [...localConfig.maps];
-                                        newMaps[idx].description = e.target.value;
-                                        setLocalConfig({...localConfig, maps: newMaps});
-                                    }}
-                                    className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300 h-12 resize-none"
-                                />
-                            </div>
-
-                            <div className="bg-slate-900/50 p-3 rounded">
-                                <h4 className="text-xs text-slate-400 font-bold mb-2">事件触发权重</h4>
-                                <div className="grid grid-cols-4 gap-2">
-                                    <div>
-                                        <label className="block text-[10px] text-amber-300 mb-1">⚖️ 游商</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={map.eventWeights.merchant}
-                                            onChange={(e) => {
-                                                const newMaps = [...localConfig.maps];
-                                                newMaps[idx].eventWeights.merchant = parseFloat(e.target.value);
-                                                setLocalConfig({...localConfig, maps: newMaps});
-                                            }}
-                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-yellow-300 mb-1">🎁 宝物</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={map.eventWeights.treasure}
-                                            onChange={(e) => {
-                                                const newMaps = [...localConfig.maps];
-                                                newMaps[idx].eventWeights.treasure = parseFloat(e.target.value);
-                                                setLocalConfig({...localConfig, maps: newMaps});
-                                            }}
-                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-red-400 mb-1">⚔️ 战斗</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={map.eventWeights.battle}
-                                            onChange={(e) => {
-                                                const newMaps = [...localConfig.maps];
-                                                newMaps[idx].eventWeights.battle = parseFloat(e.target.value);
-                                                setLocalConfig({...localConfig, maps: newMaps});
-                                            }}
-                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-slate-400 mb-1">🍃 空地</label>
-                                        <input 
-                                            type="number" step="0.1"
-                                            value={map.eventWeights.empty}
-                                            onChange={(e) => {
-                                                const newMaps = [...localConfig.maps];
-                                                newMaps[idx].eventWeights.empty = parseFloat(e.target.value);
-                                                setLocalConfig({...localConfig, maps: newMaps});
-                                            }}
-                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+              <div className="space-y-6">
+                  <div className="flex justify-between items-center bg-slate-800 p-4 rounded border border-slate-700">
+                     <h3 className="text-xl font-bold">地图列表</h3>
+                     <Button size="sm" onClick={() => {
+                         const newMaps = [...localConfig.maps, createEmptyMap()];
+                         setLocalConfig({...localConfig, maps: newMaps});
+                     }}>+ 新增地图</Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {localConfig.maps.map((map, idx) => (
+                          <div key={map.id} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-col gap-3">
+                              <div className="flex gap-2">
+                                  <div className="w-16 h-16 bg-slate-900 flex items-center justify-center text-3xl rounded border border-slate-600 shrink-0">
+                                      <input className="bg-transparent w-full text-center outline-none" value={map.icon} onChange={e => {
+                                          const newMaps = [...localConfig.maps];
+                                          newMaps[idx].icon = e.target.value;
+                                          setLocalConfig({...localConfig, maps: newMaps});
+                                      }}/>
+                                  </div>
+                                  <div className="flex-1 flex flex-col gap-2">
+                                      <input className="bg-slate-900 w-full p-1 rounded font-bold text-emerald-300" value={map.name} onChange={e => {
+                                          const newMaps = [...localConfig.maps];
+                                          newMaps[idx].name = e.target.value;
+                                          setLocalConfig({...localConfig, maps: newMaps});
+                                      }} placeholder="地图名称"/>
+                                      <textarea className="bg-slate-900 w-full p-1 rounded text-xs text-slate-400 resize-none h-16" value={map.description} onChange={e => {
+                                          const newMaps = [...localConfig.maps];
+                                          newMaps[idx].description = e.target.value;
+                                          setLocalConfig({...localConfig, maps: newMaps});
+                                      }} placeholder="地图描述"/>
+                                  </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                      <label className="text-slate-500 block">进入等级</label>
+                                      <select className="bg-slate-900 w-full p-1 rounded" value={map.reqLevel} onChange={e => {
+                                          const newMaps = [...localConfig.maps];
+                                          newMaps[idx].reqLevel = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, maps: newMaps});
+                                      }}>
+                                          {levelOptions}
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="text-slate-500 block">节点数量</label>
+                                      <input type="number" className="bg-slate-900 w-full p-1 rounded" value={map.nodeCount} onChange={e => {
+                                          const newMaps = [...localConfig.maps];
+                                          newMaps[idx].nodeCount = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, maps: newMaps});
+                                      }}/>
+                                  </div>
+                              </div>
+                              
+                              <div className="bg-slate-900 p-2 rounded text-xs">
+                                  <label className="text-slate-500 block mb-1">事件权重 (和无需为1)</label>
+                                  <div className="grid grid-cols-4 gap-2">
+                                      <div className="flex flex-col">
+                                          <span className="text-amber-500">游商</span>
+                                          <input type="number" step="0.05" className="bg-slate-800 p-1 rounded" value={map.eventWeights.merchant} onChange={e => {
+                                               const newMaps = [...localConfig.maps]; newMaps[idx].eventWeights.merchant = parseFloat(e.target.value); setLocalConfig({...localConfig, maps: newMaps});
+                                          }}/>
+                                      </div>
+                                      <div className="flex flex-col">
+                                          <span className="text-yellow-400">宝物</span>
+                                          <input type="number" step="0.05" className="bg-slate-800 p-1 rounded" value={map.eventWeights.treasure} onChange={e => {
+                                               const newMaps = [...localConfig.maps]; newMaps[idx].eventWeights.treasure = parseFloat(e.target.value); setLocalConfig({...localConfig, maps: newMaps});
+                                          }}/>
+                                      </div>
+                                      <div className="flex flex-col">
+                                          <span className="text-red-400">战斗</span>
+                                          <input type="number" step="0.05" className="bg-slate-800 p-1 rounded" value={map.eventWeights.battle} onChange={e => {
+                                               const newMaps = [...localConfig.maps]; newMaps[idx].eventWeights.battle = parseFloat(e.target.value); setLocalConfig({...localConfig, maps: newMaps});
+                                          }}/>
+                                      </div>
+                                      <div className="flex flex-col">
+                                          <span className="text-slate-500">空地</span>
+                                          <input type="number" step="0.05" className="bg-slate-800 p-1 rounded" value={map.eventWeights.empty} onChange={e => {
+                                               const newMaps = [...localConfig.maps]; newMaps[idx].eventWeights.empty = parseFloat(e.target.value); setLocalConfig({...localConfig, maps: newMaps});
+                                          }}/>
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              <Button size="sm" variant="danger" className="mt-2" onClick={() => {
+                                  const newMaps = localConfig.maps.filter((_, i) => i !== idx);
+                                  setLocalConfig({...localConfig, maps: newMaps});
+                              }}>删除地图</Button>
+                          </div>
+                      ))}
+                  </div>
+              </div>
           )}
 
           {activeTab === 'items' && (
-            <div className="space-y-4">
-              <div className="flex gap-2 border-b border-slate-700 pb-2 mb-4 overflow-x-auto">
-                  {['EQUIPMENT', 'CONSUMABLE', 'ARTIFACT', 'MATERIAL', 'RECIPE', 'PILL'].map(type => (
-                      <button 
-                        key={type}
-                        onClick={() => setItemSubTab(type as ItemType)}
-                        className={`px-3 py-1 rounded text-sm font-bold whitespace-nowrap ${itemSubTab === type ? 'bg-emerald-900 text-emerald-300 border border-emerald-700' : 'text-slate-500 hover:bg-slate-800'}`}
-                      >
-                         {type === 'EQUIPMENT' ? '🗡️ 装备' : type === 'CONSUMABLE' ? '💊 道具' : type === 'ARTIFACT' ? '✨ 法宝' : type === 'MATERIAL' ? '🌿 药材' : type === 'RECIPE' ? '📜 丹方' : '💊 丹药'}
-                      </button>
-                  ))}
-              </div>
+             <div className="flex flex-col h-full">
+                 <div className="flex gap-2 mb-4 overflow-x-auto shrink-0 pb-2">
+                     {(['EQUIPMENT', 'CONSUMABLE', 'MATERIAL', 'RECIPE', 'PILL', 'ARTIFACT'] as ItemType[]).map(t => (
+                         <button 
+                            key={t} 
+                            onClick={() => setItemSubTab(t)}
+                            className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap ${itemSubTab === t ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                         >
+                             {t === 'EQUIPMENT' ? '装备' : t === 'CONSUMABLE' ? '消耗品' : t === 'MATERIAL' ? '药材' : t === 'RECIPE' ? '丹方' : t === 'PILL' ? '丹药' : '法宝'}
+                         </button>
+                     ))}
+                     <div className="ml-auto flex gap-2">
+                         {renderRealmFilter()}
+                         <Button size="sm" onClick={() => {
+                             const newItem = createEmptyItem(itemSubTab, getFilterStartLevel());
+                             setLocalConfig({...localConfig, items: [newItem, ...localConfig.items]});
+                         }}>+ 新增</Button>
+                     </div>
+                 </div>
 
-              <div className="flex justify-between items-center mb-4">
-                <Button size="sm" onClick={() => setLocalConfig({...localConfig, items: [...localConfig.items, createEmptyItem(itemSubTab, getFilterStartLevel())]})}>
-                    + 新增物品
-                </Button>
-                {renderRealmFilter()}
-              </div>
+                 <div className="grid grid-cols-1 gap-4">
+                     {localConfig.items.filter(i => i.type === itemSubTab && filterByRealm(i.reqLevel)).map(item => (
+                         <div key={item.id} className="bg-slate-800 p-3 rounded border border-slate-700 text-sm">
+                             <div className="flex gap-4 items-start">
+                                 <div className="w-12 h-12 bg-slate-900 flex items-center justify-center text-2xl border border-slate-600 rounded">
+                                     <input className="bg-transparent w-full text-center outline-none" value={item.icon} onChange={e => {
+                                         const newItems = localConfig.items.map(i => i.id === item.id ? {...i, icon: e.target.value} : i);
+                                         setLocalConfig({...localConfig, items: newItems});
+                                     }} />
+                                 </div>
+                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+                                     <input className="bg-slate-900 p-1 rounded text-emerald-300 font-bold col-span-1" value={item.name} onChange={e => {
+                                         const newItems = localConfig.items.map(i => i.id === item.id ? {...i, name: e.target.value} : i);
+                                         setLocalConfig({...localConfig, items: newItems});
+                                     }} placeholder="名称"/>
+                                     
+                                     <div className="flex items-center gap-1 col-span-1">
+                                         <label className="text-slate-500 text-xs shrink-0">等级</label>
+                                         <select className="bg-slate-900 p-1 rounded w-full" value={item.reqLevel} onChange={e => {
+                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, reqLevel: parseInt(e.target.value)} : i);
+                                             setLocalConfig({...localConfig, items: newItems});
+                                         }}>
+                                             {levelOptions}
+                                         </select>
+                                     </div>
 
-              <div className="grid gap-4">
-                {localConfig.items.filter(i => i.type === itemSubTab && filterByRealm(i.reqLevel)).map((item) => {
-                   const realIndex = localConfig.items.findIndex(i => i.id === item.id);
-                   
-                   return (
-                   <div key={item.id + realIndex} className="bg-slate-800 p-4 rounded border border-slate-700 flex flex-col gap-2 relative group">
-                      <button 
-                        className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
-                        onClick={() => {
-                            const newItems = localConfig.items.filter((_, i) => i !== realIndex);
-                            setLocalConfig({...localConfig, items: newItems});
-                        }}
-                      >
-                          🗑️
-                      </button>
-                      <div className="flex gap-4 items-center flex-wrap">
-                          <input 
-                              value={item.icon}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].icon = e.target.value;
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xl w-12 text-center"
-                              title="物品图标"
-                          />
+                                     <div className="flex items-center gap-1 col-span-1">
+                                         <label className="text-slate-500 text-xs shrink-0">价格</label>
+                                         <input type="number" className="bg-slate-900 p-1 rounded w-full" value={item.price} onChange={e => {
+                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, price: parseInt(e.target.value)} : i);
+                                             setLocalConfig({...localConfig, items: newItems});
+                                         }} />
+                                     </div>
+                                     
+                                     <div className="flex items-center gap-1 col-span-1">
+                                         <label className="text-slate-500 text-xs shrink-0">稀有度</label>
+                                         <select className="bg-slate-900 p-1 rounded w-full" value={item.rarity} onChange={e => {
+                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, rarity: e.target.value as any} : i);
+                                             setLocalConfig({...localConfig, items: newItems});
+                                         }}>
+                                             <option value="common">Common</option>
+                                             <option value="rare">Rare</option>
+                                             <option value="epic">Epic</option>
+                                             <option value="legendary">Legendary</option>
+                                         </select>
+                                     </div>
+                                     
+                                     <input className="bg-slate-900 p-1 rounded text-xs text-slate-400 col-span-4" value={item.description} onChange={e => {
+                                         const newItems = localConfig.items.map(i => i.id === item.id ? {...i, description: e.target.value} : i);
+                                         setLocalConfig({...localConfig, items: newItems});
+                                     }} placeholder="描述"/>
+                                     
+                                     {item.type === 'EQUIPMENT' && (
+                                         <div className="col-span-4 grid grid-cols-6 gap-2 bg-slate-900/50 p-2 rounded">
+                                             <div className="col-span-2">
+                                                 <label className="text-[10px] text-slate-500 block">部位</label>
+                                                 <select className="bg-slate-800 w-full text-xs p-1 rounded" value={item.slot} onChange={e => {
+                                                     const newItems = localConfig.items.map(i => i.id === item.id ? {...i, slot: e.target.value as EquipmentSlot} : i);
+                                                     setLocalConfig({...localConfig, items: newItems});
+                                                 }}>
+                                                     {Object.keys(SLOT_NAMES).map(k => <option key={k} value={k}>{SLOT_NAMES[k as EquipmentSlot]}</option>)}
+                                                 </select>
+                                             </div>
+                                             {['attack', 'defense', 'maxHp', 'speed'].map(stat => (
+                                                 <div key={stat}>
+                                                     <label className="text-[10px] text-slate-500 block uppercase">{stat}</label>
+                                                     <input type="number" className="bg-slate-800 w-full p-1 rounded text-xs" 
+                                                        // @ts-ignore
+                                                        value={item.statBonus?.[stat] || 0} 
+                                                        onChange={e => {
+                                                            const newItems = localConfig.items.map(i => i.id === item.id ? {...i, statBonus: {...i.statBonus, [stat]: parseInt(e.target.value)}} : i);
+                                                            setLocalConfig({...localConfig, items: newItems});
+                                                        }}
+                                                     />
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     )}
 
-                          <input 
-                              value={item.name}
-                              onChange={(e) => {
-                                const newItems = [...localConfig.items];
-                                newItems[realIndex].name = e.target.value;
-                                setLocalConfig({...localConfig, items: newItems});
-                              }}
-                              className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-40"
-                          />
-                           {(itemSubTab === 'EQUIPMENT' || itemSubTab === 'ARTIFACT') && (
-                                <select 
-                                    value={item.slot || 'mainWeapon'}
-                                    onChange={(e) => {
-                                        const newItems = [...localConfig.items];
-                                        newItems[realIndex].slot = e.target.value as EquipmentSlot;
-                                        setLocalConfig({...localConfig, items: newItems});
-                                    }}
-                                    className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-amber-300 w-32"
-                                >
-                                    {Object.entries(SLOT_NAMES).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                           )}
-                           
-                           <select 
-                                value={item.reqLevel || 1}
-                                onChange={(e) => {
-                                    const newItems = [...localConfig.items];
-                                    newItems[realIndex].reqLevel = parseInt(e.target.value);
-                                    setLocalConfig({...localConfig, items: newItems});
-                                }}
-                                className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-32"
-                            >
-                                {levelOptions}
-                            </select>
+                                     {item.type === 'PILL' && (
+                                         <div className="col-span-4 bg-slate-900/50 p-2 rounded grid grid-cols-2 gap-4">
+                                            <div>
+                                                 <label className="text-[10px] text-slate-500 block">最大服用次数</label>
+                                                 <input type="number" className="bg-slate-800 w-full p-1 rounded" value={item.maxUsage || 0} onChange={e => {
+                                                     const newItems = localConfig.items.map(i => i.id === item.id ? {...i, maxUsage: parseInt(e.target.value)} : i);
+                                                     setLocalConfig({...localConfig, items: newItems});
+                                                 }} />
+                                            </div>
+                                            <div>
+                                                 <label className="text-[10px] text-slate-500 block">效果: 攻击力+</label>
+                                                 <input type="number" className="bg-slate-800 w-full p-1 rounded" value={item.statBonus?.attack || 0} onChange={e => {
+                                                     const newItems = localConfig.items.map(i => i.id === item.id ? {...i, statBonus: {...i.statBonus, attack: parseInt(e.target.value)}} : i);
+                                                     setLocalConfig({...localConfig, items: newItems});
+                                                 }} />
+                                            </div>
+                                         </div>
+                                     )}
 
-                            <div className="flex items-center gap-1">
-                                <span className="text-yellow-500 text-xs">💰</span>
-                                <input 
-                                    type="number"
-                                    value={item.price || 0}
-                                    onChange={(e) => {
-                                        const newItems = [...localConfig.items];
-                                        newItems[realIndex].price = parseInt(e.target.value);
-                                        setLocalConfig({...localConfig, items: newItems});
-                                    }}
-                                    className="bg-slate-900 border border-slate-600 rounded px-1 py-1 text-xs w-16 text-yellow-300"
-                                    placeholder="价格"
-                                    title="购买价格"
-                                />
-                            </div>
+                                     {item.type === 'RECIPE' && (
+                                         <div className="col-span-4 bg-slate-900/50 p-2 rounded space-y-2">
+                                             <div className="flex gap-2 text-xs">
+                                                  <div className="flex-1">
+                                                      <label className="block text-slate-500">产出丹药</label>
+                                                      <select className="w-full bg-slate-800 p-1 rounded" value={item.recipeResult || ''} onChange={e => {
+                                                          const newItems = localConfig.items.map(i => i.id === item.id ? {...i, recipeResult: e.target.value} : i);
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}>
+                                                          <option value="">选择丹药...</option>
+                                                          {availablePills.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                      </select>
+                                                  </div>
+                                                  <div className="w-24">
+                                                      <label className="block text-slate-500">成功率 (0-1)</label>
+                                                      <input type="number" step="0.1" className="w-full bg-slate-800 p-1 rounded" value={item.successRate || 0.5} onChange={e => {
+                                                          const newItems = localConfig.items.map(i => i.id === item.id ? {...i, successRate: parseFloat(e.target.value)} : i);
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }} />
+                                                  </div>
+                                             </div>
+                                             <div className="text-xs">
+                                                 <label className="block text-slate-500 mb-1">所需材料</label>
+                                                 {item.recipeMaterials?.map((mat, idx) => (
+                                                     <div key={idx} className="flex gap-2 mb-1">
+                                                         <select className="flex-1 bg-slate-800 p-1 rounded" value={mat.itemId} onChange={e => {
+                                                             const newMats = [...(item.recipeMaterials || [])];
+                                                             newMats[idx].itemId = e.target.value;
+                                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, recipeMaterials: newMats} : i);
+                                                             setLocalConfig({...localConfig, items: newItems});
+                                                         }}>
+                                                             {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                         </select>
+                                                         <input type="number" className="w-16 bg-slate-800 p-1 rounded" value={mat.count} onChange={e => {
+                                                             const newMats = [...(item.recipeMaterials || [])];
+                                                             newMats[idx].count = parseInt(e.target.value);
+                                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, recipeMaterials: newMats} : i);
+                                                             setLocalConfig({...localConfig, items: newItems});
+                                                         }} />
+                                                         <button className="text-red-400 px-1" onClick={() => {
+                                                             const newMats = (item.recipeMaterials || []).filter((_, i) => i !== idx);
+                                                             const newItems = localConfig.items.map(i => i.id === item.id ? {...i, recipeMaterials: newMats} : i);
+                                                             setLocalConfig({...localConfig, items: newItems});
+                                                         }}>X</button>
+                                                     </div>
+                                                 ))}
+                                                 <Button size="sm" className="mt-1 py-0 h-6 text-[10px]" onClick={() => {
+                                                     const newMats = [...(item.recipeMaterials || []), {itemId: availableMaterials[0]?.id || '', count: 1}];
+                                                     const newItems = localConfig.items.map(i => i.id === item.id ? {...i, recipeMaterials: newMats} : i);
+                                                     setLocalConfig({...localConfig, items: newItems});
+                                                 }}>+ 添加材料</Button>
+                                             </div>
+                                         </div>
+                                     )}
+
+                                 </div>
+                                 <button className="text-red-500 text-xs mt-1" onClick={() => {
+                                     const newItems = localConfig.items.filter(i => i.id !== item.id);
+                                     setLocalConfig({...localConfig, items: newItems});
+                                 }}>删除</button>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
+             </div>
+          )}
+
+          {activeTab === 'enemies' && (
+              <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center gap-2">
+                        {renderRealmFilter()}
                       </div>
-                      
-                      {/* Alchemy Specific Fields */}
-                      {itemSubTab === 'PILL' && (
-                          <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded">
-                              <label className="text-xs text-blue-300">最大服用次数:</label>
-                              <input 
-                                  type="number"
-                                  value={item.maxUsage || 1}
-                                  onChange={(e) => {
-                                    const newItems = [...localConfig.items];
-                                    newItems[realIndex].maxUsage = parseInt(e.target.value);
-                                    setLocalConfig({...localConfig, items: newItems});
-                                  }}
-                                  className="w-16 bg-slate-800 border border-slate-600 rounded text-xs px-2"
-                              />
-                          </div>
-                      )}
-
-                      {itemSubTab === 'RECIPE' && (
-                          <div className="bg-slate-900/50 p-2 rounded flex flex-col gap-2">
-                              <div className="flex gap-4">
-                                  <div className="flex flex-col">
-                                      <label className="text-[10px] text-slate-500">产出丹药</label>
-                                      <select 
-                                          value={item.recipeResult || ''}
-                                          onChange={(e) => {
-                                              const newItems = [...localConfig.items];
-                                              newItems[realIndex].recipeResult = e.target.value;
-                                              setLocalConfig({...localConfig, items: newItems});
-                                          }}
-                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-32 py-1 text-white"
-                                      >
-                                          <option value="">选择丹药...</option>
-                                          {availablePills.map(p => (
-                                              <option key={p.id} value={p.id}>{p.name}</option>
-                                          ))}
+                      <Button size="sm" onClick={() => {
+                          const newEnemy = createEmptyEnemy(getFilterStartLevel());
+                          setLocalConfig({...localConfig, enemies: [newEnemy, ...localConfig.enemies]});
+                      }}>+ 新增敌人</Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {localConfig.enemies.filter(e => filterByRealm(e.minPlayerLevel)).map((enemy, idx) => (
+                          <div key={idx} className="bg-slate-800 p-4 rounded border border-slate-700 text-sm">
+                              <div className="flex justify-between mb-2">
+                                  <input className="bg-slate-900 p-1 rounded font-bold text-red-300" value={enemy.name} onChange={e => {
+                                      const newEnemies = [...localConfig.enemies];
+                                      newEnemies[idx].name = e.target.value;
+                                      setLocalConfig({...localConfig, enemies: newEnemies});
+                                  }} />
+                                  <button className="text-red-500 text-xs" onClick={() => {
+                                      const newEnemies = localConfig.enemies.filter((_, i) => i !== idx);
+                                      setLocalConfig({...localConfig, enemies: newEnemies});
+                                  }}>删除</button>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <div>
+                                      <label className="text-xs text-slate-500">最低等级</label>
+                                      <select className="bg-slate-900 p-1 rounded w-full" value={enemy.minPlayerLevel} onChange={e => {
+                                          const newEnemies = [...localConfig.enemies];
+                                          newEnemies[idx].minPlayerLevel = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, enemies: newEnemies});
+                                      }}>
+                                          {levelOptions}
                                       </select>
                                   </div>
-                                  <div className="flex flex-col">
-                                      <label className="text-[10px] text-slate-500">成功率 (0-1)</label>
-                                      <input 
-                                          type="number"
-                                          step="0.05"
-                                          max="1"
-                                          min="0"
-                                          value={item.successRate || 0.5}
-                                          onChange={(e) => {
-                                              const newItems = [...localConfig.items];
-                                              newItems[realIndex].successRate = parseFloat(e.target.value);
-                                              setLocalConfig({...localConfig, items: newItems});
-                                          }}
-                                          className="bg-slate-800 border border-slate-600 rounded text-xs px-2 w-16 py-0.5"
-                                      />
-                                  </div>
                               </div>
-                              <div className="border-t border-slate-700 pt-1">
-                                  <label className="text-[10px] text-slate-500 block mb-1">所需材料</label>
-                                  <div className="flex flex-col gap-1 mb-2">
-                                      {item.recipeMaterials?.map((rm, idx) => {
-                                          const matItem = availableMaterials.find(m => m.id === rm.itemId);
-                                          return (
-                                              <div key={idx} className="bg-slate-700 rounded px-2 py-1 text-xs flex items-center gap-2">
-                                                  <select
-                                                      value={rm.itemId}
-                                                      onChange={(e) => {
-                                                          const newItems = [...localConfig.items];
-                                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                                          newMats[idx] = { ...newMats[idx], itemId: e.target.value };
-                                                          newItems[realIndex].recipeMaterials = newMats;
-                                                          setLocalConfig({...localConfig, items: newItems});
-                                                      }}
-                                                      className="bg-slate-800 border border-slate-600 rounded px-1 text-white w-32"
-                                                  >
-                                                      {availableMaterials.map(m => (
-                                                          <option key={m.id} value={m.id}>{m.name}</option>
-                                                      ))}
-                                                      {!availableMaterials.some(m => m.id === rm.itemId) && <option value={rm.itemId}>未知({rm.itemId})</option>}
-                                                  </select>
-                                                  <span>x</span>
-                                                  <input 
-                                                      type="number" 
-                                                      value={rm.count}
-                                                      min="1"
-                                                      onChange={(e) => {
-                                                          const newItems = [...localConfig.items];
-                                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                                          newMats[idx] = { ...newMats[idx], count: parseInt(e.target.value) };
-                                                          newItems[realIndex].recipeMaterials = newMats;
-                                                          setLocalConfig({...localConfig, items: newItems});
-                                                      }}
-                                                      className="w-12 bg-slate-800 border border-slate-600 rounded px-1"
-                                                  />
-                                                  <button onClick={() => {
-                                                      const newItems = [...localConfig.items];
-                                                      const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                                      newMats.splice(idx, 1);
-                                                      newItems[realIndex].recipeMaterials = newMats;
-                                                      setLocalConfig({...localConfig, items: newItems});
-                                                  }} className="text-red-400 hover:text-red-300 ml-auto">×</button>
-                                              </div>
-                                          );
-                                      })}
-                                  </div>
-                                  <button 
-                                      onClick={() => {
-                                          if(availableMaterials.length === 0) {
-                                              alert("请先创建药材物品");
-                                              return;
-                                          }
-                                          const newItems = [...localConfig.items];
-                                          const newMats = [...(newItems[realIndex].recipeMaterials || [])];
-                                          newMats.push({ itemId: availableMaterials[0].id, count: 1 });
-                                          newItems[realIndex].recipeMaterials = newMats;
-                                          setLocalConfig({...localConfig, items: newItems});
-                                      }} 
-                                      className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded w-full"
-                                  >
-                                      + 添加药材
-                                  </button>
+                              
+                              <div className="grid grid-cols-4 gap-2 mb-3 bg-slate-900/50 p-2 rounded">
+                                  {['hp', 'spirit', 'attack', 'defense', 'speed'].map(stat => (
+                                      <div key={stat} className="col-span-2 sm:col-span-1">
+                                          <label className="text-[10px] text-slate-500 uppercase">{stat}</label>
+                                          <input type="number" className="bg-slate-800 w-full p-1 rounded text-xs" 
+                                            // @ts-ignore
+                                            value={enemy.baseStats[stat] || (stat === 'hp' ? enemy.baseStats.maxHp : 0)}
+                                            onChange={e => {
+                                                const newEnemies = [...localConfig.enemies];
+                                                // @ts-ignore
+                                                newEnemies[idx].baseStats[stat] = parseInt(e.target.value);
+                                                if (stat === 'hp') newEnemies[idx].baseStats.maxHp = parseInt(e.target.value);
+                                                if (stat === 'spirit') newEnemies[idx].baseStats.maxSpirit = parseInt(e.target.value);
+                                                setLocalConfig({...localConfig, enemies: newEnemies});
+                                            }}
+                                          />
+                                      </div>
+                                  ))}
+                              </div>
+
+                              <div className="bg-slate-900 p-2 rounded">
+                                  <label className="text-xs text-slate-500 mb-1 block">卡组配置 (ID)</label>
+                                  <textarea className="w-full bg-slate-800 p-1 text-xs rounded h-16" 
+                                    value={enemy.cardIds.join(',')}
+                                    onChange={e => {
+                                        const newEnemies = [...localConfig.enemies];
+                                        newEnemies[idx].cardIds = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                                        setLocalConfig({...localConfig, enemies: newEnemies});
+                                    }}
+                                  />
+                                  <div className="text-[10px] text-slate-600 mt-1">可用卡牌: {localConfig.cards.slice(0,3).map(c => c.id).join(', ')}...</div>
                               </div>
                           </div>
-                      )}
-
-                      <div className="grid grid-cols-4 gap-2">
-                            {['attack', 'defense', 'maxHp', 'maxSpirit', 'speed'].map(stat => (
-                                <div key={stat} className="flex flex-col">
-                                    <span className="text-[10px] text-slate-500">{stat}</span>
-                                    <input 
-                                        type="number"
-                                        // @ts-ignore
-                                        value={item.statBonus?.[stat] || 0}
-                                        onChange={(e) => {
-                                            const newItems = [...localConfig.items];
-                                            // @ts-ignore
-                                            newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, [stat]: parseInt(e.target.value) };
-                                            setLocalConfig({...localConfig, items: newItems});
-                                        }}
-                                        className="bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-xs"
-                                    />
-                                </div>
-                            ))}
-                      </div>
-
-                      <div className="border-t border-slate-700 pt-2">
-                        <span className="text-xs text-slate-400 block mb-1">元素亲和加成:</span>
-                        <div className="flex flex-wrap gap-2">
-                            {Object.values(ElementType).map(elem => (
-                                <div key={elem} className="flex items-center gap-1 bg-slate-900 rounded px-1">
-                                    <span className="text-[10px] text-slate-500">{elem}</span>
-                                    <input 
-                                        type="number"
-                                        className="w-8 bg-transparent text-xs text-white border-none outline-none text-right"
-                                        value={item.statBonus?.elementalAffinities?.[elem] || 0}
-                                        onChange={(e) => {
-                                            const newItems = [...localConfig.items];
-                                            const affs = { ...(newItems[realIndex].statBonus?.elementalAffinities || createZeroElementStats()) };
-                                            affs[elem] = parseInt(e.target.value);
-                                            newItems[realIndex].statBonus = { ...newItems[realIndex].statBonus, elementalAffinities: affs };
-                                            setLocalConfig({...localConfig, items: newItems});
-                                        }}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                      </div>
-                   </div>
-                )})}
+                      ))}
+                  </div>
               </div>
-            </div>
-          )}
-          
-          {activeTab === 'enemies' && (
-             <div className="space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold text-slate-200">敌人配置</h3>
-                    <div className="flex items-center gap-2">
-                        {renderRealmFilter()}
-                        <Button size="sm" onClick={() => setLocalConfig({...localConfig, enemies: [...localConfig.enemies, createEmptyEnemy(getFilterStartLevel())]})}>
-                            + 新增敌人
-                        </Button>
-                    </div>
-                </div>
-                
-                <div className="grid gap-6">
-                    {localConfig.enemies.filter(e => filterByRealm(e.minPlayerLevel)).map((enemy) => {
-                        const originalIdx = localConfig.enemies.indexOf(enemy);
-                        return (
-                        <div key={originalIdx} className="bg-slate-800 p-4 rounded border border-slate-700 relative group">
-                            <button 
-                                className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
-                                onClick={() => {
-                                    const newEnemies = localConfig.enemies.filter((_, i) => i !== originalIdx);
-                                    setLocalConfig({...localConfig, enemies: newEnemies});
-                                }}
-                            >
-                                🗑️
-                            </button>
-                            
-                            <div className="flex flex-wrap gap-4 mb-4">
-                                <div>
-                                    <label className="text-[10px] text-slate-500 uppercase block">Name</label>
-                                    <input 
-                                        value={enemy.name}
-                                        onChange={(e) => {
-                                            const newEnemies = [...localConfig.enemies];
-                                            newEnemies[originalIdx].name = e.target.value;
-                                            setLocalConfig({...localConfig, enemies: newEnemies});
-                                        }}
-                                        className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm font-bold w-40"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-slate-500 uppercase block">Min Level</label>
-                                    <select 
-                                        value={enemy.minPlayerLevel}
-                                        onChange={(e) => {
-                                            const newEnemies = [...localConfig.enemies];
-                                            newEnemies[originalIdx].minPlayerLevel = parseInt(e.target.value);
-                                            setLocalConfig({...localConfig, enemies: newEnemies});
-                                        }}
-                                        className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-32"
-                                    >
-                                        {levelOptions}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div className="bg-slate-900/50 p-2 rounded mb-4">
-                                <h5 className="text-xs text-slate-400 mb-2 font-bold">基础属性</h5>
-                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                                     {['maxHp', 'maxSpirit', 'attack', 'defense', 'speed'].map(stat => (
-                                        <div key={stat}>
-                                            <label className="text-[9px] text-slate-500 uppercase block">{stat}</label>
-                                            <input 
-                                                type="number"
-                                                // @ts-ignore
-                                                value={enemy.baseStats[stat]}
-                                                onChange={(e) => {
-                                                    const newEnemies = [...localConfig.enemies];
-                                                    // @ts-ignore
-                                                    newEnemies[originalIdx].baseStats = { ...newEnemies[originalIdx].baseStats, [stat]: parseInt(e.target.value) };
-                                                    if(stat === 'maxHp') newEnemies[originalIdx].baseStats.hp = parseInt(e.target.value);
-                                                    if(stat === 'maxSpirit') newEnemies[originalIdx].baseStats.spirit = parseInt(e.target.value);
-                                                    setLocalConfig({...localConfig, enemies: newEnemies});
-                                                }}
-                                                className="w-full bg-slate-800 border border-slate-600 rounded px-1 text-xs"
-                                            />
-                                        </div>
-                                     ))}
-                                </div>
-                            </div>
-                        </div>
-                    );})}
-                </div>
-             </div>
           )}
 
           {activeTab === 'cards' && (
-             <div className="space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold text-slate-200">卡牌库 ({localConfig.cards.length})</h3>
-                    <div className="flex items-center gap-2">
-                        {renderRealmFilter()}
-                        <Button size="sm" onClick={() => setLocalConfig({...localConfig, cards: [...localConfig.cards, createEmptyCard(getFilterStartLevel())]})}>
-                            + 新增卡牌
-                        </Button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {localConfig.cards.filter(c => filterByRealm(c.reqLevel)).map((card) => {
-                        const originalIdx = localConfig.cards.indexOf(card);
-                        return (
-                        <div key={originalIdx} className="bg-slate-800 p-3 rounded border border-slate-700 flex flex-col gap-2 relative group">
-                            <button 
-                                    className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
-                                    onClick={() => {
-                                        const newCards = localConfig.cards.filter((_, i) => i !== originalIdx);
-                                        setLocalConfig({...localConfig, cards: newCards});
-                                    }}
-                            >
-                                    🗑️
-                            </button>
-                            <div className="flex justify-between gap-2 pr-6">
-                            <input 
-                                value={card.name} 
-                                onChange={(e) => {
-                                    const newCards = [...localConfig.cards];
-                                    newCards[originalIdx].name = e.target.value;
-                                    setLocalConfig({...localConfig, cards: newCards});
-                                }}
-                                className="bg-slate-900 font-bold text-emerald-300 border-none rounded px-1 w-1/3"
-                            />
-                            <select 
-                                value={card.type}
-                                onChange={(e) => {
-                                    const newCards = [...localConfig.cards];
-                                    newCards[originalIdx].type = e.target.value as CardType;
-                                    setLocalConfig({...localConfig, cards: newCards});
-                                }}
-                                className="bg-slate-900 text-xs text-slate-300 rounded w-1/4"
-                            >
-                                {Object.values(CardType).map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                            </div>
-                            
-                            <textarea 
-                            value={card.description} 
-                            onChange={(e) => {
-                                const newCards = [...localConfig.cards];
-                                newCards[originalIdx].description = e.target.value;
-                                setLocalConfig({...localConfig, cards: newCards});
-                            }}
-                            className="w-full bg-slate-900 text-xs text-slate-400 rounded p-1 resize-none h-12"
-                            />
-                        </div>
-                    );})}
-                </div>
-             </div>
+              <div className="space-y-4">
+                  <div className="flex justify-between items-center mb-4">
+                      {renderRealmFilter()}
+                      <Button size="sm" onClick={() => {
+                          const newCard = createEmptyCard(getFilterStartLevel());
+                          setLocalConfig({...localConfig, cards: [newCard, ...localConfig.cards]});
+                      }}>+ 新增卡牌</Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {localConfig.cards.filter(c => filterByRealm(c.reqLevel)).map(card => (
+                          <div key={card.id} className="bg-slate-800 p-3 rounded border border-slate-700 text-sm flex flex-col gap-2">
+                              <div className="flex justify-between items-center">
+                                  <input className="bg-slate-900 p-1 rounded font-bold text-blue-300 w-32" value={card.name} onChange={e => {
+                                      const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, name: e.target.value} : c);
+                                      setLocalConfig({...localConfig, cards: newCards});
+                                  }} />
+                                  <button className="text-red-500 text-xs" onClick={() => {
+                                      const newCards = localConfig.cards.filter(c => c.id !== card.id);
+                                      setLocalConfig({...localConfig, cards: newCards});
+                                  }}>删除</button>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                      <label className="text-slate-500">类型</label>
+                                      <select className="bg-slate-900 p-1 rounded w-full" value={card.type} onChange={e => {
+                                          const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, type: e.target.value as CardType} : c);
+                                          setLocalConfig({...localConfig, cards: newCards});
+                                      }}>
+                                          {Object.values(CardType).map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="text-slate-500">元素</label>
+                                      <select className="bg-slate-900 p-1 rounded w-full" value={card.element} onChange={e => {
+                                          const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, element: e.target.value as ElementType} : c);
+                                          setLocalConfig({...localConfig, cards: newCards});
+                                      }}>
+                                          {Object.values(ElementType).map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                  </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                      <label className="text-slate-500">消耗神识</label>
+                                      <input type="number" className="bg-slate-900 w-full p-1 rounded" value={card.cost} onChange={e => {
+                                          const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, cost: parseInt(e.target.value)} : c);
+                                          setLocalConfig({...localConfig, cards: newCards});
+                                      }} />
+                                  </div>
+                                  <div>
+                                      <label className="text-slate-500">消耗元素</label>
+                                      <input type="number" className="bg-slate-900 w-full p-1 rounded" value={card.elementCost} onChange={e => {
+                                          const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, elementCost: parseInt(e.target.value)} : c);
+                                          setLocalConfig({...localConfig, cards: newCards});
+                                      }} />
+                                  </div>
+                                  <div>
+                                      <label className="text-slate-500">数值</label>
+                                      <input type="number" className="bg-slate-900 w-full p-1 rounded" value={card.value} onChange={e => {
+                                          const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, value: parseInt(e.target.value)} : c);
+                                          setLocalConfig({...localConfig, cards: newCards});
+                                      }} />
+                                  </div>
+                              </div>
+                              
+                              <div>
+                                  <label className="text-slate-500 text-xs">需求等级</label>
+                                  <select className="bg-slate-900 p-1 rounded w-full text-xs" value={card.reqLevel} onChange={e => {
+                                      const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, reqLevel: parseInt(e.target.value)} : c);
+                                      setLocalConfig({...localConfig, cards: newCards});
+                                  }}>
+                                      {levelOptions}
+                                  </select>
+                              </div>
+                              
+                              <input className="bg-slate-900 p-1 rounded text-xs text-slate-400" value={card.description} onChange={e => {
+                                  const newCards = localConfig.cards.map(c => c.id === card.id ? {...c, description: e.target.value} : c);
+                                  setLocalConfig({...localConfig, cards: newCards});
+                              }} placeholder="描述"/>
+                              
+                              <div className="flex items-center gap-2">
+                                  <input type="checkbox" checked={card.tags?.includes('PIERCE')} onChange={e => {
+                                      const newCards = localConfig.cards.map(c => {
+                                          if (c.id !== card.id) return c;
+                                          const tags = c.tags || [];
+                                          if (e.target.checked) return {...c, tags: [...tags, 'PIERCE']};
+                                          else return {...c, tags: tags.filter(t => t !== 'PIERCE')};
+                                      });
+                                      setLocalConfig({...localConfig, cards: newCards});
+                                  }}/>
+                                  <span className="text-xs text-amber-500 font-bold">穿刺 (无视护盾)</span>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
           )}
 
           {activeTab === 'player' && (
              <div className="space-y-6">
                  <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <h4 className="text-slate-400 text-sm mb-2">基础属性</h4>
+                    <h4 className="text-slate-400 text-sm mb-2 font-bold">基础属性</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {['maxHp', 'maxSpirit', 'attack', 'speed'].map(stat => (
                         <div key={stat}>
@@ -1214,6 +1054,70 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         />
                         </div>
                     ))}
+                    </div>
+                </div>
+
+                <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-slate-400 text-sm font-bold">法宝栏位解锁配置</h4>
+                        <Button size="sm" onClick={() => {
+                            const newSlots = [...localConfig.artifactSlotConfigs];
+                            newSlots.push({ id: newSlots.length, reqLevel: 1, cost: 1000 });
+                            setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                        }}>+ 增加栏位</Button>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                            <thead>
+                                <tr className="bg-slate-900 text-slate-400">
+                                    <th className="p-2">Slot Index</th>
+                                    <th className="p-2">解锁所需境界</th>
+                                    <th className="p-2">解锁费用 (灵石)</th>
+                                    <th className="p-2">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {localConfig.artifactSlotConfigs.map((slot, idx) => (
+                                    <tr key={idx} className="border-b border-slate-700">
+                                        <td className="p-2 font-bold text-slate-300">Slot {idx + 1}</td>
+                                        <td className="p-2">
+                                            <select 
+                                                value={slot.reqLevel}
+                                                onChange={(e) => {
+                                                    const newSlots = [...localConfig.artifactSlotConfigs];
+                                                    newSlots[idx].reqLevel = parseInt(e.target.value);
+                                                    setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                                                }}
+                                                className="bg-slate-900 border border-slate-600 rounded px-2 py-1"
+                                            >
+                                                {levelOptions}
+                                            </select>
+                                        </td>
+                                        <td className="p-2">
+                                            <input 
+                                                type="number"
+                                                value={slot.cost}
+                                                onChange={(e) => {
+                                                    const newSlots = [...localConfig.artifactSlotConfigs];
+                                                    newSlots[idx].cost = parseInt(e.target.value);
+                                                    setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                                                }}
+                                                className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-yellow-300 w-32"
+                                            />
+                                        </td>
+                                        <td className="p-2">
+                                            <button onClick={() => {
+                                                const newSlots = localConfig.artifactSlotConfigs.filter((_, i) => i !== idx);
+                                                // Re-index
+                                                newSlots.forEach((s, i) => s.id = i);
+                                                setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                                            }} className="text-red-500 hover:text-white">删除</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
              </div>
