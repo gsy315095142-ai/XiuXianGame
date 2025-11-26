@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Player, Item, RealmRank, EquipmentSlot, ElementType } from '../types';
+import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
 import { Button } from './Button';
 import { CardItem } from './CardItem';
@@ -9,7 +9,8 @@ import { CardItem } from './CardItem';
 interface HomeViewProps {
   player: Player;
   realms: RealmRank[];
-  onStartAdventure: () => void;
+  maps: GameMap[]; // Receive maps list
+  onStartAdventure: (map: GameMap) => void; // Update callback signature
   onEquipItem: (item: Item) => void;
   onUseItem: (item: Item) => void;
   onEndGame: () => void;
@@ -19,8 +20,8 @@ interface HomeViewProps {
   itemsConfig: Item[]; // Needed to lookup pill info from recipes
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, isRefining, itemsConfig }) => {
-  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy'>('none');
+export const HomeView: React.FC<HomeViewProps> = ({ player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, isRefining, itemsConfig }) => {
+  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'mapSelect'>('none');
   const [selectedRecipe, setSelectedRecipe] = useState<Item | null>(null);
 
   const realmName = getRealmName(player.level, realms);
@@ -255,7 +256,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
          <Button 
             variant="primary" 
             className="w-full py-6 text-3xl font-bold tracking-[0.5em] shadow-[0_0_30px_rgba(16,185,129,0.3)] border-emerald-500 hover:bg-emerald-700 hover:scale-[1.01] active:scale-[0.99] transition-all bg-gradient-to-r from-emerald-900 via-emerald-700 to-emerald-900"
-            onClick={onStartAdventure}
+            onClick={() => setActiveMenu('mapSelect')}
          >
             🗡️ 外出历练 🗡️
          </Button>
@@ -263,6 +264,74 @@ export const HomeView: React.FC<HomeViewProps> = ({ player, realms, onStartAdven
 
       {/* --- Full Screen Modals --- */}
       
+      {/* Map Selection Modal */}
+      {activeMenu === 'mapSelect' && (
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+              <div className="w-full max-w-5xl h-[85vh] bg-slate-900 border-2 border-slate-600 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
+                  <button onClick={() => setActiveMenu('none')} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl z-50">✕</button>
+                  
+                  <div className="bg-slate-950 p-6 border-b border-slate-700">
+                      <h3 className="text-3xl font-bold text-emerald-100 flex items-center gap-3">
+                          🌍 选择历练地图
+                      </h3>
+                      <p className="text-slate-400 mt-2">选择一处秘境进行探索，不同的秘境拥有不同的机缘与凶险。</p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {maps.map(map => {
+                          const isLocked = player.level < map.reqLevel;
+                          return (
+                              <div key={map.id} className={`
+                                  relative bg-slate-800 rounded-xl border-2 flex flex-col overflow-hidden group transition-all duration-300
+                                  ${isLocked ? 'border-slate-700 opacity-60 grayscale' : 'border-slate-600 hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:-translate-y-1'}
+                              `}>
+                                  <div className="h-32 bg-slate-900 flex items-center justify-center text-6xl relative overflow-hidden">
+                                      <div className="absolute inset-0 bg-gradient-to-t from-slate-800 to-transparent"></div>
+                                      <span className="relative z-10 transform group-hover:scale-110 transition-transform duration-500">{map.icon}</span>
+                                      {isLocked && <div className="absolute inset-0 bg-black/60 flex items-center justify-center font-bold text-red-500 text-xl backdrop-blur-sm z-20">🔒 境界不足</div>}
+                                  </div>
+                                  
+                                  <div className="p-5 flex-1 flex flex-col">
+                                      <h4 className={`text-xl font-bold mb-2 ${isLocked ? 'text-slate-500' : 'text-emerald-300'}`}>{map.name}</h4>
+                                      <div className="text-sm text-slate-400 mb-4 flex-1">{map.description}</div>
+                                      
+                                      <div className="space-y-2 mb-4">
+                                          <div className="flex justify-between text-xs text-slate-500 border-b border-slate-700 pb-1">
+                                              <span>推荐境界</span>
+                                              <span className={isLocked ? 'text-red-500 font-bold' : 'text-emerald-500'}>{getRealmName(map.reqLevel, realms)}</span>
+                                          </div>
+                                          <div className="flex justify-between text-xs text-slate-500 border-b border-slate-700 pb-1">
+                                              <span>区域大小</span>
+                                              <span>{map.nodeCount} 节点</span>
+                                          </div>
+                                          <div className="flex gap-2 justify-end text-[10px] text-slate-600">
+                                              {map.eventWeights.merchant > 0.1 && <span className="text-amber-500">💰 游商</span>}
+                                              {map.eventWeights.treasure > 0.3 && <span className="text-yellow-400">🎁 宝物多</span>}
+                                              {map.eventWeights.battle > 0.4 && <span className="text-red-400">⚔️ 凶险</span>}
+                                          </div>
+                                      </div>
+
+                                      <Button 
+                                          variant={isLocked ? 'secondary' : 'primary'}
+                                          disabled={isLocked}
+                                          onClick={() => {
+                                              if(!isLocked) {
+                                                  onStartAdventure(map);
+                                              }
+                                          }}
+                                          className="w-full"
+                                      >
+                                          {isLocked ? '未解锁' : '进入历练'}
+                                      </Button>
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Alchemy Modal */}
       {activeMenu === 'alchemy' && (
           <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">

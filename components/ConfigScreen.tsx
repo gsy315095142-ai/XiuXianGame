@@ -1,7 +1,7 @@
 
 
 import React, { useState, useRef } from 'react';
-import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig } from '../types';
+import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
 import { Button } from './Button';
 import * as XLSX from 'xlsx';
@@ -44,6 +44,16 @@ const createEmptyEnemy = (level: number = 1): EnemyTemplate => ({
   baseStats: { maxHp: 50 * level, hp: 50 * level, maxSpirit: 10 + level, spirit: 10 + level, attack: 5 + level, defense: 0, speed: 10, elementalAffinities: createZeroElementStats() },
   cardIds: [],
   minPlayerLevel: level
+});
+
+const createEmptyMap = (): GameMap => ({
+    id: `map_${Date.now()}`,
+    name: '新地图',
+    icon: '🗺️',
+    description: '新的探险区域...',
+    reqLevel: 1,
+    nodeCount: 12,
+    eventWeights: { merchant: 0.15, treasure: 0.25, battle: 0.3, empty: 0.3 }
 });
 
 const createDefaultLevelConfig = (idx: number, prev: RealmLevelConfig): RealmLevelConfig => ({
@@ -105,13 +115,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         const wb = XLSX.utils.book_new();
 
         const generalData = [
-            { Key: 'mapNodeCount', Value: localConfig.mapNodeCount },
             { Key: 'itemDropRate', Value: localConfig.itemDropRate },
-            { Key: 'weight_merchant', Value: localConfig.eventWeights?.merchant ?? 0.15 },
-            { Key: 'weight_treasure', Value: localConfig.eventWeights?.treasure ?? 0.25 },
-            { Key: 'weight_battle', Value: localConfig.eventWeights?.battle ?? 0.30 },
-            { Key: 'weight_empty', Value: localConfig.eventWeights?.empty ?? 0.30 },
-
             { Key: 'player_maxHp', Value: localConfig.playerInitialStats.maxHp },
             { Key: 'player_maxSpirit', Value: localConfig.playerInitialStats.maxSpirit },
             { Key: 'player_attack', Value: localConfig.playerInitialStats.attack },
@@ -121,6 +125,21 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
         ];
         const wsGeneral = XLSX.utils.json_to_sheet(generalData);
         XLSX.utils.book_append_sheet(wb, wsGeneral, "General");
+
+        const mapsData = localConfig.maps.map(m => ({
+            id: m.id,
+            name: m.name,
+            icon: m.icon,
+            description: m.description,
+            reqLevel: m.reqLevel,
+            nodeCount: m.nodeCount,
+            weight_merchant: m.eventWeights.merchant,
+            weight_treasure: m.eventWeights.treasure,
+            weight_battle: m.eventWeights.battle,
+            weight_empty: m.eventWeights.empty
+        }));
+        const wsMaps = XLSX.utils.json_to_sheet(mapsData);
+        XLSX.utils.book_append_sheet(wb, wsMaps, "Maps");
 
         const realmsData = localConfig.realms.map(r => ({
             name: r.name,
@@ -226,14 +245,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                   const map: Record<string, any> = {};
                   genData.forEach(r => map[r.Key] = r.Value);
                   
-                  if (map['mapNodeCount']) newConfig.mapNodeCount = parseInt(map['mapNodeCount']);
                   if (map['itemDropRate']) newConfig.itemDropRate = parseFloat(map['itemDropRate']);
-                  
-                  const wMerchant = parseFloat(map['weight_merchant'] || 0.15);
-                  const wTreasure = parseFloat(map['weight_treasure'] || 0.25);
-                  const wBattle = parseFloat(map['weight_battle'] || 0.30);
-                  const wEmpty = parseFloat(map['weight_empty'] || 0.30);
-                  newConfig.eventWeights = { merchant: wMerchant, treasure: wTreasure, battle: wBattle, empty: wEmpty };
                   
                   const affs = createZeroElementStats();
                   Object.values(ElementType).forEach(el => {
@@ -251,6 +263,25 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       speed: parseInt(map['player_speed'] || 10),
                       elementalAffinities: affs
                   };
+              }
+
+              const wsMaps = wb.Sheets['Maps'];
+              if (wsMaps) {
+                  const rawMaps = XLSX.utils.sheet_to_json<any>(wsMaps);
+                  newConfig.maps = rawMaps.map(m => ({
+                      id: m.id,
+                      name: m.name,
+                      icon: m.icon,
+                      description: m.description,
+                      reqLevel: m.reqLevel || 1,
+                      nodeCount: m.nodeCount || 12,
+                      eventWeights: {
+                          merchant: parseFloat(m.weight_merchant || 0.15),
+                          treasure: parseFloat(m.weight_treasure || 0.25),
+                          battle: parseFloat(m.weight_battle || 0.3),
+                          empty: parseFloat(m.weight_empty || 0.3)
+                      }
+                  }));
               }
 
               const wsRealms = wb.Sheets['Realms'];
@@ -405,7 +436,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
         <div className="flex border-b border-slate-700 bg-slate-950 px-4 pt-2 gap-1 overflow-x-auto shrink-0">
           {renderTabButton('realms', '⛰️ 境界设置')}
-          {renderTabButton('map', '🌍 地图与掉落')}
+          {renderTabButton('map', '🌍 地图配置')}
           {renderTabButton('items', '💎 物品库')}
           {renderTabButton('enemies', '👿 敌人配置')}
           {renderTabButton('cards', '🎴 卡牌库')}
@@ -573,18 +604,16 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           )}
 
           {activeTab === 'map' && (
-             <div className="space-y-6 max-w-lg">
-                <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <label className="block text-sm text-slate-400 mb-1">探险节点数量</label>
-                    <input 
-                        type="number"
-                        value={localConfig.mapNodeCount}
-                        onChange={(e) => setLocalConfig({...localConfig, mapNodeCount: parseInt(e.target.value)})}
-                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white"
-                    />
+             <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-200">地图配置</h3>
+                    <Button size="sm" onClick={() => setLocalConfig({...localConfig, maps: [...localConfig.maps, createEmptyMap()]})}>
+                        + 新增地图
+                    </Button>
                 </div>
+                
                 <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <label className="block text-sm text-slate-400 mb-1">宝箱获得物品概率 (0-1)</label>
+                    <label className="block text-sm text-slate-400 mb-1">全局宝箱掉落率 (0-1)</label>
                     <input 
                         type="number"
                         step="0.05"
@@ -596,62 +625,148 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                     />
                 </div>
 
-                <div className="bg-slate-800 p-4 rounded border border-slate-700">
-                    <h4 className="text-sm text-slate-200 font-bold mb-3 border-b border-slate-600 pb-2">事件触发权重</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs text-amber-300 mb-1">⚖️ 游商权重</label>
-                            <input 
-                                type="number"
-                                step="0.1"
-                                value={localConfig.eventWeights?.merchant ?? 0.15}
-                                onChange={(e) => setLocalConfig({
-                                    ...localConfig, 
-                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), merchant: parseFloat(e.target.value) } 
-                                })}
-                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
-                            />
+                <div className="grid gap-6">
+                    {localConfig.maps.map((map, idx) => (
+                        <div key={map.id} className="bg-slate-800 p-4 rounded border border-slate-700 relative group">
+                            <button 
+                                className="absolute top-2 right-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-700 p-1 rounded z-10"
+                                onClick={() => {
+                                    if(localConfig.maps.length <= 1) {
+                                        alert("至少需要保留一张地图");
+                                        return;
+                                    }
+                                    const newMaps = localConfig.maps.filter((_, i) => i !== idx);
+                                    setLocalConfig({...localConfig, maps: newMaps});
+                                }}
+                            >
+                                🗑️
+                            </button>
+                            
+                            <div className="flex flex-wrap gap-4 mb-4 items-center">
+                                <div className="text-3xl bg-slate-900 p-2 rounded">
+                                    <input 
+                                        value={map.icon}
+                                        onChange={(e) => {
+                                            const newMaps = [...localConfig.maps];
+                                            newMaps[idx].icon = e.target.value;
+                                            setLocalConfig({...localConfig, maps: newMaps});
+                                        }}
+                                        className="bg-transparent w-8 text-center outline-none"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-[10px] text-slate-500 uppercase">地图名称</label>
+                                    <input 
+                                        value={map.name}
+                                        onChange={(e) => {
+                                            const newMaps = [...localConfig.maps];
+                                            newMaps[idx].name = e.target.value;
+                                            setLocalConfig({...localConfig, maps: newMaps});
+                                        }}
+                                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-emerald-300 font-bold"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 uppercase">节点数量</label>
+                                    <input 
+                                        type="number"
+                                        value={map.nodeCount}
+                                        onChange={(e) => {
+                                            const newMaps = [...localConfig.maps];
+                                            newMaps[idx].nodeCount = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, maps: newMaps});
+                                        }}
+                                        className="w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 uppercase">最低境界要求</label>
+                                    <select 
+                                        value={map.reqLevel}
+                                        onChange={(e) => {
+                                            const newMaps = [...localConfig.maps];
+                                            newMaps[idx].reqLevel = parseInt(e.target.value);
+                                            setLocalConfig({...localConfig, maps: newMaps});
+                                        }}
+                                        className="w-32 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs"
+                                    >
+                                        {levelOptions}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                                <label className="text-[10px] text-slate-500 uppercase">描述</label>
+                                <textarea 
+                                    value={map.description}
+                                    onChange={(e) => {
+                                        const newMaps = [...localConfig.maps];
+                                        newMaps[idx].description = e.target.value;
+                                        setLocalConfig({...localConfig, maps: newMaps});
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300 h-12 resize-none"
+                                />
+                            </div>
+
+                            <div className="bg-slate-900/50 p-3 rounded">
+                                <h4 className="text-xs text-slate-400 font-bold mb-2">事件触发权重</h4>
+                                <div className="grid grid-cols-4 gap-2">
+                                    <div>
+                                        <label className="block text-[10px] text-amber-300 mb-1">⚖️ 游商</label>
+                                        <input 
+                                            type="number" step="0.1"
+                                            value={map.eventWeights.merchant}
+                                            onChange={(e) => {
+                                                const newMaps = [...localConfig.maps];
+                                                newMaps[idx].eventWeights.merchant = parseFloat(e.target.value);
+                                                setLocalConfig({...localConfig, maps: newMaps});
+                                            }}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-yellow-300 mb-1">🎁 宝物</label>
+                                        <input 
+                                            type="number" step="0.1"
+                                            value={map.eventWeights.treasure}
+                                            onChange={(e) => {
+                                                const newMaps = [...localConfig.maps];
+                                                newMaps[idx].eventWeights.treasure = parseFloat(e.target.value);
+                                                setLocalConfig({...localConfig, maps: newMaps});
+                                            }}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-red-400 mb-1">⚔️ 战斗</label>
+                                        <input 
+                                            type="number" step="0.1"
+                                            value={map.eventWeights.battle}
+                                            onChange={(e) => {
+                                                const newMaps = [...localConfig.maps];
+                                                newMaps[idx].eventWeights.battle = parseFloat(e.target.value);
+                                                setLocalConfig({...localConfig, maps: newMaps});
+                                            }}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 mb-1">🍃 空地</label>
+                                        <input 
+                                            type="number" step="0.1"
+                                            value={map.eventWeights.empty}
+                                            onChange={(e) => {
+                                                const newMaps = [...localConfig.maps];
+                                                newMaps[idx].eventWeights.empty = parseFloat(e.target.value);
+                                                setLocalConfig({...localConfig, maps: newMaps});
+                                            }}
+                                            className="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-xs text-white"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-xs text-yellow-300 mb-1">🎁 宝物权重</label>
-                            <input 
-                                type="number"
-                                step="0.1"
-                                value={localConfig.eventWeights?.treasure ?? 0.25}
-                                onChange={(e) => setLocalConfig({
-                                    ...localConfig, 
-                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), treasure: parseFloat(e.target.value) } 
-                                })}
-                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-red-400 mb-1">⚔️ 战斗权重</label>
-                            <input 
-                                type="number"
-                                step="0.1"
-                                value={localConfig.eventWeights?.battle ?? 0.30}
-                                onChange={(e) => setLocalConfig({
-                                    ...localConfig, 
-                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), battle: parseFloat(e.target.value) } 
-                                })}
-                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs text-slate-400 mb-1">🍃 空地权重</label>
-                            <input 
-                                type="number"
-                                step="0.1"
-                                value={localConfig.eventWeights?.empty ?? 0.30}
-                                onChange={(e) => setLocalConfig({
-                                    ...localConfig, 
-                                    eventWeights: { ...(localConfig.eventWeights || { merchant:0.15, treasure:0.25, battle:0.3, empty:0.3 }), empty: parseFloat(e.target.value) } 
-                                })}
-                                className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-sm"
-                            />
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </div>
           )}

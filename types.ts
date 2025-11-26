@@ -163,19 +163,28 @@ export interface EnemyTemplate {
   minPlayerLevel: number; 
 }
 
+export interface GameMap {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+    reqLevel: number;
+    nodeCount: number;
+    eventWeights: {
+        merchant: number;
+        treasure: number; 
+        battle: number;
+        empty: number;
+    };
+}
+
 export interface GameConfig {
-  mapNodeCount: number;
-  itemDropRate: number; 
+  itemDropRate: number; // Global drop rate for now, could be per map later
+  maps: GameMap[];
   items: Item[];
   cards: Card[];
   enemies: EnemyTemplate[];
   realms: RealmRank[];
   playerInitialDeckIds: string[];
   playerInitialStats: Stats;
-  eventWeights: {
-      merchant: number;
-      treasure: number; 
-      battle: number;
-      empty: number;
-  };
 }

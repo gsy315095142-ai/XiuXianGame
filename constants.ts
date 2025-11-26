@@ -678,8 +678,45 @@ export const INITIAL_ENEMY_TEMPLATES: EnemyTemplate[] = [
 ];
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
-  mapNodeCount: 12,
   itemDropRate: 0.3,
+  maps: [
+      {
+          id: 'map_village',
+          name: '新手村后山',
+          icon: '🏞️',
+          description: '灵气稀薄之地，有一些野兽出没，适合初入修仙界的菜鸟。',
+          reqLevel: 1,
+          nodeCount: 12,
+          eventWeights: { merchant: 0.15, treasure: 0.25, battle: 0.3, empty: 0.3 }
+      },
+      {
+          id: 'map_forest',
+          name: '迷雾森林',
+          icon: '🌲',
+          description: '常年被迷雾笼罩，深处有妖兽盘踞，筑基期修士的试炼场。',
+          reqLevel: 11,
+          nodeCount: 16,
+          eventWeights: { merchant: 0.1, treasure: 0.3, battle: 0.4, empty: 0.2 }
+      },
+      {
+          id: 'map_canyon',
+          name: '烈风峡谷',
+          icon: '🏜️',
+          description: '狂风肆虐的峡谷，这里的天材地宝更多，但危险也随之增加。',
+          reqLevel: 15,
+          nodeCount: 20,
+          eventWeights: { merchant: 0.05, treasure: 0.35, battle: 0.5, empty: 0.1 }
+      },
+      {
+          id: 'map_ruins',
+          name: '上古遗迹',
+          icon: '🏛️',
+          description: '上古大能留下的洞府遗迹，机缘与死亡并存。',
+          reqLevel: 19,
+          nodeCount: 25,
+          eventWeights: { merchant: 0.05, treasure: 0.4, battle: 0.5, empty: 0.05 }
+      }
+  ],
   items: INITIAL_ITEMS,
   cards: INITIAL_CARDS,
   enemies: INITIAL_ENEMY_TEMPLATES,
@@ -706,12 +743,6 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
         [ElementType.ICE]: 1,
         [ElementType.SWORD]: 1,
     }
-  },
-  eventWeights: {
-      merchant: 0.15,
-      treasure: 0.25,
-      battle: 0.30,
-      empty: 0.30
   }
 };
 

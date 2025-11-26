@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card } from './types';
+import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
@@ -27,6 +27,7 @@ export default function App() {
   const [player, setPlayer] = useState<Player | null>(null);
   
   // Adventure State
+  const [currentMapConfig, setCurrentMapConfig] = useState<GameMap | null>(null);
   const [mapNodes, setMapNodes] = useState<MapNode[]>([]);
   const [currentNode, setCurrentNode] = useState<number | null>(null);
   
@@ -56,10 +57,10 @@ export default function App() {
 
   // --- Actions ---
 
-  const generateMap = () => {
-    const count = config.mapNodeCount;
-    // Get weights or default
-    const w = config.eventWeights || { merchant: 0.15, treasure: 0.25, battle: 0.30, empty: 0.30 };
+  const generateMap = (mapConfig: GameMap) => {
+    const count = mapConfig.nodeCount;
+    // Get weights from map config
+    const w = mapConfig.eventWeights;
     const totalWeight = w.merchant + w.treasure + w.battle + w.empty;
 
     const nodes: MapNode[] = Array.from({ length: count }, (_, i) => {
@@ -86,15 +87,20 @@ export default function App() {
     setCurrentNode(null);
   };
 
-  const startAdventure = () => {
-    generateMap();
-    setView(GameView.ADVENTURE);
+  const handleSelectMap = (map: GameMap) => {
+      setCurrentMapConfig(map);
+      generateMap(map);
+      setView(GameView.ADVENTURE);
   };
 
   const handleNodeClick = (node: MapNode) => {
     if (!player) return;
 
     if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
+      // Scale enemy level based on map reqLevel or player level? 
+      // Usually map level + some randomness, or strictly player level.
+      // Let's use player level but constrained by map difficulty if we had max level for map.
+      // For now, keep dynamic scaling to player level for fun.
       const enemy = getRandomEnemyFromConfig(player.level, config);
       setInteraction({ type: 'COMBAT', node, enemy });
     } 
@@ -837,8 +843,9 @@ export default function App() {
         <HomeView 
           player={player} 
           realms={config.realms}
+          maps={config.maps} // Pass maps
           itemsConfig={config.items}
-          onStartAdventure={startAdventure} 
+          onStartAdventure={handleSelectMap} // Changed to select map handler
           onEquipItem={handleEquip}
           onUseItem={handleUseItem}
           onEndGame={() => {
