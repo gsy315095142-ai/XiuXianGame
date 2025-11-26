@@ -456,12 +456,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
         {/* Active Enemy Card (No Backdrop, Floating Below Button) */}
         {activeEnemyCard && (
-            <div className="absolute top-[50vh] left-1/2 -translate-x-1/2 z-[40] pointer-events-none mt-8">
-                <div className="transform scale-110 shadow-[0_0_50px_rgba(220,38,38,0.5)] animate-bounce-slight pointer-events-auto">
+            <div className="absolute top-[45vh] left-1/2 -translate-x-1/2 z-[40] pointer-events-none flex flex-col items-center gap-2">
+                <div className="transform scale-110 shadow-2xl animate-bounce-slight pointer-events-auto">
                     <CardItem card={activeEnemyCard} isPlayable={false} />
-                    <div className="text-center mt-4 text-xl font-bold text-red-500 text-shadow-lg bg-black/50 px-4 py-1 rounded whitespace-nowrap">
-                        {initialEnemy.name} 使用了这张卡!
-                    </div>
+                </div>
+                <div className="text-xl font-bold text-red-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] whitespace-nowrap">
+                    {initialEnemy.name} 使用了这张卡!
                 </div>
             </div>
         )}
