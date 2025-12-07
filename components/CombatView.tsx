@@ -564,8 +564,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                       )}
                   </div>
 
-                  {/* Player Active Card Display (Animation) */}
-                   <div className="h-48 w-32 flex items-center justify-center relative absolute top-1/2 -translate-y-1/2">
+                  {/* Player Active Card Display (Animation) - Updated Position */}
+                   <div className="h-48 w-32 flex items-center justify-center absolute top-[35%] -translate-y-1/2">
                       {playerActiveCard && (
                           <div className="scale-125 transition-all duration-500 animate-fade-in z-50 transform translate-y-0">
                               <CardItem card={playerActiveCard} isPlayable={false} disableHoverEffect={true} />
@@ -574,7 +574,16 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                   </div>
 
                   <div className="w-full max-w-sm flex flex-col items-center gap-4 mt-auto mb-12">
-                      {/* Turn Button */}
+                      {/* Combat Log - Moved Above Button */}
+                      <div className="w-full h-32 bg-black/40 backdrop-blur-md rounded-lg border border-slate-600 p-2 overflow-hidden flex flex-col justify-end text-center">
+                          {combatLog.map((log, i) => (
+                              <div key={i} className={`text-sm py-0.5 ${i === combatLog.length - 1 ? 'text-white font-bold text-base' : 'text-slate-400'}`}>
+                                  {log}
+                              </div>
+                          ))}
+                      </div>
+
+                      {/* Turn Button - Moved Below Log */}
                       <Button 
                           variant={turn === 'PLAYER' ? 'primary' : 'secondary'}
                           size="lg"
@@ -584,15 +593,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                       >
                           {turn === 'PLAYER' ? '结束回合' : '敌人回合'}
                       </Button>
-
-                      {/* Combat Log */}
-                      <div className="w-full h-32 bg-black/40 backdrop-blur-md rounded-lg border border-slate-600 p-2 overflow-hidden flex flex-col justify-end text-center">
-                          {combatLog.map((log, i) => (
-                              <div key={i} className={`text-sm py-0.5 ${i === combatLog.length - 1 ? 'text-white font-bold text-base' : 'text-slate-400'}`}>
-                                  {log}
-                              </div>
-                          ))}
-                      </div>
                   </div>
              </div>
 
@@ -650,12 +650,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
              </div>
         </div>
 
-        {/* BOTTOM AREA: HAND & CONTROLS */}
+        {/* BOTTOM AREA: HAND & CONTROLS - Updated Padding and Overflow */}
         <div className="h-[45vh] bg-slate-950 border-t border-slate-700 flex flex-col relative pt-4">
-             {/* Player Elements Row - REMOVED from here, moved to Left Panel */}
-             
              {/* Hand Cards */}
-             <div className="flex-1 flex justify-center items-end gap-3 overflow-x-auto overflow-y-hidden pb-8 pt-12 px-4">
+             <div className="flex-1 flex justify-center items-end gap-3 overflow-x-auto overflow-y-visible pb-8 pt-32 px-4">
                  {hand.map((card, idx) => (
                      <div key={`${card.id}_${idx}`} className="relative transition-all hover:-translate-y-8 hover:scale-110 z-10 hover:z-50 shrink-0">
                          <CardItem 
@@ -663,6 +661,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                             isPlayable={turn === 'PLAYER' && !playerActiveCard}
                             playerLevel={initialPlayer.level}
                             currentElement={playerElements[card.element]}
+                            disabled={playerSpirit < card.cost}
                             onClick={() => handlePlayerPlayCard(card, idx)}
                          />
                          {(card.isTalisman && card.talismanItemId) && (

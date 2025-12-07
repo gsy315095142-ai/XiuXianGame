@@ -180,6 +180,19 @@ const App: React.FC = () => {
       // Merchant stays open until closed manually
   };
   
+  const handleMerchantClose = () => {
+      if (interaction && interaction.type === 'MERCHANT') {
+          // Update location and visited status on close
+          const newNodes = [...mapNodes];
+          if (newNodes[interaction.nodeId]) {
+             newNodes[interaction.nodeId].visited = true;
+          }
+          setMapNodes(newNodes);
+          setCurrentLocationId(interaction.nodeId);
+      }
+      setInteraction(null);
+  };
+  
   const handleMerchantAction = (action: 'BUY' | 'SELL', item: Item) => {
       if (!player) return;
       
@@ -905,7 +918,7 @@ const App: React.FC = () => {
 
                   {interaction.type === 'MERCHANT' && (
                        <div className="h-[70vh] flex flex-col">
-                           <button onClick={() => setInteraction(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white text-2xl">✕</button>
+                           <button onClick={handleMerchantClose} className="absolute top-4 right-4 text-slate-500 hover:text-white text-2xl">✕</button>
                            <h3 className="text-2xl font-bold text-amber-400 mb-4 flex items-center gap-2">⚖️ 游商 <span className="text-sm text-slate-500 font-normal ml-2">现有灵石: {player?.gold}</span></h3>
                            
                            <div className="flex-1 flex gap-4 overflow-hidden">
@@ -945,6 +958,9 @@ const App: React.FC = () => {
                                        ))}
                                    </div>
                                </div>
+                           </div>
+                           <div className="mt-4 flex justify-end">
+                               <button onClick={handleMerchantClose} className="px-6 py-2 bg-slate-700 text-slate-200 rounded hover:bg-slate-600">离开</button>
                            </div>
                        </div>
                   )}
