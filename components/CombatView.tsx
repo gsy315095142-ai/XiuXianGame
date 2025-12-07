@@ -76,6 +76,13 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [combatLog, setCombatLog] = useState<string[]>(['战斗开始!']);
 
   const [activeVfx, setActiveVfx] = useState<VisualEffectState | null>(null);
+  
+  // Victory Modal State
+  const [victoryResult, setVictoryResult] = useState<{
+      rewards: { exp: number, gold: number, drops: Item[] };
+      updatedTalismans?: Item[];
+      updatedArtifacts?: (Item | null)[];
+  } | null>(null);
 
   const combatEndedRef = useRef(false);
 
@@ -458,9 +465,15 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           drops: drops
       };
 
+      // Delay to show log then set Victory Result to trigger Modal
       setTimeout(() => {
-          onWin(rewards, updatedTalismans, updatedArtifacts);
-      }, 1500);
+          setVictoryResult({
+              rewards,
+              updatedTalismans,
+              updatedArtifacts
+          });
+      }, 1000);
+
     } else if (playerHp <= 0) {
       combatEndedRef.current = true;
       addLog('你力竭倒下了...');
@@ -468,7 +481,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           onLose();
       }, 1500);
     }
-  }, [enemyHp, playerHp, initialEnemy, initialPlayer, onWin, onLose, talismanState, artifactState]);
+  }, [enemyHp, playerHp, initialEnemy, initialPlayer, talismanState, artifactState]);
 
   // UI Split Helpers
   const primaryElements = [ElementType.METAL, ElementType.WOOD, ElementType.WATER, ElementType.FIRE, ElementType.EARTH];
@@ -477,6 +490,52 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   return (
     <div className="flex flex-col h-screen bg-slate-900 overflow-hidden relative select-none">
         {activeVfx && <VisualEffect type={activeVfx.type} target={activeVfx.target} />}
+
+        {/* Victory Modal */}
+        {victoryResult && (
+            <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center animate-fade-in">
+                <div className="bg-slate-900 border-2 border-yellow-500 rounded-xl p-8 max-w-md w-full shadow-[0_0_50px_rgba(234,179,8,0.3)] flex flex-col gap-6 items-center transform scale-100 hover:scale-105 transition-transform duration-300">
+                    <div className="text-6xl animate-bounce">🏆</div>
+                    <h3 className="text-3xl font-bold text-yellow-400 tracking-wider">战斗胜利</h3>
+                    
+                    <div className="w-full space-y-3 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div className="flex justify-between text-lg items-center">
+                            <span className="text-slate-400">获得修为</span>
+                            <span className="text-emerald-400 font-bold text-xl">+{victoryResult.rewards.exp}</span>
+                        </div>
+                        <div className="flex justify-between text-lg items-center">
+                            <span className="text-slate-400">获得灵石</span>
+                            <span className="text-yellow-400 font-bold text-xl">+{victoryResult.rewards.gold}</span>
+                        </div>
+                    </div>
+
+                    {victoryResult.rewards.drops.length > 0 && (
+                        <div className="w-full">
+                            <div className="text-xs text-slate-500 mb-2 text-center uppercase tracking-widest">战利品</div>
+                            <div className="flex flex-wrap justify-center gap-2">
+                                {victoryResult.rewards.drops.map((item, idx) => (
+                                    <div key={idx} className="bg-slate-800 border border-slate-600 px-3 py-2 rounded flex items-center gap-2 shadow-sm animate-fade-in-up" style={{animationDelay: `${idx * 100}ms`}}>
+                                        <span className="text-xl">{item.icon}</span>
+                                        <span className={`text-sm font-bold ${item.rarity === 'legendary' ? 'text-amber-400' : item.rarity === 'epic' ? 'text-purple-400' : item.rarity === 'rare' ? 'text-blue-300' : 'text-white'}`}>
+                                            {item.name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <Button 
+                        size="lg" 
+                        variant="primary" 
+                        className="w-full py-4 text-xl font-bold mt-2 shadow-lg border-yellow-600 bg-yellow-700 hover:bg-yellow-600 text-yellow-50"
+                        onClick={() => onWin(victoryResult.rewards, victoryResult.updatedTalismans, victoryResult.updatedArtifacts)}
+                    >
+                        收入囊中
+                    </Button>
+                </div>
+            </div>
+        )}
 
         {/* TOP AREA: BATTLEFIELD */}
         <div className="flex-1 flex items-center relative p-6 bg-[url('https://picsum.photos/seed/battle_bg/1920/1080')] bg-cover bg-center">
@@ -573,28 +632,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                           </div>
                       )}
                   </div>
-
-                  <div className="w-full max-w-sm flex flex-col items-center gap-4 mt-auto mb-12">
-                      {/* Combat Log - Moved Above Button */}
-                      <div className="w-full h-32 bg-black/40 backdrop-blur-md rounded-lg border border-slate-600 p-2 overflow-hidden flex flex-col justify-end text-center">
-                          {combatLog.map((log, i) => (
-                              <div key={i} className={`text-sm py-0.5 ${i === combatLog.length - 1 ? 'text-white font-bold text-base' : 'text-slate-400'}`}>
-                                  {log}
-                              </div>
-                          ))}
-                      </div>
-
-                      {/* Turn Button - Moved Below Log */}
-                      <Button 
-                          variant={turn === 'PLAYER' ? 'primary' : 'secondary'}
-                          size="lg"
-                          disabled={turn !== 'PLAYER' || !!playerActiveCard}
-                          onClick={handleEndTurn}
-                          className={`w-48 py-4 text-xl font-bold shadow-2xl transition-all ${turn === 'PLAYER' ? 'scale-105 border-emerald-400 ring-2 ring-emerald-500/50' : 'opacity-50 grayscale'}`}
-                      >
-                          {turn === 'PLAYER' ? '结束回合' : '敌人回合'}
-                      </Button>
-                  </div>
              </div>
 
              {/* RIGHT: ENEMY INFO */}
@@ -672,6 +709,34 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
         {/* BOTTOM AREA: HAND & CONTROLS - Updated Padding and Overflow */}
         <div className="h-[45vh] bg-slate-950 border-t border-slate-700 flex flex-col relative pt-4">
+             {/* Controls Container - Absolute Top Right of Bottom Section */}
+             <div className="absolute top-6 right-8 z-40 flex flex-col items-end gap-3 w-72 pointer-events-auto">
+                 {/* Deck Info */}
+                 <div className="text-xs text-slate-500 font-bold bg-slate-900/80 px-2 py-1 rounded border border-slate-700">
+                     牌库: {deck.length} | 弃牌: {discardPile.length}
+                 </div>
+
+                 {/* Combat Log */}
+                 <div className="w-full h-32 bg-slate-900/80 backdrop-blur rounded-lg border border-slate-600 p-2 overflow-hidden flex flex-col justify-end shadow-xl">
+                    {combatLog.map((log, i) => (
+                        <div key={i} className={`text-sm py-0.5 px-2 text-left ${i === combatLog.length - 1 ? 'text-white font-bold text-base' : 'text-slate-400'}`}>
+                            {log}
+                        </div>
+                    ))}
+                 </div>
+
+                 {/* Turn Button */}
+                 <Button 
+                    variant={turn === 'PLAYER' ? 'primary' : 'secondary'}
+                    size="lg"
+                    disabled={turn !== 'PLAYER' || !!playerActiveCard}
+                    onClick={handleEndTurn}
+                    className={`w-full py-4 text-xl font-bold shadow-2xl transition-all ${turn === 'PLAYER' ? 'scale-105 border-emerald-400 ring-2 ring-emerald-500/50' : 'opacity-50 grayscale'}`}
+                 >
+                    {turn === 'PLAYER' ? '结束回合' : '敌人回合'}
+                 </Button>
+            </div>
+
              {/* Hand Cards */}
              <div className="flex-1 flex justify-center items-end gap-3 overflow-x-auto overflow-y-visible pb-8 pt-32 px-4">
                  {hand.map((card, idx) => (
@@ -697,10 +762,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                      </div>
                  ))}
                  {hand.length === 0 && <div className="text-slate-500 mb-20 text-xl font-bold">手牌为空</div>}
-             </div>
-             
-             <div className="absolute bottom-4 right-4 text-xs text-slate-500 font-bold bg-slate-900/80 px-2 py-1 rounded">
-                 牌库: {deck.length} | 弃牌: {discardPile.length}
              </div>
         </div>
     </div>
