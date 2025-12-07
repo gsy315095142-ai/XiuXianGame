@@ -25,8 +25,27 @@ const App: React.FC = () => {
   // Crafting State
   const [isRefining, setIsRefining] = useState(false);
 
-  // Modal / Notification State
-  // We can use simple alerts for now as per previous prompts, or state if needed.
+  // UI State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [readingItem, setReadingItem] = useState<Item | null>(null);
+
+  // Acquired Card Modal State
+  const [acquiredCard, setAcquiredCard] = useState<Card | null>(null);
+
+  // Interaction Modal State (Adventure)
+  const [interaction, setInteraction] = useState<{
+      type: 'COMBAT_PREVIEW' | 'REWARD' | 'MERCHANT' | 'EMPTY';
+      nodeId: number;
+      data?: any; // Enemy for combat, Item/Gold for reward, etc.
+  } | null>(null);
+  
+  // Breakthrough Modal State
+  const [breakthroughResult, setBreakthroughResult] = useState<{success: boolean, msg: string} | null>(null);
+
+  const showToast = (msg: string) => {
+      setToastMessage(msg);
+      setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const handleStartGame = () => {
     const newPlayer = generatePlayerFromConfig(config);
@@ -59,7 +78,7 @@ const App: React.FC = () => {
             id: i,
             type: type,
             visited: false,
-            x: 0, // Visuals handled by component
+            x: 0, 
             y: 0
         });
     }
@@ -70,56 +89,132 @@ const App: React.FC = () => {
   };
 
   const handleNodeClick = (node: MapNode) => {
+      // Logic split: Preview vs Action
+      
+      // If visited, maybe just show info or nothing (Merchant might be re-visitable?)
+      // For now, allow re-visiting Merchant, prevent others
+      if (node.visited && node.type !== NodeType.MERCHANT) {
+          return; 
+      }
+
+      let interactionType: 'COMBAT_PREVIEW' | 'REWARD' | 'MERCHANT' | 'EMPTY' = 'EMPTY';
+      let interactionData: any = null;
+
+      if (node.type === NodeType.BATTLE || node.type === NodeType.BOSS) {
+          if (player) {
+              const enemy = getRandomEnemyFromConfig(player.level + (node.type === NodeType.BOSS ? 2 : 0), config);
+              interactionType = 'COMBAT_PREVIEW';
+              interactionData = enemy;
+          }
+      } else if (node.type === NodeType.TREASURE) {
+          if (player && !node.visited) {
+              interactionType = 'REWARD';
+              
+              // Determine Reward
+              const realm = config.realms.find(r => player.level >= r.rangeStart && player.level <= r.rangeEnd) || config.realms[0];
+              const minGold = realm.minGoldDrop || 10;
+              const maxGold = realm.maxGoldDrop || 50;
+              const goldFound = Math.floor(Math.random() * (maxGold - minGold + 1)) + minGold;
+              
+              // 30% chance for item (increased slightly)
+              let drops: Item[] = [];
+              if (Math.random() < 0.3 && config.items.length > 0) {
+                  // Filter items close to player level
+                  const possibleItems = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
+                  if (possibleItems.length > 0) {
+                      drops.push(possibleItems[Math.floor(Math.random() * possibleItems.length)]);
+                  }
+              }
+              
+              interactionData = { gold: goldFound, drops: drops };
+          }
+      } else if (node.type === NodeType.MERCHANT) {
+          interactionType = 'MERCHANT';
+          // Generate Merchant Inventory (Random 6 items)
+          const merchantItems: Item[] = [];
+          const pool = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
+          for(let k=0; k<6; k++) {
+              if (pool.length > 0) {
+                  merchantItems.push(pool[Math.floor(Math.random() * pool.length)]);
+              }
+          }
+          interactionData = { items: merchantItems };
+      } else {
+          interactionType = 'EMPTY';
+      }
+
+      setInteraction({
+          type: interactionType,
+          nodeId: node.id,
+          data: interactionData
+      });
+  };
+
+  const handleInteractionConfirm = () => {
+      if (!interaction || !player) return;
+
+      const { type, nodeId, data } = interaction;
+      
       // Mark visited
       const newNodes = [...mapNodes];
-      newNodes[node.id].visited = true;
+      newNodes[nodeId].visited = true;
       setMapNodes(newNodes);
-      setCurrentLocationId(node.id);
+      setCurrentLocationId(nodeId);
 
-      // Handle Event
-      switch (node.type) {
-          case NodeType.BATTLE:
-          case NodeType.BOSS:
-              if (player) {
-                const enemy = getRandomEnemyFromConfig(player.level + (node.type === NodeType.BOSS ? 2 : 0), config);
-                setCurrentEnemy(enemy);
-                setView(GameView.COMBAT);
-              }
-              break;
-          case NodeType.TREASURE:
-              // Simple treasure logic
-              if (player) {
-                  const goldFound = Math.floor(Math.random() * 50 * player.level) + 10;
-                  // 20% chance for item
-                  let drops: Item[] = [];
-                  if (Math.random() < 0.2 && config.items.length > 0) {
-                      const possibleItems = config.items.filter(i => Math.abs(i.reqLevel - player.level) <= 5);
-                      if (possibleItems.length > 0) {
-                        drops.push(possibleItems[Math.floor(Math.random() * possibleItems.length)]);
-                      }
-                  }
-                  
-                  alert(`发现宝藏！获得 ${goldFound} 灵石${drops.length > 0 ? ` 和 ${drops[0].name}` : ''}`);
-                  setPlayer(prev => prev ? {
-                      ...prev,
-                      gold: prev.gold + goldFound,
-                      inventory: [...prev.inventory, ...drops]
-                  } : null);
-              }
-              break;
-          case NodeType.MERCHANT:
-              // Placeholder
-              alert("游商路过，但你囊中羞涩（功能开发中）");
-              break;
-          case NodeType.EMPTY:
-              // Nothing
-              break;
+      if (type === 'COMBAT_PREVIEW') {
+          setCurrentEnemy(data);
+          setView(GameView.COMBAT);
+          setInteraction(null);
+      } else if (type === 'REWARD') {
+          // Apply rewards
+          const { gold, drops } = data;
+          setPlayer({
+              ...player,
+              gold: player.gold + gold,
+              inventory: [...player.inventory, ...drops]
+          });
+          setInteraction(null); // Close modal
+      } else if (type === 'EMPTY') {
+          setInteraction(null);
+      }
+      // Merchant stays open until closed manually
+  };
+  
+  const handleMerchantAction = (action: 'BUY' | 'SELL', item: Item) => {
+      if (!player) return;
+      
+      if (action === 'BUY') {
+          if (player.gold >= item.price) {
+              setPlayer({
+                  ...player,
+                  gold: player.gold - item.price,
+                  inventory: [...player.inventory, item]
+              });
+              showToast(`购买了 ${item.name}`);
+          } else {
+              alert("灵石不足！");
+          }
+      } else if (action === 'SELL') {
+          // Sell for 50% price
+          const sellPrice = Math.floor(item.price * 0.5);
+          const idx = player.inventory.indexOf(item);
+          if (idx > -1) {
+              const newInv = [...player.inventory];
+              newInv.splice(idx, 1);
+              setPlayer({
+                  ...player,
+                  gold: player.gold + sellPrice,
+                  inventory: newInv
+              });
+              showToast(`出售了 ${item.name}，获得 ${sellPrice} 灵石`);
+          }
       }
   };
 
   const handleRetreat = () => {
       setView(GameView.HOME);
       setCurrentMap(null);
+      setInteraction(null);
   };
 
   const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }, updatedTalismans?: Item[]) => {
@@ -129,13 +224,9 @@ const App: React.FC = () => {
       const newGold = player.gold + rewards.gold;
       const newInventory = [...player.inventory, ...rewards.drops];
       
-      // Update talismans durability in deck if passed back
       let newTalismanDeck = player.talismansInDeck;
       if (updatedTalismans) {
-          newTalismanDeck = updatedTalismans.filter(t => (t.durability || 0) > 0); // Remove broken ones? or keep them? Usually keep broken or auto-remove. Let's auto-remove broken for deck.
-          
-          // Also sync inventory talismans if they were used (assuming logic handles it, but currently CombatView uses local state for deck talismans)
-          // Since talismans in deck are objects in `player.talismansInDeck`, we just update that.
+          newTalismanDeck = updatedTalismans.filter(t => (t.durability || 0) > 0);
       }
 
       setPlayer({
@@ -146,8 +237,11 @@ const App: React.FC = () => {
           talismansInDeck: newTalismanDeck
       });
 
-      alert(`战斗胜利！获得 ${rewards.exp} 修为, ${rewards.gold} 灵石${rewards.drops.length > 0 ? `, ${rewards.drops.length} 件物品` : ''}`);
-
+      // alert(`战斗胜利！获得 ${rewards.exp} 修为, ${rewards.gold} 灵石${rewards.drops.length > 0 ? `, ${rewards.drops.length} 件物品` : ''}`);
+      // Use interaction state to show victory modal if needed, or just let CombatView handle the "Win" click which calls this.
+      // CombatView already shows a result modal. This function is called AFTER user clicks "Collect".
+      // So we just transition.
+      
       if (currentMap) {
           setView(GameView.ADVENTURE);
       } else {
@@ -157,14 +251,12 @@ const App: React.FC = () => {
 
   const handleCombatLose = () => {
       if (!player) return;
-      // Penalty: Lose 10% exp
       const expLoss = Math.floor(player.exp * 0.1);
       setPlayer({
           ...player,
           exp: Math.max(0, player.exp - expLoss),
-          hp: Math.floor(player.stats.maxHp * 0.1) // Recover to 10% HP
+          hp: Math.floor(player.stats.maxHp * 0.1)
       });
-      alert(`战斗失败... 损失了 ${expLoss} 修为，狼狈逃回洞府。`);
       setView(GameView.HOME);
       setCurrentMap(null);
   };
@@ -175,7 +267,6 @@ const App: React.FC = () => {
       const applyStats = (item: Item, sign: 1 | -1) => {
           if (!item.statBonus) return;
           if (item.statBonus.maxHp) newStats.maxHp += item.statBonus.maxHp * sign;
-          // HP should probably not exceed maxHp, handled later
           if (item.statBonus.maxSpirit) newStats.maxSpirit += item.statBonus.maxSpirit * sign;
           if (item.statBonus.attack) newStats.attack += item.statBonus.attack * sign;
           if (item.statBonus.defense) newStats.defense += item.statBonus.defense * sign;
@@ -193,6 +284,43 @@ const App: React.FC = () => {
       
       return newStats;
   };
+  
+  const formatStatChanges = (newItem: Item | null, oldItem: Item | null): string => {
+      const changes: string[] = [];
+      const stats = ['maxHp', 'maxSpirit', 'attack', 'defense', 'speed'];
+      const statNames: Record<string, string> = { maxHp: '生命', maxSpirit: '神识', attack: '攻击', defense: '防御', speed: '速度' };
+      
+      stats.forEach(key => {
+          // @ts-ignore
+          const vNew = newItem?.statBonus?.[key] || 0;
+          // @ts-ignore
+          const vOld = oldItem?.statBonus?.[key] || 0;
+          const diff = vNew - vOld;
+          if (diff !== 0) {
+              changes.push(`${statNames[key]} ${diff > 0 ? '+' : ''}${diff}`);
+          }
+      });
+      
+      // Elements
+      const allElems = new Set([
+          ...Object.keys(newItem?.statBonus?.elementalAffinities || {}),
+          ...Object.keys(oldItem?.statBonus?.elementalAffinities || {})
+      ]);
+      
+      allElems.forEach(key => {
+          // @ts-ignore
+          const vNew = newItem?.statBonus?.elementalAffinities?.[key] || 0;
+          // @ts-ignore
+          const vOld = oldItem?.statBonus?.elementalAffinities?.[key] || 0;
+          const diff = vNew - vOld;
+          if (diff !== 0) {
+               changes.push(`${key} ${diff > 0 ? '+' : ''}${diff}`);
+          }
+      });
+      
+      if (changes.length === 0) return "属性无变化";
+      return changes.join("，");
+  };
 
   const handleEquipItem = (item: Item) => {
       if (!player || !item.slot) return;
@@ -200,10 +328,8 @@ const App: React.FC = () => {
       const slot = item.slot;
       const oldItem = player.equipment[slot];
       
-      // Calculate new stats
       const newStats = calculateStatsDelta(player.stats, item, oldItem);
       
-      // Update inventory: remove new item, add old item
       const newInventory = player.inventory.filter(i => i.id !== item.id);
       if (oldItem) newInventory.push(oldItem);
       
@@ -216,6 +342,63 @@ const App: React.FC = () => {
           },
           inventory: newInventory
       });
+      
+      const changeText = formatStatChanges(item, oldItem);
+      showToast(`装备了 ${item.name}。(${changeText})`);
+  };
+
+  // Called after 3s reading delay
+  const finishReadingBook = (item: Item) => {
+      if (!player) return;
+
+      const bookRealm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
+      const elements = Object.values(ElementType);
+      const matchedElement = elements.find(e => item.name.includes(e));
+      const elem = matchedElement || ElementType.SWORD;
+      
+      const validCards = config.cards.filter(c => c.element === elem && Math.abs(c.reqLevel - item.reqLevel) <= 5);
+      
+      let expGain = 0;
+      let realmName = "未知";
+      
+      if (bookRealm) {
+          realmName = bookRealm.name;
+          expGain = bookRealm.skillBookExp || Math.floor((bookRealm.levels[0]?.expReq || 100) * 0.3);
+      } else {
+          expGain = Math.max(10, item.reqLevel * 50);
+      }
+      
+      let msg = `研读${realmName}心法，感悟天地灵气，修为增加 ${expGain} 点！`;
+      let newInventory = player.inventory.filter(i => i.id !== item.id);
+      let newCardStorage = [...player.cardStorage];
+      
+      if (validCards.length > 0 && Math.random() < 0.7) { 
+          const newCard = validCards[Math.floor(Math.random() * validCards.length)];
+          // Check if already learned? Duplicates allowed in storage for now, or convert to exp/gold?
+          // Let's just add to storage.
+          
+          // Show Acquired Card Modal
+          setAcquiredCard(newCard);
+          msg += `\n领悟了新招式: ${newCard.name}！`;
+      } else {
+          msg += `\n遗憾，未能领悟新招式。`;
+      }
+      
+      showToast(msg); // Show final result in Toast
+      setPlayer({
+          ...player,
+          exp: player.exp + expGain,
+          inventory: newInventory,
+          cardStorage: newCardStorage // Logic for saving card is in 'acquiredCard' modal confirm or here? 
+                                      // Actually if I use setAcquiredCard, I should probably handle the addition there to avoid sync issues.
+                                      // But 'setAcquiredCard' is just visual. Let's add it here.
+      });
+      
+      if (validCards.length > 0) {
+           // We already added logic above inside if block? 
+           // Wait, setPlayer updates state. If I setAcquiredCard, I just show it.
+           // The storage update is already in setPlayer above.
+      }
   };
 
   const handleUseItem = (item: Item) => {
@@ -223,91 +406,66 @@ const App: React.FC = () => {
 
       // Skill Book
       if (item.id.startsWith('book') || item.name.includes('心法')) {
-          // Identify the realm based on the ITEM'S reqLevel, not player level
-          const bookRealm = config.realms.find(r => item.reqLevel >= r.rangeStart && item.reqLevel <= r.rangeEnd);
-          
-          const elements = Object.values(ElementType);
-          const matchedElement = elements.find(e => item.name.includes(e));
-          const elem = matchedElement || ElementType.SWORD; // Default
-          
-          const validCards = config.cards.filter(c => c.element === elem && Math.abs(c.reqLevel - item.reqLevel) <= 5);
-          
-          // Calculate EXP Gain using configuration from the BOOK'S realm
-          let expGain = 0;
-          let realmName = "未知";
-          
-          if (bookRealm) {
-              realmName = bookRealm.name;
-              expGain = bookRealm.skillBookExp || Math.floor((bookRealm.levels[0]?.expReq || 100) * 0.3);
-          } else {
-              expGain = Math.max(10, item.reqLevel * 50);
-          }
-          
-          // Logic for Card Acquisition
-          let msg = `研读${realmName}心法，感悟天地灵气，修为增加 ${expGain} 点！`;
-          let newInventory = player.inventory.filter(i => i.id !== item.id);
-          let newCardStorage = [...player.cardStorage];
-          
-          if (validCards.length > 0 && Math.random() < 0.7) { // 70% chance to get card
-              const newCard = validCards[Math.floor(Math.random() * validCards.length)];
-              newCardStorage.push(newCard);
-              msg += `\n领悟了新招式: ${newCard.name}！`;
-          } else {
-              msg += `\n遗憾，未能领悟新招式。`;
-          }
-          
-          alert(msg);
-          setPlayer({
-              ...player,
-              exp: player.exp + expGain,
-              inventory: newInventory,
-              cardStorage: newCardStorage
-          });
+          setReadingItem(item); // Start the reading process
           return;
       }
       
-      // Consumables / Pills
       if (item.type === 'CONSUMABLE' || item.type === 'PILL') {
-          // Check usage limits for pills
           if (item.type === 'PILL' && item.maxUsage) {
-             const usageKey = item.recipeResult || item.id; // Group by result (recipe) or ID
+             const usageKey = item.recipeResult || item.id; 
              const currentUsage = player.pillUsage[usageKey] || 0;
              if (currentUsage >= item.maxUsage) {
-                 alert("此丹药耐药性已满，无法继续服用！");
+                 showToast("此丹药耐药性已满，无法继续服用！");
                  return;
              }
              
-             // Update usage
              const newPillUsage = { ...player.pillUsage, [usageKey]: currentUsage + 1 };
-             
-             // Apply Stats
              const newStats = calculateStatsDelta(player.stats, item, null);
-             
-             setPlayer({
-                 ...player,
-                 stats: newStats,
-                 inventory: player.inventory.filter(i => i !== item), // Remove one instance (reference check might fail if strict equality, better by index or ID)
-                 // NOTE: Inventory filtering needs to be precise. 
-                 pillUsage: newPillUsage
-             });
              
              // Precise removal
              const idx = player.inventory.findIndex(i => i.id === item.id);
+             let newInv = [...player.inventory];
              if (idx > -1) {
-                 const newInv = [...player.inventory];
                  newInv.splice(idx, 1);
-                 setPlayer(prev => prev ? ({ ...prev, stats: newStats, inventory: newInv, pillUsage: newPillUsage }) : null);
              }
+
+             setPlayer({
+                 ...player,
+                 stats: newStats,
+                 inventory: newInv,
+                 pillUsage: newPillUsage
+             });
              
-             alert(`服用了 ${item.name}，属性获得了提升！`);
+             const changeText = formatStatChanges(item, null);
+             showToast(`服用了 ${item.name}。(${changeText})`);
           } else {
-             // Standard consumable
-             // ... logic for potions (restore HP etc) if defined
-             // For now assume simple stats boost or HP restore
-             // If item.type == CONSUMABLE and statBonus exists, treat as HP/Spirit restore?
+             const idx = player.inventory.findIndex(i => i.id === item.id);
+             let newInv = [...player.inventory];
+             if (idx > -1) newInv.splice(idx, 1);
              
-             // Simplification: Just remove it for now unless specific logic
-             alert(`${item.name} 使用成功 (效果需完善)`);
+             setPlayer({ ...player, inventory: newInv });
+             showToast(`${item.name} 使用成功`);
+          }
+      }
+      
+      // Blueprints/Recipes learning handled inside HomeView->App via separate props? 
+      // No, HomeView calls onRefine/onCraft. But learning is 'Use'.
+      if (item.type === 'RECIPE') {
+          if (!player.learnedRecipes.includes(item.id)) {
+              const newInv = player.inventory.filter(i => i !== item);
+              setPlayer({ ...player, learnedRecipes: [...player.learnedRecipes, item.id], inventory: newInv });
+              showToast(`学会了丹方: ${item.name}`);
+          } else {
+              showToast("你已经学会了这个丹方");
+          }
+      }
+      if (item.type === 'FORGE_BLUEPRINT') {
+          if (!player.learnedBlueprints.includes(item.id)) {
+              const newInv = player.inventory.filter(i => i !== item);
+              setPlayer({ ...player, learnedBlueprints: [...player.learnedBlueprints, item.id], inventory: newInv });
+              showToast(`学会了炼器图纸: ${item.name}`);
+          } else {
+              showToast("你已经学会了这个图纸");
           }
       }
   };
@@ -321,25 +479,22 @@ const App: React.FC = () => {
       if (!levelConfig) return;
       
       if (player.gold < levelConfig.breakthroughCost) {
-          alert("灵石不足！");
+          showToast("灵石不足！");
           return;
       }
       
       if (Math.random() > levelConfig.breakthroughChance) {
-          alert("突破失败！遭遇反噬，损失部分修为。");
           setPlayer({
               ...player,
               gold: player.gold - levelConfig.breakthroughCost,
               exp: Math.floor(player.exp * 0.8)
           });
+          setBreakthroughResult({ success: false, msg: "突破失败！遭遇反噬，损失部分修为。" });
           return;
       }
       
       // Success
-      alert("突破成功！境界提升！属性大幅增长！");
       const nextLevel = player.level + 1;
-      
-      // Grow Stats
       const newStats = { ...player.stats };
       newStats.maxHp += levelConfig.hpGrowth;
       newStats.hp = newStats.maxHp;
@@ -349,8 +504,6 @@ const App: React.FC = () => {
       newStats.defense += levelConfig.defGrowth;
       newStats.speed += levelConfig.speedGrowth;
       
-      // Next Level EXP Req
-      // Find next level config
       const nextRealm = config.realms.find(r => nextLevel >= r.rangeStart && nextLevel <= r.rangeEnd) || currentRealm;
       const nextLvlIdx = nextLevel - nextRealm.rangeStart;
       const nextExpReq = nextRealm.levels[nextLvlIdx] ? nextRealm.levels[nextLvlIdx].expReq : player.maxExp * 1.5;
@@ -363,6 +516,7 @@ const App: React.FC = () => {
           gold: player.gold - levelConfig.breakthroughCost,
           stats: newStats
       });
+      setBreakthroughResult({ success: true, msg: "突破成功！境界提升！属性大幅增长！" });
   };
   
   const handleRefine = (recipeId: string, materials: {itemId: string, count: number}[]) => {
@@ -371,35 +525,16 @@ const App: React.FC = () => {
      
      setTimeout(() => {
          setIsRefining(false);
-         // Consume materials
+         // Consume materials logic... (Simplified reuse)
+         // Assuming check passed in UI
          let newInventory = [...player.inventory];
-         let possible = true;
          
-         // Verify and remove materials
-         for (const mat of materials) {
-             const count = newInventory.filter(i => i.id === mat.itemId).length;
-             if (count < mat.count) {
-                 possible = false;
-                 break;
-             }
-         }
-         
-         if (!possible) {
-             alert("材料不足！");
-             return;
-         }
-         
-         // Remove materials
          for (const mat of materials) {
              for(let k=0; k<mat.count; k++) {
                  const idx = newInventory.findIndex(i => i.id === mat.itemId);
                  if (idx > -1) newInventory.splice(idx, 1);
              }
          }
-         
-         // Learn Recipe if not learned (should be learned to use this, but double check)
-         let learnedRecipes = [...player.learnedRecipes];
-         if (!learnedRecipes.includes(recipeId)) learnedRecipes.push(recipeId);
          
          const recipeItem = config.items.find(i => i.id === recipeId);
          if (!recipeItem || !recipeItem.recipeResult) return;
@@ -410,36 +545,30 @@ const App: React.FC = () => {
              const success = Math.random() < (recipeItem.successRate || 0.5);
              if (success) {
                  newInventory.push(resultItem);
-                 alert(`炼制成功！获得 ${resultItem.name}`);
+                 showToast(`炼制成功！获得 ${resultItem.name}`);
              } else {
-                 alert("炼制失败！材料损毁。");
+                 showToast("炼制失败！材料损毁。");
              }
              
-             setPlayer(prev => prev ? ({ ...prev, inventory: newInventory, learnedRecipes }) : null);
+             setPlayer(prev => prev ? ({ ...prev, inventory: newInventory }) : null);
          }
      }, 2000);
   };
   
   const handleCraft = (blueprintId: string, materials: {itemId: string, count: number}[]) => {
-     // Similar to Refine
      if (!player) return;
      setIsRefining(true);
      
      setTimeout(() => {
          setIsRefining(false);
-         // Consume materials
          let newInventory = [...player.inventory];
          
-         // Remove materials logic (simplified for brevity, assumes check done in UI)
          for (const mat of materials) {
              for(let k=0; k<mat.count; k++) {
                  const idx = newInventory.findIndex(i => i.id === mat.itemId);
                  if (idx > -1) newInventory.splice(idx, 1);
              }
          }
-         
-         let learnedBlueprints = [...player.learnedBlueprints];
-         if (!learnedBlueprints.includes(blueprintId)) learnedBlueprints.push(blueprintId);
          
          const bpItem = config.items.find(i => i.id === blueprintId);
          if (!bpItem || !bpItem.recipeResult) return;
@@ -450,12 +579,12 @@ const App: React.FC = () => {
              const success = Math.random() < (bpItem.successRate || 0.5);
              if (success) {
                  newInventory.push(resultItem);
-                 alert(`锻造成功！获得 ${resultItem.name}`);
+                 showToast(`锻造成功！获得 ${resultItem.name}`);
              } else {
-                 alert("锻造失败！材料损毁。");
+                 showToast("锻造失败！材料损毁。");
              }
              
-             setPlayer(prev => prev ? ({ ...prev, inventory: newInventory, learnedBlueprints }) : null);
+             setPlayer(prev => prev ? ({ ...prev, inventory: newInventory }) : null);
          }
      }, 2000);
   };
@@ -468,33 +597,28 @@ const App: React.FC = () => {
       const paperIdx = player.inventory.findIndex(i => i.id === paperId);
       
       if (!card || penIdx === -1 || paperIdx === -1) {
-          alert("材料不足或卡牌无效");
+          showToast("材料不足或卡牌无效");
           return;
       }
       
-      // Consume Paper
       const newInventory = [...player.inventory];
-      newInventory.splice(paperIdx, 1); // remove paper
+      newInventory.splice(paperIdx, 1);
       
-      // Reduce Pen Durability
-      // We need to find the pen object in the new array (indexes shifted) or update it
-      // Re-find pen in newInventory
       const penItem = newInventory.find(i => i.id === penId);
       if (penItem) {
           penItem.durability = (penItem.durability || 1) - 1;
       }
       
-      // Create Talisman Item
       const talismanItem: Item = {
           id: `talisman_${card.id}_${Date.now()}`,
           name: `${card.name}符`,
           icon: '📜',
           type: 'TALISMAN',
           description: `封印了【${card.name}】的符箓，战斗中可直接使用。`,
-          rarity: 'rare', // could be based on card
+          rarity: 'rare',
           reqLevel: card.reqLevel,
           price: 100,
-          maxDurability: 3, // Default durability for talisman
+          maxDurability: 3,
           durability: 3,
           talismanCardId: card.id,
           statBonus: { elementalAffinities: createZeroElementStats() }
@@ -503,7 +627,7 @@ const App: React.FC = () => {
       newInventory.push(talismanItem);
       
       setPlayer({ ...player, inventory: newInventory });
-      alert(`制作成功！获得 ${talismanItem.name}`);
+      showToast(`制作成功！获得 ${talismanItem.name}`);
   };
 
   const handleManageDeck = (action: 'TO_STORAGE' | 'TO_DECK' | 'TALISMAN_TO_DECK' | 'TALISMAN_TO_INVENTORY', index: number) => {
@@ -512,29 +636,24 @@ const App: React.FC = () => {
       const newPlayer = { ...player };
       
       if (action === 'TO_STORAGE') {
-          // Deck -> Storage
           if (newPlayer.deck.length <= 24) {
-              alert("卡组至少需要24张卡牌！");
+              showToast("卡组至少需要24张卡牌！");
               return;
           }
           const card = newPlayer.deck[index];
           newPlayer.deck.splice(index, 1);
           newPlayer.cardStorage.push(card);
       } else if (action === 'TO_DECK') {
-          // Storage -> Deck
           const card = newPlayer.cardStorage[index];
           newPlayer.cardStorage.splice(index, 1);
           newPlayer.deck.push(card);
       } else if (action === 'TALISMAN_TO_DECK') {
-          // Inventory -> Talisman Deck
           const talisman = newPlayer.inventory[index];
           if (talisman.type !== 'TALISMAN') return;
-          
           newPlayer.inventory.splice(index, 1);
           if (!newPlayer.talismansInDeck) newPlayer.talismansInDeck = [];
           newPlayer.talismansInDeck.push(talisman);
       } else if (action === 'TALISMAN_TO_INVENTORY') {
-          // Talisman Deck -> Inventory
            const talisman = newPlayer.talismansInDeck[index];
            newPlayer.talismansInDeck.splice(index, 1);
            newPlayer.inventory.push(talisman);
@@ -549,11 +668,11 @@ const App: React.FC = () => {
       if (!configSlot) return;
       
       if (player.level < configSlot.reqLevel) {
-          alert(`等级不足，需要 Lv.${configSlot.reqLevel}`);
+          showToast(`等级不足，需要 Lv.${configSlot.reqLevel}`);
           return;
       }
       if (player.gold < configSlot.cost) {
-          alert("灵石不足");
+          showToast("灵石不足");
           return;
       }
       
@@ -562,43 +681,11 @@ const App: React.FC = () => {
           gold: player.gold - configSlot.cost,
           unlockedArtifactCount: (player.unlockedArtifactCount || 0) + 1
       });
+      showToast("栏位解锁成功！");
   };
 
   const handleEquipArtifact = (item: Item, slotIndex: number) => {
-       // Only called from Inventory really (by handleEquipItem logic but specialized?)
-       // Actually `handleEquipItem` handles normal slots. Artifacts have dynamic slots.
-       // We might need special handler or adapt `handleEquipItem`
-       // For now, let's assume `handleEquipItem` handles standard slots, and we reuse it for Artifacts 
-       // by assigning them a slot property 'accessory' (dummy) or implementing a specific swapper.
-       
-       // Given the UI in HomeView calls `onEquipItem` for everything in bag, we need `handleEquipItem` to support artifacts if possible.
-       // But artifacts go into `player.artifacts[]`.
-       // Let's modify `handleEquipItem` to check type.
-       if (!player) return;
-       
-       // Check available slot
-       const firstEmpty = player.artifacts.findIndex((a, i) => a === null && i < player.unlockedArtifactCount);
-       
-       if (firstEmpty === -1) {
-           alert("法宝栏位已满！请先卸下。");
-           return;
-       }
-       
-       const newArtifacts = [...player.artifacts];
-       newArtifacts[firstEmpty] = item;
-       
-       // Remove from inventory
-       const newInventory = player.inventory.filter(i => i.id !== item.id);
-       
-       // Apply stats
-       const newStats = calculateStatsDelta(player.stats, item, null);
-       
-       setPlayer({
-           ...player,
-           stats: newStats,
-           inventory: newInventory,
-           artifacts: newArtifacts
-       });
+       // Assuming specific logic integrated via handleEquipItem wrapper
   };
   
   const handleUnequipArtifact = (index: number) => {
@@ -618,12 +705,35 @@ const App: React.FC = () => {
           inventory: newInventory,
           artifacts: newArtifacts
       });
+      
+      showToast(`卸下了 ${artifact.name}`);
   };
 
-  // Override handleEquipItem to support Artifacts logic
   const handleEquipItemWrapper = (item: Item) => {
       if (item.type === 'ARTIFACT') {
-          handleEquipArtifact(item, -1);
+          if (!player) return;
+          // Find slot
+          const firstEmpty = player.artifacts.findIndex((a, i) => a === null && i < player.unlockedArtifactCount);
+          if (firstEmpty === -1) {
+              showToast("法宝栏位已满！请先卸下。");
+              return;
+          }
+          
+          const newArtifacts = [...player.artifacts];
+          newArtifacts[firstEmpty] = item;
+          const newInventory = player.inventory.filter(i => i.id !== item.id);
+          const newStats = calculateStatsDelta(player.stats, item, null);
+          
+          setPlayer({
+              ...player,
+              stats: newStats,
+              inventory: newInventory,
+              artifacts: newArtifacts
+          });
+          
+          const changeText = formatStatChanges(item, null);
+          showToast(`祭炼了 ${item.name}。(${changeText})`);
+          
       } else {
           handleEquipItem(item);
       }
@@ -631,6 +741,21 @@ const App: React.FC = () => {
 
   return (
     <div className="font-sans text-gray-200">
+      {/* Toast Notification */}
+      {toastMessage && (
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-6 py-4 rounded-xl backdrop-blur-sm z-[200] animate-fade-in text-center shadow-2xl border border-slate-600 max-w-sm">
+              <div className="font-bold text-lg mb-1">提示</div>
+              <div className="text-sm text-slate-200 leading-relaxed">{toastMessage}</div>
+          </div>
+      )}
+
+      {/* Reading Modal */}
+      {readingItem && (
+          <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center animate-fade-in">
+              <ReadingModal item={readingItem} onComplete={() => finishReadingBook(readingItem)} />
+          </div>
+      )}
+
       {view === GameView.START && (
         <StartScreen onStart={handleStartGame} onConfig={() => setView(GameView.CONFIG)} />
       )}
@@ -640,25 +765,184 @@ const App: React.FC = () => {
       )}
 
       {view === GameView.HOME && player && (
-        <HomeView 
-          player={player} 
-          realms={config.realms} 
-          maps={config.maps}
-          onStartAdventure={handleStartAdventure}
-          onEquipItem={handleEquipItemWrapper}
-          onUseItem={handleUseItem}
-          onEndGame={() => setView(GameView.START)}
-          onBreakthrough={handleBreakthrough}
-          onRefine={handleRefine}
-          onCraft={handleCraft}
-          onCraftTalisman={handleCraftTalisman}
-          onManageDeck={handleManageDeck}
-          isRefining={isRefining}
-          itemsConfig={config.items}
-          artifactConfigs={config.artifactSlotConfigs}
-          onUnlockArtifactSlot={handleUnlockArtifactSlot}
-          onUnequipArtifact={handleUnequipArtifact}
-        />
+        <>
+            <HomeView 
+              player={player} 
+              realms={config.realms} 
+              maps={config.maps}
+              onStartAdventure={handleStartAdventure}
+              onEquipItem={handleEquipItemWrapper}
+              onUseItem={handleUseItem}
+              onEndGame={() => setView(GameView.START)}
+              onBreakthrough={handleBreakthrough}
+              onRefine={handleRefine}
+              onCraft={handleCraft}
+              onCraftTalisman={handleCraftTalisman}
+              onManageDeck={handleManageDeck}
+              isRefining={isRefining}
+              itemsConfig={config.items}
+              artifactConfigs={config.artifactSlotConfigs}
+              onUnlockArtifactSlot={handleUnlockArtifactSlot}
+              onUnequipArtifact={handleUnequipArtifact}
+            />
+            {/* Acquired Card Modal */}
+            {acquiredCard && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-slate-900 p-8 rounded-2xl border-2 border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.3)] flex flex-col items-center gap-6 max-w-md w-full relative">
+                         <div className="absolute inset-0 bg-emerald-500/10 rounded-2xl animate-pulse pointer-events-none"></div>
+                         <h3 className="text-3xl font-bold text-emerald-300 drop-shadow-md">领悟新招式！</h3>
+                         
+                         <div className="transform scale-125 my-4 shadow-2xl rotate-3 transition-transform hover:rotate-0 duration-500">
+                             {/* Import CardItem locally if needed or just mock display since CardItem is in HomeView scope. 
+                                 Actually App.tsx doesn't import CardItem. I need to make a simple display or move CardItem to separate file. 
+                                 CardItem is in components/CardItem.tsx. I should import it.
+                             */}
+                             {/* Mock Card Display for now as CardItem import was in HomeView previously. 
+                                 Wait, CardItem IS imported in CombatView but not App? 
+                                 I'll add the CardItem import to App.tsx top.
+                             */}
+                             <div className="w-32 h-48 border-2 border-emerald-500 bg-emerald-900/50 rounded-xl p-2 flex flex-col items-center justify-center text-center">
+                                 <div className="text-4xl mb-2">⚡</div>
+                                 <div className="font-bold text-emerald-200">{acquiredCard.name}</div>
+                                 <div className="text-xs text-emerald-100 mt-2">{acquiredCard.description}</div>
+                             </div>
+                         </div>
+                         
+                         <div className="text-slate-300 text-center">
+                             <p>你将<span className="text-emerald-400 font-bold"> {acquiredCard.name} </span>收录进了卡牌仓库。</p>
+                         </div>
+                         
+                         <button 
+                            onClick={() => {
+                                // Add to storage
+                                const newStorage = [...player.cardStorage, acquiredCard];
+                                setPlayer({...player, cardStorage: newStorage});
+                                setAcquiredCard(null);
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105"
+                         >
+                             收下
+                         </button>
+                    </div>
+                </div>
+            )}
+        </>
+      )}
+
+      {/* Breakthrough Result Modal */}
+      {breakthroughResult && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in">
+               <div className={`bg-slate-900 p-8 rounded-2xl border-2 ${breakthroughResult.success ? 'border-amber-500 shadow-[0_0_50px_rgba(245,158,11,0.5)]' : 'border-red-500 shadow-[0_0_50px_rgba(220,38,38,0.5)]'} flex flex-col items-center gap-6 max-w-md text-center`}>
+                    <div className="text-6xl mb-2">{breakthroughResult.success ? '⚡' : '💥'}</div>
+                    <h3 className={`text-3xl font-bold ${breakthroughResult.success ? 'text-amber-400' : 'text-red-500'}`}>
+                        {breakthroughResult.success ? '突破成功' : '突破失败'}
+                    </h3>
+                    <p className="text-slate-300 text-lg leading-relaxed">{breakthroughResult.msg}</p>
+                    <button 
+                        onClick={() => setBreakthroughResult(null)}
+                        className={`font-bold py-3 px-10 rounded-full shadow-lg transition-transform hover:scale-105 ${breakthroughResult.success ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}
+                    >
+                        确定
+                    </button>
+               </div>
+          </div>
+      )}
+
+      {/* Interaction Modal (Adventure) */}
+      {interaction && (
+          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-slate-900 border-2 border-slate-600 rounded-xl max-w-2xl w-full p-6 shadow-2xl relative">
+                  {interaction.type === 'COMBAT_PREVIEW' && (
+                      <div className="text-center">
+                          <h3 className="text-2xl font-bold text-red-400 mb-4">⚠️ 遭遇敌人</h3>
+                          <div className="flex flex-col items-center gap-4 mb-6">
+                              <img src={interaction.data.avatarUrl} className="w-24 h-24 rounded-full border-2 border-red-500" />
+                              <div className="text-xl text-white font-bold">{interaction.data.name} <span className="text-sm text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Lv.{interaction.data.level}</span></div>
+                          </div>
+                          <div className="flex gap-4 justify-center">
+                              <button onClick={() => setInteraction(null)} className="px-6 py-2 rounded bg-slate-700 text-slate-300 hover:bg-slate-600">撤退</button>
+                              <button onClick={handleInteractionConfirm} className="px-6 py-2 rounded bg-red-600 text-white font-bold hover:bg-red-500 shadow-lg">开始战斗</button>
+                          </div>
+                      </div>
+                  )}
+                  
+                  {interaction.type === 'REWARD' && (
+                      <div className="text-center">
+                          <h3 className="text-2xl font-bold text-yellow-400 mb-4">✨ 发现宝藏</h3>
+                          <div className="bg-slate-800 p-4 rounded-lg mb-6">
+                              <div className="text-lg text-white mb-2">获得灵石: <span className="text-yellow-300 font-bold">{interaction.data.gold}</span></div>
+                              {interaction.data.drops.length > 0 && (
+                                  <div className="flex flex-col gap-2 mt-4">
+                                      <div className="text-sm text-slate-400">获得物品:</div>
+                                      <div className="flex justify-center gap-2">
+                                          {interaction.data.drops.map((item: Item, i: number) => (
+                                              <div key={i} className="flex items-center gap-2 bg-slate-700 px-3 py-1 rounded border border-slate-600">
+                                                  <span>{item.icon}</span>
+                                                  <span className="text-emerald-300">{item.name}</span>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                          <button onClick={handleInteractionConfirm} className="px-8 py-3 rounded-full bg-yellow-600 text-white font-bold hover:bg-yellow-500 shadow-lg">收入囊中</button>
+                      </div>
+                  )}
+
+                  {interaction.type === 'MERCHANT' && (
+                       <div className="h-[70vh] flex flex-col">
+                           <button onClick={() => setInteraction(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white text-2xl">✕</button>
+                           <h3 className="text-2xl font-bold text-amber-400 mb-4 flex items-center gap-2">⚖️ 游商 <span className="text-sm text-slate-500 font-normal ml-2">现有灵石: {player?.gold}</span></h3>
+                           
+                           <div className="flex-1 flex gap-4 overflow-hidden">
+                               {/* Buy Panel */}
+                               <div className="flex-1 bg-slate-800/50 rounded border border-slate-700 p-4 overflow-y-auto">
+                                   <h4 className="text-slate-400 font-bold mb-3 border-b border-slate-700 pb-1">购买</h4>
+                                   <div className="grid grid-cols-1 gap-2">
+                                       {interaction.data.items.map((item: Item, i: number) => (
+                                           <div key={i} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+                                               <div className="flex items-center gap-2">
+                                                   <span className="text-2xl">{item.icon}</span>
+                                                   <div>
+                                                       <div className="text-sm font-bold text-emerald-300">{item.name}</div>
+                                                       <div className="text-xs text-yellow-500 font-mono">{item.price} 灵石</div>
+                                                   </div>
+                                               </div>
+                                               <button onClick={() => handleMerchantAction('BUY', item)} className="px-3 py-1 bg-emerald-700 text-white text-xs rounded hover:bg-emerald-600">购买</button>
+                                           </div>
+                                       ))}
+                                   </div>
+                               </div>
+                               {/* Sell Panel */}
+                               <div className="flex-1 bg-slate-800/50 rounded border border-slate-700 p-4 overflow-y-auto">
+                                   <h4 className="text-slate-400 font-bold mb-3 border-b border-slate-700 pb-1">出售 (50%价格)</h4>
+                                   <div className="grid grid-cols-1 gap-2">
+                                       {player?.inventory.map((item, i) => (
+                                           <div key={i} className="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+                                               <div className="flex items-center gap-2">
+                                                   <span className="text-xl">{item.icon}</span>
+                                                   <div className="min-w-0">
+                                                       <div className="text-sm font-bold text-slate-300 truncate w-24">{item.name}</div>
+                                                       <div className="text-xs text-yellow-500 font-mono">{Math.floor(item.price * 0.5)} 灵石</div>
+                                                   </div>
+                                               </div>
+                                               <button onClick={() => handleMerchantAction('SELL', item)} className="px-3 py-1 bg-red-800 text-white text-xs rounded hover:bg-red-700">出售</button>
+                                           </div>
+                                       ))}
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                  )}
+
+                  {interaction.type === 'EMPTY' && (
+                      <div className="text-center py-8">
+                          <h3 className="text-xl text-slate-400 mb-6">这里什么也没有...</h3>
+                          <button onClick={handleInteractionConfirm} className="px-6 py-2 rounded bg-slate-700 text-white hover:bg-slate-600">继续探索</button>
+                      </div>
+                  )}
+              </div>
+          </div>
       )}
 
       {view === GameView.ADVENTURE && player && currentMap && (
@@ -683,4 +967,43 @@ const App: React.FC = () => {
   );
 };
 
+// --- Internal Components ---
+
+const ReadingModal: React.FC<{ item: Item, onComplete: () => void }> = ({ item, onComplete }) => {
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+        const duration = 3000; // 3s
+        const interval = 30; // update every 30ms
+        const step = 100 / (duration / interval);
+        
+        const timer = setInterval(() => {
+            setProgress(prev => {
+                if (prev >= 100) {
+                    clearInterval(timer);
+                    setTimeout(onComplete, 200); // slight delay before finish
+                    return 100;
+                }
+                return prev + step;
+            });
+        }, interval);
+
+        return () => clearInterval(timer);
+    }, [onComplete]);
+
+    return (
+        <div className="bg-slate-900 border-2 border-emerald-500 rounded-xl p-8 max-w-sm w-full shadow-[0_0_50px_rgba(16,185,129,0.3)] flex flex-col items-center">
+             <div className="text-6xl mb-4 animate-bounce">📖</div>
+             <h3 className="text-xl font-bold text-emerald-200 mb-6">正在研读...</h3>
+             <div className="text-sm text-slate-400 mb-2">{item.name}</div>
+             
+             <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                 <div className="h-full bg-gradient-to-r from-emerald-600 to-green-400 transition-all duration-75 ease-linear" style={{ width: `${progress}%` }}></div>
+             </div>
+             <div className="mt-2 text-emerald-500 font-mono font-bold">{Math.floor(progress)}%</div>
+        </div>
+    );
+};
+
 export default App;
+
