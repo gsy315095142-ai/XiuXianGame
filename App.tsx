@@ -1,7 +1,6 @@
 
-
 import React, { useState } from 'react';
-import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
+import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap, Stats } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
 import { HomeView } from './components/HomeView';
 import { AdventureView } from './components/AdventureView';
@@ -435,64 +434,6 @@ export default function App() {
       }
   };
 
-  const handleEquip = (item: Item) => {
-      if (!player) return;
-      
-      if (player.level < (item.reqLevel || 1)) {
-          alert(`境界不足！(需: ${getRealmName(item.reqLevel || 1, config.realms)})`);
-          return;
-      }
-
-      // --- ARTIFACT LOGIC ---
-      if (item.type === 'ARTIFACT') {
-          let slotIndex = -1;
-          for (let i = 0; i < player.unlockedArtifactCount; i++) {
-              if (player.artifacts[i] === null) {
-                  slotIndex = i;
-                  break;
-              }
-          }
-          if (slotIndex === -1) slotIndex = 0; // Swap first if full
-
-          const existingItem = player.artifacts[slotIndex];
-          let newInventory = player.inventory.filter(i => i.id !== item.id);
-          if (existingItem) newInventory.push(existingItem);
-
-          setPlayer(prev => {
-              if (!prev) return null;
-              const newStats = calculateStatsDelta(prev.stats, item, existingItem);
-              const newArtifacts = [...prev.artifacts];
-              newArtifacts[slotIndex] = item;
-
-              return {
-                  ...prev,
-                  stats: newStats,
-                  artifacts: newArtifacts,
-                  inventory: newInventory
-              };
-          });
-          return;
-      }
-
-      if (item.type !== 'EQUIPMENT') { alert("无法装备"); return; }
-      if (!item.slot) { alert("位置未知"); return; }
-
-      const existingItem = player.equipment[item.slot];
-      let newInventory = player.inventory.filter(i => i.id !== item.id);
-      if (existingItem) newInventory.push(existingItem);
-
-      setPlayer(prev => {
-          if (!prev) return null;
-          const newStats = calculateStatsDelta(prev.stats, item, existingItem);
-          return {
-            ...prev,
-            stats: newStats,
-            equipment: { ...prev.equipment, [item.slot!]: item },
-            inventory: newInventory
-          };
-      });
-  };
-
   const calculateStatsDelta = (currentStats: any, newItem: Item, oldItem: Item | null) => {
       const stats = { ...currentStats };
       const add = (i: Item | null, factor: number) => {
@@ -514,10 +455,133 @@ export default function App() {
       return stats;
   };
 
+  const calculateStatChanges = (newItem: Item, oldItem: Item | null) => {
+      const changes: string[] = [];
+      const getVal = (i: Item | null, key: keyof Stats) => i?.statBonus?.[key] || 0;
+      
+      const diffMap: {key: keyof Stats, label: string}[] = [
+          { key: 'attack', label: '攻击' },
+          { key: 'defense', label: '防御' },
+          { key: 'maxHp', label: '生命上限' },
+          { key: 'maxSpirit', label: '神识上限' },
+          { key: 'speed', label: '速度' }
+      ];
+
+      diffMap.forEach(({key, label}) => {
+          // @ts-ignore
+          const diff = (newItem.statBonus?.[key] || 0) - (oldItem?.statBonus?.[key] || 0);
+          if (diff !== 0) changes.push(`${label}: ${diff > 0 ? '+' : ''}${diff}`);
+      });
+      
+      // Handle Elemental Affinities separately if needed, but for prompt "1 line per attribute" basic stats are key.
+      // If we want detailed elements:
+      // @ts-ignore
+      const allElems = new Set([...Object.keys(newItem.statBonus?.elementalAffinities || {}), ...Object.keys(oldItem?.statBonus?.elementalAffinities || {})]);
+      allElems.forEach(elem => {
+          // @ts-ignore
+          const diff = (newItem.statBonus?.elementalAffinities?.[elem] || 0) - (oldItem?.statBonus?.elementalAffinities?.[elem] || 0);
+           if (diff !== 0) changes.push(`${elem}亲和: ${diff > 0 ? '+' : ''}${diff}`);
+      });
+
+      return changes;
+  };
+
+  const handleEquip = (item: Item) => {
+      if (!player) return;
+      
+      if (player.level < (item.reqLevel || 1)) {
+          alert(`境界不足！(需: ${getRealmName(item.reqLevel || 1, config.realms)})`);
+          return;
+      }
+
+      // --- ARTIFACT LOGIC ---
+      if (item.type === 'ARTIFACT') {
+          let slotIndex = -1;
+          for (let i = 0; i < player.unlockedArtifactCount; i++) {
+              if (player.artifacts[i] === null) {
+                  slotIndex = i;
+                  break;
+              }
+          }
+          if (slotIndex === -1) slotIndex = 0; // Swap first if full
+
+          const existingItem = player.artifacts[slotIndex];
+          
+          // Show stat changes
+          const changes = calculateStatChanges(item, existingItem);
+
+          let newInventory = player.inventory.filter(i => i.id !== item.id);
+          if (existingItem) newInventory.push(existingItem);
+
+          setPlayer(prev => {
+              if (!prev) return null;
+              const newStats = calculateStatsDelta(prev.stats, item, existingItem);
+              const newArtifacts = [...prev.artifacts];
+              newArtifacts[slotIndex] = item;
+
+              return {
+                  ...prev,
+                  stats: newStats,
+                  artifacts: newArtifacts,
+                  inventory: newInventory
+              };
+          });
+          
+          if (changes.length > 0) alert(`祭炼成功！\n${changes.join('\n')}`);
+          return;
+      }
+
+      if (item.type !== 'EQUIPMENT') { alert("无法装备"); return; }
+      if (!item.slot) { alert("位置未知"); return; }
+
+      const existingItem = player.equipment[item.slot];
+      const changes = calculateStatChanges(item, existingItem);
+
+      let newInventory = player.inventory.filter(i => i.id !== item.id);
+      if (existingItem) newInventory.push(existingItem);
+
+      setPlayer(prev => {
+          if (!prev) return null;
+          const newStats = calculateStatsDelta(prev.stats, item, existingItem);
+          return {
+            ...prev,
+            stats: newStats,
+            equipment: { ...prev.equipment, [item.slot!]: item },
+            inventory: newInventory
+          };
+      });
+
+      if (changes.length > 0) alert(`装备成功！\n${changes.join('\n')}`);
+  };
+
   const handleUnequipArtifact = (index: number) => {
       if (!player) return;
       const item = player.artifacts[index];
       if (!item) return;
+      
+      // Calculate negative changes
+      const changes: string[] = [];
+      const getVal = (i: Item | null, key: keyof Stats) => i?.statBonus?.[key] || 0;
+       
+      const diffMap: {key: keyof Stats, label: string}[] = [
+          { key: 'attack', label: '攻击' },
+          { key: 'defense', label: '防御' },
+          { key: 'maxHp', label: '生命上限' },
+          { key: 'maxSpirit', label: '神识上限' },
+          { key: 'speed', label: '速度' }
+      ];
+      diffMap.forEach(({key, label}) => {
+          // @ts-ignore
+          const diff = -(item.statBonus?.[key] || 0);
+          if (diff !== 0) changes.push(`${label}: ${diff}`);
+      });
+      // @ts-ignore
+      if (item.statBonus?.elementalAffinities) {
+          Object.entries(item.statBonus.elementalAffinities).forEach(([k,v]) => {
+              const val = -(v as number);
+              if (val !== 0) changes.push(`${k}亲和: ${val}`);
+          });
+      }
 
       setPlayer(prev => {
           if (!prev) return null;
@@ -531,6 +595,8 @@ export default function App() {
               inventory: [...prev.inventory, item]
           };
       });
+      
+      if(changes.length > 0) alert(`法宝已卸下。\n${changes.join('\n')}`);
   };
 
   const handleUnlockArtifactSlot = (index: number) => {

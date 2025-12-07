@@ -374,7 +374,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                             <div className="text-2xl">{item.icon}</div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                                                <div className="text--[9px] text-purple-300">点击卸下</div>
+                                                <div className="text-[9px] text-purple-300">点击卸下</div>
                                             </div>
                                         </>
                                     ) : (
@@ -384,7 +384,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                     <div className="flex flex-col items-center justify-center w-full">
                                         <div className="text-xl mb-1">🔒</div>
                                         {canUnlock && (
-                                            <div className="text--[9px] text-yellow-400 text-center leading-tight">
+                                            <div className="text-[9px] text-yellow-400 text-center leading-tight">
                                                 {config.cost}灵石<br/>Lv.{config.reqLevel}
                                             </div>
                                         )}
@@ -465,12 +465,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
       )}
 
-      {/* Talisman, Alchemy, Forge Modals logic remains similar - just ensure close logic works */}
-      {/* For brevity, copying structure but assuming logic is correct as user complained about Bag/Deck */}
-      {/* ... Talisman/Alchemy/Forge code ... */}
-      {/* I will only fully reimplement the problematic Bag/Deck modal below and assume others are preserved in previous context if not overwritten. 
-          Actually I must provide full file content to replace it properly. */}
-
       {activeMenu === 'talisman' && (
           <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
               <div className="w-full max-w-6xl h-[85vh] bg-slate-900 border-2 border-yellow-700 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
@@ -491,9 +485,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           </div>
                       </div>
                       <div className="flex-1 flex flex-col bg-slate-900 p-6 items-center justify-center">
-                          {/* Simplified for brevity in this fix block, focus on ensuring activeMenu works */}
                           <div className="text-center text-slate-500">
-                              {/* Content simplified */}
                               <div className="flex gap-4 justify-center mb-4">
                                   <div className="bg-slate-800 p-4 rounded border border-slate-700 w-64 h-48 overflow-y-auto">
                                       <h4 className="text-slate-400 text-xs mb-2">2. 符笔</h4>
@@ -620,6 +612,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                     </div>
                                                 </div>
                                             </div>
+                                            
+                                            {/* Description */}
+                                            <div className="mt-2 text-[11px] text-slate-400 leading-snug min-h-[2.5em] line-clamp-2">
+                                                {item.description}
+                                            </div>
+
+                                            {/* --- STAT DISPLAY FOR ANY ITEM WITH STATS --- */}
+                                            {item.statBonus && Object.keys(item.statBonus).length > 0 && (
+                                                <div className="mt-3 text-[10px] text-slate-300 grid grid-cols-2 gap-x-2 gap-y-1 bg-black/20 p-2 rounded">
+                                                    {!!item.statBonus.attack && <div>攻击 <span className="text-amber-400">+{item.statBonus.attack}</span></div>}
+                                                    {!!item.statBonus.defense && <div>防御 <span className="text-slate-400">+{item.statBonus.defense}</span></div>}
+                                                    {!!item.statBonus.maxHp && <div>生命 <span className="text-red-400">+{item.statBonus.maxHp}</span></div>}
+                                                    {!!item.statBonus.maxSpirit && <div>神识 <span className="text-blue-400">+{item.statBonus.maxSpirit}</span></div>}
+                                                    {!!item.statBonus.speed && <div>速度 <span className="text-emerald-400">+{item.statBonus.speed}</span></div>}
+                                                    
+                                                    {item.statBonus.elementalAffinities && Object.entries(item.statBonus.elementalAffinities).map(([key, value]) => {
+                                                        const val = value as number;
+                                                        if (val <= 0) return null;
+                                                        const elem = key as ElementType;
+                                                        const config = ELEMENT_CONFIG[elem];
+                                                        return (
+                                                            <div key={key} className="flex items-center gap-1">
+                                                                <span>{config?.icon}</span> {elem} <span className={config?.color || 'text-white'}>+{val}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                             
                                             {(item.type === 'TALISMAN_PEN' || item.type === 'TALISMAN') && (
                                                 <div className="mt-2 text-xs text-slate-400">
