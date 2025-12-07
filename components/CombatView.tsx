@@ -40,6 +40,34 @@ const VisualEffect: React.FC<{ type: VfxType, target: 'PLAYER' | 'ENEMY' }> = ({
     );
 };
 
+// Helper Component for Status Icons with Tooltips
+const StatusIcon: React.FC<{ 
+    icon: string; 
+    value: number; 
+    colorClass: string; 
+    borderColorClass: string; 
+    label: string;
+    description: string;
+    animate?: boolean;
+}> = ({ icon, value, colorClass, borderColorClass, label, description, animate }) => {
+    if (value <= 0) return null;
+    return (
+        <div className={`relative group cursor-help ${colorClass} text-white px-2 py-1 rounded-full text-xs font-bold border ${borderColorClass} flex items-center gap-1 shadow-lg ${animate ? 'animate-pulse' : ''}`}>
+            <span>{icon}</span> {value}
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[200px] z-[100] animate-fade-in pointer-events-none">
+                <div className="bg-slate-900/95 border border-slate-500 rounded p-2 text-left shadow-xl">
+                    <div className="text-emerald-300 font-bold text-xs mb-1">{label}</div>
+                    <div className="text-slate-300 text-[10px] whitespace-normal leading-tight">{description}</div>
+                </div>
+                {/* Arrow */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
+            </div>
+        </div>
+    );
+};
+
 export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, enemy: initialEnemy, onWin, onLose, cardsConfig }) => {
   // Combat State
   const [playerHp, setPlayerHp] = useState(initialPlayer.stats.hp);
@@ -614,21 +642,32 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
                  {/* Player Status Icons */}
                  <div className="flex gap-2 min-h-[32px]">
-                     {playerBlock > 0 && (
-                         <div className="bg-blue-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-blue-400 flex items-center gap-1 shadow-lg">
-                             🛡️ {playerBlock}
-                         </div>
-                     )}
-                     {playerBurn > 0 && (
-                         <div className="bg-red-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-red-400 flex items-center gap-1 shadow-lg animate-pulse">
-                             🔥 {playerBurn}
-                         </div>
-                     )}
-                     {playerFrostbite > 0 && (
-                         <div className="bg-cyan-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-cyan-400 flex items-center gap-1 shadow-lg animate-pulse">
-                             ❄️ {playerFrostbite}
-                         </div>
-                     )}
+                     <StatusIcon 
+                        icon="🛡️" 
+                        value={playerBlock} 
+                        colorClass="bg-blue-600/80" 
+                        borderColorClass="border-blue-400" 
+                        label="护甲"
+                        description="抵挡即将受到的伤害"
+                     />
+                     <StatusIcon 
+                        icon="🔥" 
+                        value={playerBurn} 
+                        colorClass="bg-red-600/80" 
+                        borderColorClass="border-red-400" 
+                        label="灼烧"
+                        description="每回合开始时受到等量伤害"
+                        animate
+                     />
+                     <StatusIcon 
+                        icon="❄️" 
+                        value={playerFrostbite} 
+                        colorClass="bg-cyan-600/80" 
+                        borderColorClass="border-cyan-400" 
+                        label="冻伤"
+                        description="每回合开始时受到等量伤害"
+                        animate
+                     />
                  </div>
              </div>
 
@@ -718,21 +757,32 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
                  {/* Enemy Status Icons */}
                  <div className="flex gap-2 min-h-[32px] flex-wrap justify-center">
-                     {enemyBlock > 0 && (
-                         <div className="bg-blue-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-blue-400 flex items-center gap-1 shadow-lg">
-                             🛡️ {enemyBlock}
-                         </div>
-                     )}
-                     {enemyBurn > 0 && (
-                         <div className="bg-red-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-red-400 flex items-center gap-1 shadow-lg animate-pulse">
-                             🔥 {enemyBurn}
-                         </div>
-                     )}
-                     {enemyFrostbite > 0 && (
-                         <div className="bg-cyan-600/80 text-white px-2 py-1 rounded-full text-xs font-bold border border-cyan-400 flex items-center gap-1 shadow-lg animate-pulse">
-                             ❄️ {enemyFrostbite}
-                         </div>
-                     )}
+                     <StatusIcon 
+                        icon="🛡️" 
+                        value={enemyBlock} 
+                        colorClass="bg-blue-600/80" 
+                        borderColorClass="border-blue-400" 
+                        label="护甲"
+                        description="抵挡即将受到的伤害"
+                     />
+                     <StatusIcon 
+                        icon="🔥" 
+                        value={enemyBurn} 
+                        colorClass="bg-red-600/80" 
+                        borderColorClass="border-red-400" 
+                        label="灼烧"
+                        description="每回合开始时受到等量伤害"
+                        animate
+                     />
+                     <StatusIcon 
+                        icon="❄️" 
+                        value={enemyFrostbite} 
+                        colorClass="bg-cyan-600/80" 
+                        borderColorClass="border-cyan-400" 
+                        label="冻伤"
+                        description="每回合开始时受到等量伤害"
+                        animate
+                     />
                  </div>
              </div>
         </div>
