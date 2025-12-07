@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from './Button';
 
@@ -32,15 +33,14 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onConfig }) =
               
               {/* Character/Sword Image Container */}
               <div className="w-full h-full relative flex items-center justify-center">
-                  {/* Use a sword image or icon as the base */}
+                  {/* Sword Trail */}
                   <div className="absolute bottom-10 transform -rotate-12 w-64 h-8 bg-gradient-to-r from-gray-300 via-cyan-200 to-transparent rounded-full shadow-[0_0_20px_cyan]"></div>
-                  <div className="absolute bottom-10 transform -rotate-12 w-64 h-1 bg-white/80 blur-sm"></div>
                   
-                  {/* Character Silhouette/Image */}
+                  {/* Character Silhouette/Image - Updated to Sword Flight Theme */}
                   <img 
-                    src="https://picsum.photos/seed/cultivator_hero/400/400" 
-                    alt="Cultivator" 
-                    className="w-48 h-48 object-cover rounded-full border-2 border-cyan-400/30 shadow-lg relative -top-4 z-10 mask-image-gradient"
+                    src="https://images.unsplash.com/photo-1599839575945-a9e5af0c3fa5?q=80&w=800&auto=format&fit=crop" 
+                    alt="Sword Flight" 
+                    className="w-56 h-56 object-cover rounded-full border-4 border-cyan-400/50 shadow-[0_0_30px_cyan] relative -top-4 z-10 mask-image-gradient"
                     style={{ clipPath: 'circle(50% at 50% 50%)' }}
                   />
 

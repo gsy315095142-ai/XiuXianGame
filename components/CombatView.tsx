@@ -64,8 +64,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
   
-  // Enemy Display Card
+  // Active Cards for Animation
   const [enemyActiveCard, setEnemyActiveCard] = useState<Card | null>(null);
+  const [playerActiveCard, setPlayerActiveCard] = useState<Card | null>(null);
 
   const [deck, setDeck] = useState<Card[]>([]);
   const [hand, setHand] = useState<Card[]>([]);
@@ -119,12 +120,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       let newHand: Card[] = []; // Clear hand at start of turn
       let currentDeck = [...deck];
       let currentDiscard = [...discardPile];
-      
-      // Merge old hand into discard if any logic needed, but standard is keep? 
-      // Requirement was "Redraw 7 cards", implying discard old hand usually or just add up to.
-      // Previous prompt said "Re-randomly draw 7 cards next turn". 
-      // The implemented logic in previous iteration put remaining hand to discard.
-      // So here we start with empty hand.
 
       for(let i=0; i<drawCount; i++) {
           if (currentDeck.length === 0) {
@@ -240,8 +235,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       triggerVfx(card.type, source);
   };
 
-  const handlePlayerPlayCard = (card: Card, index: number) => {
-      if (turn !== 'PLAYER' || combatEndedRef.current) return;
+  const handlePlayerPlayCard = async (card: Card, index: number) => {
+      if (turn !== 'PLAYER' || combatEndedRef.current || playerActiveCard) return;
       
       // Cost Check
       if (playerSpirit < card.cost) return; 
@@ -270,11 +265,25 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
            });
       }
 
-      resolveCardEffect(card, 'PLAYER');
-
+      // 1. Remove from hand visually
       const newHand = [...hand];
       newHand.splice(index, 1);
       setHand(newHand);
+
+      // 2. Show Active Card (Fly In Animation)
+      setPlayerActiveCard(card);
+
+      // 3. Wait for fly in
+      await new Promise(r => setTimeout(r, 500));
+
+      // 4. Resolve Effect & VFX
+      resolveCardEffect(card, 'PLAYER');
+
+      // 5. Wait for display duration
+      await new Promise(r => setTimeout(r, 800));
+
+      // 6. Clear Active Card & Add to Discard
+      setPlayerActiveCard(null);
       setDiscardPile(prev => [...prev, card]);
   };
 
@@ -498,6 +507,30 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                      <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-600">
                          <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(playerSpirit / initialPlayer.stats.maxSpirit) * 100}%` }}></div>
                      </div>
+                     
+                     {/* Player Elements - Moved Here */}
+                     <div className="mt-2 grid grid-cols-5 gap-1">
+                         {primaryElements.map((elem) => {
+                             const val = playerElements[elem] || 0;
+                             const config = ELEMENT_CONFIG[elem];
+                             return (
+                                 <div key={elem} className={`flex flex-col items-center justify-center p-1 rounded border border-slate-700/50 bg-slate-800 ${val === 0 ? 'opacity-40' : 'opacity-100'}`}>
+                                     <span className="text-sm">{config.icon}</span>
+                                     <span className={`text-[10px] font-bold ${config.color}`}>{val}</span>
+                                 </div>
+                             );
+                         })}
+                         {secondaryElements.map((elem) => {
+                             const val = playerElements[elem] || 0;
+                             const config = ELEMENT_CONFIG[elem];
+                             return (
+                                 <div key={elem} className={`flex flex-col items-center justify-center p-1 rounded border border-slate-700/50 bg-slate-800 ${val === 0 ? 'opacity-40' : 'opacity-100'}`}>
+                                     <span className="text-sm">{config.icon}</span>
+                                     <span className={`text-[10px] font-bold ${config.color}`}>{val}</span>
+                                 </div>
+                             );
+                         })}
+                     </div>
                  </div>
 
                  {/* Player Status Icons */}
@@ -523,7 +556,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
              {/* CENTER: ACTION AREA */}
              <div className="relative z-10 flex-1 h-full flex flex-col items-center justify-center gap-8">
                   {/* Enemy Active Card Display */}
-                  <div className="h-48 w-32 flex items-center justify-center relative">
+                  <div className="h-48 w-32 flex items-center justify-center relative absolute top-12">
                       {enemyActiveCard && (
                           <div className="scale-125 transition-all duration-300 animate-bounce-slight z-50">
                               <CardItem card={enemyActiveCard} isPlayable={false} disableHoverEffect={true} />
@@ -531,12 +564,21 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                       )}
                   </div>
 
-                  <div className="w-full max-w-sm flex flex-col items-center gap-4">
+                  {/* Player Active Card Display (Animation) */}
+                   <div className="h-48 w-32 flex items-center justify-center relative absolute top-1/2 -translate-y-1/2">
+                      {playerActiveCard && (
+                          <div className="scale-125 transition-all duration-500 animate-fade-in z-50 transform translate-y-0">
+                              <CardItem card={playerActiveCard} isPlayable={false} disableHoverEffect={true} />
+                          </div>
+                      )}
+                  </div>
+
+                  <div className="w-full max-w-sm flex flex-col items-center gap-4 mt-auto mb-12">
                       {/* Turn Button */}
                       <Button 
                           variant={turn === 'PLAYER' ? 'primary' : 'secondary'}
                           size="lg"
-                          disabled={turn !== 'PLAYER'}
+                          disabled={turn !== 'PLAYER' || !!playerActiveCard}
                           onClick={handleEndTurn}
                           className={`w-48 py-4 text-xl font-bold shadow-2xl transition-all ${turn === 'PLAYER' ? 'scale-105 border-emerald-400 ring-2 ring-emerald-500/50' : 'opacity-50 grayscale'}`}
                       >
@@ -610,39 +652,15 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
         {/* BOTTOM AREA: HAND & CONTROLS */}
         <div className="h-[45vh] bg-slate-950 border-t border-slate-700 flex flex-col relative pt-4">
-             {/* Player Elements Row - Split into 2 lines */}
-             <div className="absolute top-0 left-0 w-full flex flex-col items-center -translate-y-1/2 gap-1 pointer-events-none">
-                 <div className="bg-slate-900 border border-slate-600 px-4 py-1.5 rounded-full flex gap-3 shadow-xl pointer-events-auto">
-                     {primaryElements.map((elem) => {
-                         const val = playerElements[elem] || 0;
-                         const config = ELEMENT_CONFIG[elem];
-                         return (
-                             <div key={elem} className={`flex items-center gap-1 font-bold ${config.color} ${val === 0 ? 'opacity-40' : ''}`}>
-                                 <span>{config.icon}</span>{val}
-                             </div>
-                         );
-                     })}
-                 </div>
-                 <div className="bg-slate-900 border border-slate-600 px-4 py-1.5 rounded-full flex gap-3 shadow-xl pointer-events-auto">
-                     {secondaryElements.map((elem) => {
-                         const val = playerElements[elem] || 0;
-                         const config = ELEMENT_CONFIG[elem];
-                         return (
-                             <div key={elem} className={`flex items-center gap-1 font-bold ${config.color} ${val === 0 ? 'opacity-40' : ''}`}>
-                                 <span>{config.icon}</span>{val}
-                             </div>
-                         );
-                     })}
-                 </div>
-             </div>
-
+             {/* Player Elements Row - REMOVED from here, moved to Left Panel */}
+             
              {/* Hand Cards */}
              <div className="flex-1 flex justify-center items-end gap-3 overflow-x-auto overflow-y-hidden pb-8 pt-12 px-4">
                  {hand.map((card, idx) => (
                      <div key={`${card.id}_${idx}`} className="relative transition-all hover:-translate-y-8 hover:scale-110 z-10 hover:z-50 shrink-0">
                          <CardItem 
                             card={card} 
-                            isPlayable={turn === 'PLAYER'}
+                            isPlayable={turn === 'PLAYER' && !playerActiveCard}
                             playerLevel={initialPlayer.level}
                             currentElement={playerElements[card.element]}
                             onClick={() => handlePlayerPlayCard(card, idx)}
