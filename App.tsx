@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -353,9 +355,6 @@ export default function App() {
               newInventory.push(updatedPen);
           }
 
-          // Consume Card (Remove specific instance? deck is just list of objects, we need to remove one matching ID)
-          // Wait, deck cards share IDs if duplicates? Usually unique IDs in runtime, config has static IDs.
-          // Let's assume player.deck has instances. If cards share IDs, findIndex removes the first one.
           const cardIdx = prev.deck.findIndex(c => c.id === cardId);
           const newDeck = [...prev.deck];
           if (cardIdx > -1) newDeck.splice(cardIdx, 1);
@@ -426,8 +425,9 @@ export default function App() {
           
           if (validCards.length > 0) {
               const newCard = validCards[Math.floor(Math.random() * validCards.length)];
-              setPlayer(prev => prev ? ({ ...prev, deck: [...prev.deck, newCard], inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
-              setAcquiredCard(newCard);
+              // Modified: Add to storage by default, not deck
+              setAcquiredCard(newCard); // Show modal, modal handler will add to storage
+              setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
           } else {
                alert("领悟失败，没有领悟到新的招式。");
                setPlayer(prev => prev ? ({ ...prev, inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
@@ -557,6 +557,38 @@ export default function App() {
       });
   };
 
+  const handleManageDeck = (action: 'TO_STORAGE' | 'TO_DECK', index: number) => {
+      if (!player) return;
+      
+      setPlayer(prev => {
+          if (!prev) return null;
+          const newDeck = [...prev.deck];
+          const newStorage = [...prev.cardStorage];
+
+          if (action === 'TO_STORAGE') {
+              if (newDeck.length <= 24) {
+                  alert("卡组卡牌数量不能少于24张！");
+                  return prev;
+              }
+              const card = newDeck.splice(index, 1)[0];
+              newStorage.push(card);
+          } else {
+              const card = newStorage.splice(index, 1)[0];
+              newDeck.push(card);
+          }
+          return { ...prev, deck: newDeck, cardStorage: newStorage };
+      });
+  };
+
+  const handleAcceptAcquiredCard = () => {
+      if (!player || !acquiredCard) return;
+      setPlayer(prev => {
+          if (!prev) return null;
+          return { ...prev, cardStorage: [...prev.cardStorage, acquiredCard] };
+      });
+      setAcquiredCard(null);
+  };
+
   return (
     <div className="h-full w-full font-sans selection:bg-emerald-500 selection:text-white">
       {view === GameView.START && (
@@ -588,6 +620,7 @@ export default function App() {
           onRefine={handleRefine}
           onCraft={handleCraftArtifact}
           onCraftTalisman={handleCraftTalisman}
+          onManageDeck={handleManageDeck}
           isRefining={isRefining}
           artifactConfigs={config.artifactSlotConfigs}
           onUnlockArtifactSlot={handleUnlockArtifactSlot}
@@ -733,7 +766,8 @@ export default function App() {
                   <div className="transform scale-150 my-4">
                       <CardItem card={acquiredCard} isPlayable={false} />
                   </div>
-                  <Button size="lg" onClick={() => setAcquiredCard(null)} className="px-12 text-xl">
+                  <div className="text-slate-400 text-sm">已放入卡牌仓库</div>
+                  <Button size="lg" onClick={handleAcceptAcquiredCard} className="px-12 text-xl">
                       收下
                   </Button>
               </div>

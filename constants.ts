@@ -1,5 +1,6 @@
 
 
+
 import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType, RealmLevelConfig } from './types';
 
 export const MAX_HAND_SIZE = 10;
@@ -844,7 +845,15 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
       { id: 3, reqLevel: 30, cost: 20000 },
       { id: 4, reqLevel: 40, cost: 100000 },
   ],
-  playerInitialDeckIds: ['c_strike', 'c_strike', 'c_strike', 'c_defend', 'c_defend', 'c_meditate', 'c_fireball', 'c_heal'],
+  // Increased Initial Deck to 24 Cards
+  playerInitialDeckIds: [
+      'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike',
+      'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend',
+      'c_meditate', 'c_meditate', 'c_meditate', 'c_meditate',
+      'c_fireball', 'c_fireball',
+      'c_heal', 'c_heal',
+      'c_needle', 'c_needle'
+  ],
   playerInitialStats: {
     maxHp: 100,
     hp: 100,
@@ -873,7 +882,8 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
   const deck = config.playerInitialDeckIds
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is Card => !!c);
-
+    
+  // Fallback if config deck is broken
   if (deck.length === 0 && config.cards.length > 0) {
       deck.push(config.cards[0]);
   }
@@ -892,6 +902,7 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
     gold: 0,
     stats: initialStats,
     deck: deck,
+    cardStorage: [], // Initialize empty storage
     inventory: config.items.length > 0 ? [config.items[0]] : [],
     equipment: { 
         mainWeapon: null,

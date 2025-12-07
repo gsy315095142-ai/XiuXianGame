@@ -37,15 +37,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
     [CardType.GROWTH]: 'text-purple-200',
   };
 
-  const levelMet = playerLevel ? playerLevel >= card.reqLevel : true;
-  // If currentElement is passed, check it. If not, assume true (for deck view)
-  const elementMet = currentElement !== undefined ? currentElement >= card.elementCost : true;
+  // Defensive defaults
+  const safeElement = card.element || ElementType.SWORD;
+  const safeType = card.type || CardType.ATTACK;
+
+  const levelMet = playerLevel && card.reqLevel ? playerLevel >= card.reqLevel : true;
+  const elementMet = currentElement !== undefined ? currentElement >= (card.elementCost || 0) : true;
 
   const isDisabled = disabled || !levelMet || !elementMet;
   const isPierce = card.tags?.includes('PIERCE');
 
-  const elementInfo = ELEMENT_CONFIG[card.element] || ELEMENT_CONFIG[ElementType.SWORD];
-  const bgStyle = elementBgColors[card.element] || elementBgColors[ElementType.SWORD];
+  const elementInfo = ELEMENT_CONFIG[safeElement] || ELEMENT_CONFIG[ElementType.SWORD];
+  const bgStyle = elementBgColors[safeElement] || elementBgColors[ElementType.SWORD];
+  const typeTextColor = textColor[safeType] || 'text-gray-200';
 
   return (
     <div 
@@ -59,26 +63,26 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
     >
       {/* Cost Badge (Spirit) */}
       <div className="absolute -top-2 -left-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 border-slate-300 z-10 font-bold text-white shadow-md text-sm">
-        {card.cost}
+        {card.cost || 0}
       </div>
 
       {/* Element Badge */}
       <div className={`absolute -top-2 -right-2 w-8 h-8 ${elementInfo.bg} rounded-full flex items-center justify-center border-2 border-slate-300 z-10 font-bold text-white shadow-md text-[10px] flex-col leading-none`}>
          <span>{elementInfo.icon}</span>
-         <span>{card.elementCost}</span>
+         <span>{card.elementCost || 0}</span>
       </div>
 
       <div className="text-center font-bold text-sm mb-1 border-b border-white/10 pb-1 truncate text-white tracking-wide mt-1">
-        {card.name}
+        {card.name || 'Unknown'}
       </div>
       
       <div className="flex-grow flex items-center justify-center relative">
-        <div className={`text-4xl ${textColor[card.type]} opacity-80 drop-shadow-md`}>
-            {card.type === CardType.ATTACK && (isPierce ? '🏹' : '⚔️')}
-            {card.type === CardType.DEFEND && '🛡️'}
-            {card.type === CardType.HEAL && '💊'}
-            {card.type === CardType.BUFF && '✨'}
-            {card.type === CardType.GROWTH && '📈'}
+        <div className={`text-4xl ${typeTextColor} opacity-80 drop-shadow-md`}>
+            {safeType === CardType.ATTACK && (isPierce ? '🏹' : '⚔️')}
+            {safeType === CardType.DEFEND && '🛡️'}
+            {safeType === CardType.HEAL && '💊'}
+            {safeType === CardType.BUFF && '✨'}
+            {safeType === CardType.GROWTH && '📈'}
         </div>
         
         {!levelMet && (
@@ -94,8 +98,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
       </div>
 
       <div className="mt-1 flex justify-between items-center text-[10px] text-white/60 uppercase tracking-widest">
-        <span>{card.type}</span>
-        <span className={elementInfo.color}>{card.element}</span>
+        <span>{safeType}</span>
+        <span className={elementInfo.color}>{safeElement}</span>
       </div>
     </div>
   );

@@ -148,6 +148,7 @@ export interface Player extends Entity {
   maxExp: number;
   gold: number; 
   deck: Card[];
+  cardStorage: Card[]; // Cards not currently in the deck
   inventory: Item[];
   equipment: Record<EquipmentSlot, Item | null>;
   
