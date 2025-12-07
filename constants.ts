@@ -396,6 +396,8 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         const isPierce = type === CardType.ATTACK && Math.random() < 0.2;
         // Burn Chance: Fire + Attack = 50% chance to be a Burn card
         const isBurn = element === ElementType.FIRE && type === CardType.ATTACK && Math.random() < 0.5;
+        // Frostbite: Ice + Attack = guaranteed Frostbite
+        const isFrostbite = element === ElementType.ICE && type === CardType.ATTACK;
 
         const val = randInt(Math.max(1, Math.floor(realm.limit * 0.3)), realm.limit);
         
@@ -419,10 +421,12 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         const tags: string[] = [];
         if (isPierce) tags.push('PIERCE');
         if (isBurn) tags.push('BURN');
+        if (isFrostbite) tags.push('FROSTBITE');
 
         let desc = `${type === CardType.ATTACK ? '造成' : type === CardType.HEAL ? '恢复' : type === CardType.DEFEND ? '获得' : '增加'}${val}点${type === CardType.ATTACK ? '伤害' : type === CardType.HEAL ? '生命' : type === CardType.DEFEND ? '护盾' : '数值'}`;
         if (isPierce) desc = '【穿刺】' + desc + '，无视护盾';
         if (isBurn) desc += '，概率造成灼烧';
+        if (isFrostbite) desc += '，造成冻伤';
 
         GENERATED_CARDS.push({
             id: `gen_c_${realm.level}_${i}`,

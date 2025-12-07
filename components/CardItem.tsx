@@ -48,6 +48,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
   const isDisabled = disabled || !levelMet || !elementMet;
   const isPierce = card.tags?.includes('PIERCE');
   const isBurn = card.tags?.includes('BURN');
+  const isFrostbite = card.tags?.includes('FROSTBITE');
 
   const elementInfo = ELEMENT_CONFIG[safeElement] || ELEMENT_CONFIG[ElementType.SWORD];
   const bgStyle = elementBgColors[safeElement] || elementBgColors[ElementType.SWORD];
@@ -98,6 +99,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
       <div className="text-xs text-center text-gray-200 leading-tight h-12 overflow-hidden flex items-center justify-center flex-col bg-black/20 rounded p-1">
         {isPierce && <div className="text-[9px] text-amber-400 font-bold mb-0.5">[穿刺] 无视护盾</div>}
         {isBurn && <div className="text-[9px] text-red-400 font-bold mb-0.5">🔥 [灼烧]</div>}
+        {isFrostbite && <div className="text-[9px] text-cyan-300 font-bold mb-0.5">❄️ [冻伤]</div>}
         <div>{card.description}</div>
       </div>
 

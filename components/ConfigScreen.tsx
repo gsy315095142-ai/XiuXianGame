@@ -949,9 +949,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                   setLocalConfig({...localConfig, cards: newCards});
                               }} />
                               
-                              <div className="flex gap-2 items-center">
+                              <div className="flex gap-2 items-center flex-wrap">
                                   <label className="text-xs text-slate-500">标签</label>
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2 flex-wrap">
                                       <label className="text-[10px] flex items-center gap-1 bg-slate-900 px-1 rounded cursor-pointer select-none">
                                           <input type="checkbox" checked={card.tags?.includes('PIERCE')} onChange={e => {
                                               const newCards = [...localConfig.cards];
@@ -969,6 +969,15 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                               else newCards.find(c => c.id === card.id)!.tags = currentTags.filter(t => t !== 'BURN');
                                               setLocalConfig({...localConfig, cards: newCards});
                                           }} /> 🔥灼烧
+                                      </label>
+                                      <label className="text-[10px] flex items-center gap-1 bg-slate-900 px-1 rounded cursor-pointer select-none">
+                                          <input type="checkbox" checked={card.tags?.includes('FROSTBITE')} onChange={e => {
+                                              const newCards = [...localConfig.cards];
+                                              const currentTags = card.tags || [];
+                                              if (e.target.checked) newCards.find(c => c.id === card.id)!.tags = [...currentTags, 'FROSTBITE'];
+                                              else newCards.find(c => c.id === card.id)!.tags = currentTags.filter(t => t !== 'FROSTBITE');
+                                              setLocalConfig({...localConfig, cards: newCards});
+                                          }} /> ❄️冻伤
                                       </label>
                                   </div>
                               </div>
