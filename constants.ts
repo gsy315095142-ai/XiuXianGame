@@ -1,3 +1,4 @@
+
 import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType, RealmLevelConfig } from './types';
 
 export const MAX_HAND_SIZE = 10;
@@ -222,9 +223,10 @@ export const FIREBALL: Card = {
   elementCost: 2,
   type: CardType.ATTACK,
   value: 20,
-  description: '造成20点大量伤害',
+  description: '造成20点大量伤害，概率造成灼烧',
   rarity: 'rare',
   reqLevel: 3,
+  tags: ['BURN']
 };
 
 export const HEAL_SPELL: Card = {
@@ -237,7 +239,7 @@ export const HEAL_SPELL: Card = {
   value: 10,
   description: '恢复10点生命值',
   rarity: 'rare',
-  reqLevel: 1, // Changed to 1 for starter deck compatibility
+  reqLevel: 1, 
 };
 
 export const PIERCING_NEEDLE: Card = {
@@ -392,7 +394,9 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
 
         const element = Object.values(ElementType)[randInt(0, 10)];
         const isPierce = type === CardType.ATTACK && Math.random() < 0.2;
-        
+        // Burn Chance: Fire + Attack = 50% chance to be a Burn card
+        const isBurn = element === ElementType.FIRE && type === CardType.ATTACK && Math.random() < 0.5;
+
         const val = randInt(Math.max(1, Math.floor(realm.limit * 0.3)), realm.limit);
         
         let cost = 1;
@@ -411,6 +415,14 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         else nameSuffix = randPick(['心法', '阵', '意', '咒']);
 
         const cardName = `${realm.prefix}·${element}${nameSuffix}${i+1}`;
+        
+        const tags: string[] = [];
+        if (isPierce) tags.push('PIERCE');
+        if (isBurn) tags.push('BURN');
+
+        let desc = `${type === CardType.ATTACK ? '造成' : type === CardType.HEAL ? '恢复' : type === CardType.DEFEND ? '获得' : '增加'}${val}点${type === CardType.ATTACK ? '伤害' : type === CardType.HEAL ? '生命' : type === CardType.DEFEND ? '护盾' : '数值'}`;
+        if (isPierce) desc = '【穿刺】' + desc + '，无视护盾';
+        if (isBurn) desc += '，概率造成灼烧';
 
         GENERATED_CARDS.push({
             id: `gen_c_${realm.level}_${i}`,
@@ -420,10 +432,10 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
             elementCost: elemCost,
             type: type,
             value: val,
-            description: `${isPierce ? '【穿刺】' : ''}${type === CardType.ATTACK ? '造成' : type === CardType.HEAL ? '恢复' : type === CardType.DEFEND ? '获得' : '增加'}${val}点${type === CardType.ATTACK ? '伤害' : type === CardType.HEAL ? '生命' : type === CardType.DEFEND ? '护盾' : '数值'}`,
+            description: desc,
             rarity: i > 8 ? 'epic' : i > 5 ? 'rare' : 'common',
             reqLevel: realm.level,
-            tags: isPierce ? ['PIERCE'] : []
+            tags: tags
         });
     }
 

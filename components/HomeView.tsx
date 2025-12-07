@@ -99,6 +99,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const levelIndex = player.level - currentRealm.rangeStart;
   const levelConfig = currentRealm.levels[levelIndex];
 
+  const currentRealmIndex = realms.indexOf(currentRealm);
+  // Realms 0 (Qi) and 1 (Foundation) use "法器", others use "法宝"
+  const isLowRealm = currentRealmIndex <= 1;
+  const artifactSystemName = isLowRealm ? '本命法器' : '本命法宝';
+  const artifactUnitName = isLowRealm ? '法器' : '法宝';
+
   const breakthroughCost = levelConfig ? levelConfig.breakthroughCost : 0;
   const breakthroughChance = levelConfig ? (levelConfig.breakthroughChance * 100) : 0;
   
@@ -126,7 +132,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const deck = (player.deck || []).filter(Boolean);
   const cardStorage = (player.cardStorage || []).filter(Boolean);
   const talismansInDeck = (player.talismansInDeck || []).filter(Boolean);
-  const artifacts = player.artifacts || [];
+  const artifacts = (player.artifacts || []).filter(Boolean);
+  // Ensure artifact array matches slot config length, fill with null if needed
+  const displayArtifacts = [...(player.artifacts || [])];
+  while (displayArtifacts.length < artifactConfigs.length) {
+      displayArtifacts.push(null);
+  }
+
   const unlockedArtifactCount = player.unlockedArtifactCount || 0;
   const learnedRecipes = player.learnedRecipes || [];
   const learnedBlueprints = player.learnedBlueprints || [];
@@ -372,13 +384,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
             {/* Artifacts Section */}
             <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                 <h3 className="text-purple-400 text-lg font-bold border-b border-purple-800 pb-3 mb-4 flex items-center gap-2">
-                    <span>🧿</span> 本命法宝
+                    <span>🧿</span> {artifactSystemName}
                     <span className="text-xs text-slate-500 ml-auto font-normal">已解锁: {unlockedArtifactCount} / {artifactConfigs.length}</span>
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
                     {artifactConfigs.map((config, index) => {
                         const isUnlocked = index < unlockedArtifactCount;
-                        const item = artifacts[index];
+                        const item = displayArtifacts[index];
                         const canUnlock = !isUnlocked && index === unlockedArtifactCount;
                         
                         return (
@@ -409,7 +421,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="text-xs text-slate-500 font-bold">空闲法宝栏</div>
+                                        <div className="text-xs text-slate-500 font-bold">空闲{artifactUnitName}栏</div>
                                     )
                                 ) : (
                                     <div className="flex flex-col items-center justify-center w-full">

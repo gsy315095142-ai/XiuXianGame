@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -15,7 +14,7 @@ interface ConfigScreenProps {
 const createEmptyItem = (type: ItemType, level: number = 1): Item => ({
   id: `item_${Date.now()}`,
   name: '新物品',
-  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : type === 'TALISMAN_PEN' ? '🖌️' : type === 'TALISMAN_PAPER' ? '🟨' : '🏺', 
+  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : type === 'TALISMAN_PEN' ? '🖌️' : type === 'TALISMAN_PAPER' ? '🟨' : type === 'TALISMAN' ? '🏺' : '📦', 
   type: type,
   slot: type === 'EQUIPMENT' ? 'mainWeapon' : undefined,
   description: '描述...',
@@ -952,7 +951,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                               
                               <div className="flex gap-2 items-center">
                                   <label className="text-xs text-slate-500">标签</label>
-                                  <div className="flex gap-1">
+                                  <div className="flex gap-2">
                                       <label className="text-[10px] flex items-center gap-1 bg-slate-900 px-1 rounded cursor-pointer select-none">
                                           <input type="checkbox" checked={card.tags?.includes('PIERCE')} onChange={e => {
                                               const newCards = [...localConfig.cards];
@@ -961,6 +960,15 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                               else newCards.find(c => c.id === card.id)!.tags = currentTags.filter(t => t !== 'PIERCE');
                                               setLocalConfig({...localConfig, cards: newCards});
                                           }} /> 穿刺
+                                      </label>
+                                      <label className="text-[10px] flex items-center gap-1 bg-slate-900 px-1 rounded cursor-pointer select-none">
+                                          <input type="checkbox" checked={card.tags?.includes('BURN')} onChange={e => {
+                                              const newCards = [...localConfig.cards];
+                                              const currentTags = card.tags || [];
+                                              if (e.target.checked) newCards.find(c => c.id === card.id)!.tags = [...currentTags, 'BURN'];
+                                              else newCards.find(c => c.id === card.id)!.tags = currentTags.filter(t => t !== 'BURN');
+                                              setLocalConfig({...localConfig, cards: newCards});
+                                          }} /> 🔥灼烧
                                       </label>
                                   </div>
                               </div>

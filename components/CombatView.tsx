@@ -42,6 +42,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [playerHp, setPlayerHp] = useState(initialPlayer.stats.hp);
   const [playerSpirit, setPlayerSpirit] = useState(initialPlayer.stats.spirit);
   const [playerBlock, setPlayerBlock] = useState(0);
+  const [playerBurn, setPlayerBurn] = useState(0); // Burn Stacks
   
   // Track MAX elements for combat session (for GROWTH cards)
   const [playerMaxElements, setPlayerMaxElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
@@ -59,6 +60,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [enemyHp, setEnemyHp] = useState(initialEnemy.stats.hp);
   const [enemyBlock, setEnemyBlock] = useState(0);
   const [enemySpirit, setEnemySpirit] = useState(initialEnemy.stats.spirit);
+  const [enemyBurn, setEnemyBurn] = useState(0); // Enemy Burn Stacks
+
   // Enemy elements simplified
   const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
 
@@ -232,6 +235,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // Unified effect resolver
   const resolveCardEffect = (card: Card, source: 'PLAYER' | 'ENEMY') => {
       const isPierce = card.tags?.includes('PIERCE');
+      const isBurn = card.tags?.includes('BURN');
       const stats = statsRef.current;
 
       if (source === 'PLAYER') {
@@ -250,6 +254,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 stats.enemyHp -= dmg;
                 setEnemyHp(stats.enemyHp);
                 addLog(`你使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
+                
+                // Burn Logic (50% Chance)
+                if (isBurn && Math.random() < 0.5) {
+                    setEnemyBurn(prev => prev + 1);
+                    addLog(`🔥 [灼烧] 触发！敌人获得1层灼烧。`);
+                }
                 break;
             case CardType.HEAL:
                 stats.playerHp = Math.min(initialPlayer.stats.maxHp, stats.playerHp + card.value);
@@ -298,6 +308,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 stats.playerHp -= dmg;
                 setPlayerHp(stats.playerHp);
                 addLog(`${initialEnemy.name} 使用 ${card.name}，造成 ${dmg} 伤害${blocked > 0 ? ` (${blocked} 被格挡)` : ''}`);
+
+                // Burn Logic (50% Chance)
+                if (isBurn && Math.random() < 0.5) {
+                    setPlayerBurn(prev => prev + 1);
+                    addLog(`🔥 [灼烧] 触发！你获得了1层灼烧。`);
+                }
                 break;
             case CardType.HEAL:
                 stats.enemyHp = Math.min(initialEnemy.stats.maxHp, stats.enemyHp + card.value);
@@ -351,6 +367,23 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const startPlayerTurn = () => {
     if (combatEndedRef.current) return;
     setTurn('PLAYER');
+    
+    // Process Burn Damage on Player Start
+    if (playerBurn > 0) {
+        const dmg = playerBurn;
+        statsRef.current.playerHp -= dmg;
+        setPlayerHp(statsRef.current.playerHp);
+        addLog(`🔥 灼烧生效！你受到了 ${dmg} 点伤害。`);
+        
+        // Check death immediately
+        if (statsRef.current.playerHp <= 0) {
+            combatEndedRef.current = true;
+            addLog('你力竭倒下了...');
+            setTimeout(() => setCombatResult({ win: false }), 1000);
+            return;
+        }
+    }
+
     setPlayerSpirit(initialPlayer.stats.maxSpirit); 
     
     // Refill Elements based on CURRENT MAX CAPS (which might have been boosted by GROWTH cards)
@@ -466,6 +499,20 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   const executeEnemyTurn = async () => {
     if (combatEndedRef.current || statsRef.current.enemyHp <= 0) return;
+
+    // Process Burn Damage on Enemy Start
+    if (enemyBurn > 0) {
+        const dmg = enemyBurn;
+        statsRef.current.enemyHp -= dmg;
+        setEnemyHp(statsRef.current.enemyHp);
+        addLog(`🔥 灼烧生效！敌人受到了 ${dmg} 点伤害。`);
+        
+        // Check death immediately
+        if (statsRef.current.enemyHp <= 0) {
+             // Death check handled in useEffect, but we should stop execution here
+             return; 
+        }
+    }
 
     // Reset Enemy Block at start of their turn
     statsRef.current.enemyBlock = 0;
@@ -695,6 +742,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                             🛡️ {enemyBlock}
                         </div>
                     )}
+                    {enemyBurn > 0 && (
+                        <div className="absolute top-8 -right-8 flex items-center text-red-200 font-bold border border-red-500 px-2 rounded bg-red-900/80 z-20 shadow-lg animate-pulse">
+                            🔥 {enemyBurn}
+                        </div>
+                    )}
                 </div>
                 <div className="flex flex-col items-center mt-2 w-full">
                     <h3 className="text-2xl font-bold text-red-200 text-shadow">{initialEnemy.name}</h3>
@@ -815,6 +867,12 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         <div className="flex flex-col items-center justify-center bg-blue-900/80 px-3 py-1 rounded border border-blue-500 animate-pulse">
                             <span className="text-xl">🛡️</span>
                             <span className="text-xs font-bold text-white">{playerBlock}</span>
+                        </div>
+                     )}
+                     {playerBurn > 0 && (
+                        <div className="flex flex-col items-center justify-center bg-red-900/80 px-3 py-1 rounded border border-red-500 animate-pulse">
+                            <span className="text-xl">🔥</span>
+                            <span className="text-xs font-bold text-white">{playerBurn}</span>
                         </div>
                      )}
                 </div>
