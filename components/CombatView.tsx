@@ -192,8 +192,8 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
           } else {
              setPlayerHp(prev => Math.max(0, prev - actualDamage));
-             addLog(`敌人使用${card.name}，对你造成 ${actualDamage} 点伤害${isPierce ? '(穿透)' : ''}`);
-             
+             // addLog(`敌人使用${card.name}，对你造成 ${actualDamage} 点伤害${isPierce ? '(穿透)' : ''}`); 
+             // Logic moved to resolve result logging, but we log the action itself earlier now
              if (isBurn && Math.random() < 0.5) {
                  setPlayerBurn(prev => prev + 1);
                  addLog("你被灼烧了！");
@@ -209,7 +209,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
               addLog(`你使用${card.name}，获得 ${val} 点护甲`);
           } else {
               setEnemyBlock(prev => prev + val);
-              addLog(`敌人使用${card.name}，获得 ${val} 点护甲`);
+              // addLog(`敌人使用${card.name}，获得 ${val} 点护甲`);
           }
       } else if (card.type === CardType.HEAL) {
            if (isPlayer) {
@@ -217,7 +217,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
               addLog(`你使用${card.name}，恢复 ${val} 点生命`);
           } else {
               setEnemyHp(prev => Math.min(initialEnemy.stats.maxHp, prev + val));
-              addLog(`敌人使用${card.name}，恢复 ${val} 点生命`);
+              // addLog(`敌人使用${card.name}，恢复 ${val} 点生命`);
           }
       } else if (card.type === CardType.BUFF) {
            if (isPlayer) {
@@ -301,6 +301,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       if (enemyDeck && enemyDeck.length > 0) {
           playedCard = enemyDeck[Math.floor(Math.random() * enemyDeck.length)];
           setEnemyActiveCard(playedCard);
+          addLog(`敌人打出了【${playedCard.name}】`);
           
           // Wait 2 seconds showing card
           await new Promise(r => setTimeout(r, 2000));
@@ -556,7 +557,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
              {/* CENTER: ACTION AREA */}
              <div className="relative z-10 flex-1 h-full flex flex-col items-center justify-center gap-8">
                   {/* Enemy Active Card Display */}
-                  <div className="h-48 w-32 flex items-center justify-center relative absolute top-12">
+                  <div className="h-48 w-32 flex items-center justify-center relative absolute top-[45vh]">
                       {enemyActiveCard && (
                           <div className="scale-125 transition-all duration-300 animate-bounce-slight z-50">
                               <CardItem card={enemyActiveCard} isPlayable={false} disableHoverEffect={true} />
@@ -613,6 +614,39 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                      <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-600">
                          <div className="h-full bg-red-600 transition-all duration-300" style={{ width: `${(enemyHp / initialEnemy.stats.maxHp) * 100}%` }}></div>
                      </div>
+                     
+                     {/* Enemy Spirit Bar */}
+                     <div className="flex justify-between items-center text-sm font-bold text-slate-300">
+                         <span>神识</span>
+                         <span className="text-blue-400">{enemySpirit} / {initialEnemy.stats.maxSpirit}</span>
+                     </div>
+                     <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-600 mb-2">
+                         <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(enemySpirit / initialEnemy.stats.maxSpirit) * 100}%` }}></div>
+                     </div>
+
+                     {/* Enemy Elements - Grid Display */}
+                     <div className="mt-2 grid grid-cols-5 gap-1">
+                         {primaryElements.map((elem) => {
+                             const val = enemyElements[elem] || 0;
+                             const config = ELEMENT_CONFIG[elem];
+                             return (
+                                 <div key={elem} className={`flex flex-col items-center justify-center p-1 rounded border border-slate-700/50 bg-slate-800 ${val === 0 ? 'opacity-40' : 'opacity-100'}`}>
+                                     <span className="text-sm">{config.icon}</span>
+                                     <span className={`text-[10px] font-bold ${config.color}`}>{val}</span>
+                                 </div>
+                             );
+                         })}
+                         {secondaryElements.map((elem) => {
+                             const val = enemyElements[elem] || 0;
+                             const config = ELEMENT_CONFIG[elem];
+                             return (
+                                 <div key={elem} className={`flex flex-col items-center justify-center p-1 rounded border border-slate-700/50 bg-slate-800 ${val === 0 ? 'opacity-40' : 'opacity-100'}`}>
+                                     <span className="text-sm">{config.icon}</span>
+                                     <span className={`text-[10px] font-bold ${config.color}`}>{val}</span>
+                                 </div>
+                             );
+                         })}
+                     </div>
                  </div>
 
                  {/* Enemy Status Icons */}
@@ -632,20 +666,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                              ❄️ {enemyFrostbite}
                          </div>
                      )}
-                 </div>
-                 
-                 {/* Enemy Elements (Optional Display) */}
-                 <div className="flex gap-1 flex-wrap justify-center mt-2 opacity-80">
-                      {Object.entries(enemyElements).map(([elem, value]) => {
-                         const val = value as number;
-                         if (val <= 0) return null;
-                         const config = ELEMENT_CONFIG[elem as ElementType];
-                         return (
-                             <div key={elem} className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 border border-slate-600 ${config.color}`}>
-                                 <span>{config.icon}</span>{val}
-                             </div>
-                         );
-                     })}
                  </div>
              </div>
         </div>
