@@ -1,10 +1,7 @@
-
-
-
 import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType, RealmLevelConfig } from './types';
 
 export const MAX_HAND_SIZE = 10;
-export const DRAW_COUNT_PER_TURN = 5;
+export const DRAW_COUNT_PER_TURN = 7;
 
 export const SLOT_NAMES: Record<EquipmentSlot, string> = {
   mainWeapon: '主武器',
@@ -240,7 +237,7 @@ export const HEAL_SPELL: Card = {
   value: 10,
   description: '恢复10点生命值',
   rarity: 'rare',
-  reqLevel: 2,
+  reqLevel: 1, // Changed to 1 for starter deck compatibility
 };
 
 export const PIERCING_NEEDLE: Card = {
@@ -845,14 +842,12 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
       { id: 3, reqLevel: 30, cost: 20000 },
       { id: 4, reqLevel: 40, cost: 100000 },
   ],
-  // Increased Initial Deck to 24 Cards
+  // Increased Initial Deck to 24 Cards, ALL Level 1
   playerInitialDeckIds: [
-      'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike',
-      'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend',
+      'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 'c_strike', 
+      'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend', 'c_defend',
       'c_meditate', 'c_meditate', 'c_meditate', 'c_meditate',
-      'c_fireball', 'c_fireball',
-      'c_heal', 'c_heal',
-      'c_needle', 'c_needle'
+      'c_heal', 'c_heal'
   ],
   playerInitialStats: {
     maxHp: 100,
@@ -921,7 +916,8 @@ export const generatePlayerFromConfig = (config: GameConfig): Player => {
     unlockedArtifactCount: 1, // Default 1 unlocked
     learnedRecipes: [],
     pillUsage: {},
-    learnedBlueprints: []
+    learnedBlueprints: [],
+    talismansInDeck: [] // Initialize empty talisman deck
   };
 };
 

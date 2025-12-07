@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook, getRealmName } from '../constants';
@@ -7,7 +8,7 @@ import { Button } from './Button';
 interface CombatViewProps {
   player: Player;
   enemy: Enemy;
-  onWin: (rewards: { exp: number, gold: number, drops: Item[] }) => void;
+  onWin: (rewards: { exp: number, gold: number, drops: Item[] }, updatedTalismans?: Item[]) => void;
   onLose: () => void;
   cardsConfig: Card[]; // Needed to lookup talisman effects
 }
@@ -47,7 +48,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // Track CURRENT available elements
   const [playerElements, setPlayerElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
   
-  // Inventory (Local copy to track durability/consumables)
+  // Talisman Durability Tracking (Local)
+  // We need to track durability changes for each specific talisman item ID
+  const [talismanState, setTalismanState] = useState<Record<string, number>>({});
+
+  // Inventory (Local copy to track consumables)
   const [combatInventory, setCombatInventory] = useState<Item[]>([...initialPlayer.inventory]);
   const [showBag, setShowBag] = useState(false);
 
@@ -57,7 +62,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // Enemy elements simplified
   const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
 
-  const [deck, setDeck] = useState<Card[]>([...initialPlayer.deck].sort(() => Math.random() - 0.5));
+  const [deck, setDeck] = useState<Card[]>([]);
   const [hand, setHand] = useState<Card[]>([]);
   const [discardPile, setDiscardPile] = useState<Card[]>([]);
 
@@ -94,14 +99,60 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     setCombatLog(prev => [...prev.slice(-4), msg]);
   };
 
-  // Initialize Combat (Speed Check)
+  // Initialize Combat
   useEffect(() => {
+    // Init Deck (Cards + Talismans)
+    const baseCards = [...initialPlayer.deck];
+    const talismanCards: Card[] = [];
+    
+    // Init Talisman Durability State
+    const initialTalismanState: Record<string, number> = {};
+
+    initialPlayer.talismansInDeck?.forEach(t => {
+         const originalCard = cardsConfig.find(c => c.id === t.talismanCardId);
+         if (originalCard) {
+             initialTalismanState[t.id] = t.durability || 0;
+             talismanCards.push({
+                 ...originalCard,
+                 id: `talisman_${t.id}_${Date.now()}`, // Unique ID for combat flow
+                 cost: 0, // Talismans cost 0 spirit
+                 elementCost: 0, // Talismans cost 0 element
+                 description: `[符箓] ${originalCard.description}`,
+                 isTalisman: true,
+                 talismanItemId: t.id
+             });
+         }
+    });
+
+    setTalismanState(initialTalismanState);
+    
+    // Prepare combined deck locally
+    const combinedDeck = [...baseCards, ...talismanCards].sort(() => Math.random() - 0.5);
+
     const pSpeed = initialPlayer.stats.speed;
     const eSpeed = initialEnemy.stats.speed;
+
     if (pSpeed >= eSpeed) {
       addLog(`你的速度(${pSpeed})快于敌人(${eSpeed})，你先攻！`);
-      startPlayerTurn();
+      
+      // FIX: Handle Initial Draw Manually to avoid state race condition
+      const initialHand: Card[] = [];
+      const remainingDeck = [...combinedDeck];
+      
+      for (let i = 0; i < DRAW_COUNT_PER_TURN; i++) {
+          if (remainingDeck.length > 0) {
+              initialHand.push(remainingDeck.pop()!);
+          }
+      }
+      
+      setDeck(remainingDeck);
+      setHand(initialHand);
+      setTurn('PLAYER');
+      setPlayerSpirit(initialPlayer.stats.maxSpirit);
+      setPlayerElements({...initialPlayer.stats.elementalAffinities}); // Reset to initial caps
+
     } else {
+      setDeck(combinedDeck);
       addLog(`敌人速度(${eSpeed})较快，敌人先攻！`);
       setTurn('ENEMY');
       setTimeout(executeEnemyTurn, 1500);
@@ -321,6 +372,44 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         return;
     }
 
+    // Special handling for Talismans
+    if (card.isTalisman && card.talismanItemId) {
+         const currentDurability = talismanState[card.talismanItemId] || 0;
+         if (currentDurability <= 0) {
+             addLog("符箓灵力耗尽，无法激活！");
+             // Discard it or remove it? Discard for now so it doesn't block hand
+             const newHand = [...hand];
+             newHand.splice(cardIndex, 1);
+             setHand(newHand);
+             return;
+         }
+         
+         // Reduce durability
+         setTalismanState(prev => ({...prev, [card.talismanItemId!]: prev[card.talismanItemId!] - 1 }));
+         const newDurability = currentDurability - 1;
+         
+         addLog(`激活符箓 (${newDurability === 0 ? '灵力耗尽' : `剩余耐久 ${newDurability}`})`);
+         
+         // No spirit/element cost for Talismans
+         triggerVfx(card.type, 'PLAYER');
+         setTimeout(() => {
+             resolveCardEffect(card, 'PLAYER');
+         }, 200);
+
+         const newHand = [...hand];
+         newHand.splice(cardIndex, 1);
+         setHand(newHand);
+         
+         // If broken, don't return to discard pile? Or return as broken?
+         // If broken, effectively removed from deck logic for remainder of combat
+         if (newDurability > 0) {
+             setDiscardPile(prev => [...prev, card]);
+         } else {
+             addLog(`${card.name} 碎裂消散了。`);
+         }
+         return;
+    }
+
     if (playerSpirit < card.cost) {
       addLog('神识不足！');
       return;
@@ -353,39 +442,21 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   };
 
   const useInventoryItem = (item: Item) => {
+      // Logic for old inventory button, mostly superseded by deck talismans but kept for potions if any
       if (turn !== 'PLAYER' || combatEndedRef.current) return;
       
-      if (item.type === 'TALISMAN') {
-          const card = cardsConfig.find(c => c.id === item.talismanCardId);
-          if (!card) {
-              addLog(`${item.name} 似乎失效了...`);
-              return;
-          }
-          
-          // Use Talisman: No cost check
-          triggerVfx(card.type, 'PLAYER');
-          setTimeout(() => {
-              resolveCardEffect(card, 'PLAYER');
-          }, 200);
-
-          // Update Durability
-          const updatedItem = { ...item, durability: (item.durability || 1) - 1 };
-          const newInv = combatInventory.map(i => i.id === item.id ? updatedItem : i).filter(i => (i.durability || 0) > 0);
-          setCombatInventory(newInv);
-          
-          if (updatedItem.durability === 0) {
-              addLog(`${item.name} 灵力耗尽，碎裂了。`);
-          } else {
-              addLog(`使用了 ${item.name} (剩余耐久: ${updatedItem.durability})`);
-          }
-      }
+      // ... (Legacy talisman usage code could be removed if purely deck-based now, leaving for compatibility)
       
-      // Close bag after use? Or keep open? Let's close for now to not obscure screen
       setShowBag(false);
   };
 
   const endTurn = () => {
     if (combatEndedRef.current) return;
+    
+    // Discard remaining hand
+    setDiscardPile(prev => [...prev, ...hand]);
+    setHand([]);
+
     setTurn('ENEMY');
     setShowBag(false); // Close bag on turn end
     setTimeout(executeEnemyTurn, 1000);
@@ -473,36 +544,19 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   const handleModalConfirm = () => {
       if (combatResult?.win && combatResult.rewards) {
-          // Sync combat inventory changes back to main player inventory (for consumable/durability updates)
-          // We need to pass inventory changes back. 
-          // Since onWin currently only takes rewards, we might need to modify Player state in App.tsx 
-          // or pass the updated inventory here. 
-          // BUT, onWin updates player by adding drops. It doesn't sync used items.
-          // FIX: We need to pass combatInventory back or update App state.
-          // For simplicity in this structure, we assume we need to update the player's inventory 
-          // with the state of combatInventory.
-          // However, onWin logic is in App.tsx. 
-          // Let's pass drops, but App needs to handle the inventory sync.
-          // Workaround: We will merge the inventory changes by replacing the player's inventory
-          // with combatInventory + drops in App.tsx? No, App doesn't know about combatInventory.
+          // Prepare updated talismans to sync back to App
+          const updatedTalismans: Item[] = [];
           
-          // Simpler: Just update onWin to accept currentInventory state.
-          // But I can't change the prop signature easily without breaking other things.
-          // Wait, I can pass it as part of rewards object if I cast it, or better yet,
-          // Update the Player object completely?
-          
-          // Let's modify onWin signature to accept inventory updates.
-          // Actually, since I'm modifying CombatView, I can change how it calls onWin.
-          // But I need to change App.tsx onWin handler too.
-          // Let's stick to the request: "Craft Talisman" ... "Use in Combat". 
-          // Durability loss must persist.
-          
-          // I will emit an event or update the logic in App.tsx to handle inventory sync.
-          // For now, I will modify `onWin` to take an optional `updatedInventory` arg in App.tsx.
-          // But here in the XML I'm only modifying CombatView.
-          
-          // NOTE: I am modifying App.tsx in this prompt too, so I can change handleCombatWin signature there.
-          onWin(combatResult.rewards, combatInventory);
+          initialPlayer.talismansInDeck?.forEach(t => {
+               const newDur = talismanState[t.id];
+               if (newDur !== undefined) {
+                   updatedTalismans.push({ ...t, durability: newDur });
+               } else {
+                   updatedTalismans.push(t);
+               }
+          });
+
+          onWin(combatResult.rewards, updatedTalismans);
       } else {
           onLose();
       }
@@ -518,7 +572,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
       );
   };
   
-  // Filter items usable in combat
+  // Filter items usable in combat (Legacy)
   const combatItems = combatInventory.filter(i => i.type === 'TALISMAN');
 
   return (
@@ -668,7 +722,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                             if (v <= 0) return null;
                             const config = ELEMENT_CONFIG[elem as ElementType];
                             return (
-                                <div key={elem} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-600/50 ${config.bg} bg-opacity-60`} title={`${elem}灵力`}>
+                                <div key={elem} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-600/50 ${config.bg} bg-opacity-60" title={`${elem}灵力`}>
                                     <span className="text-[10px]">{config.icon}</span>
                                     <span className={`text-[10px] font-bold ${config.color}`}>{v}</span>
                                 </div>
@@ -716,7 +770,7 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                         <div key={`${card.id}-${idx}`} className="transform hover:-translate-y-4 transition-transform duration-200 flex-shrink-0 mb-2">
                              <CardItem 
                                 card={card} 
-                                isPlayable={turn === 'PLAYER' && playerSpirit >= card.cost}
+                                isPlayable={turn === 'PLAYER' && (card.isTalisman ? true : playerSpirit >= card.cost)}
                                 playerLevel={initialPlayer.level}
                                 currentElement={playerElements[card.element]}
                                 onClick={() => playCard(idx)}

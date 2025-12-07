@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Card, CardType, ElementType } from '../types';
 import { ELEMENT_CONFIG } from '../constants';
@@ -10,9 +11,10 @@ interface CardItemProps {
   isPlayable?: boolean;
   playerLevel?: number; // Optional, to check reqLevel
   currentElement?: number; // Optional: Pass current specific element pool value to check cost
+  disableHoverEffect?: boolean; // New prop to disable internal hover transform
 }
 
-export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel, currentElement }) => {
+export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isPlayable = true, playerLevel, currentElement, disableHoverEffect = false }) => {
   
   // Mapping ElementType to Background Gradients
   const elementBgColors: Record<ElementType, string> = {
@@ -57,7 +59,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, onClick, disabled, isP
       className={`
         relative w-32 h-48 border-2 rounded-xl p-2 flex flex-col select-none transition-transform duration-200
         ${bgStyle}
-        ${isDisabled ? 'opacity-40 cursor-not-allowed scale-95 grayscale-[0.5]' : 'cursor-pointer hover:-translate-y-4 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] shadow-lg'}
+        ${isDisabled ? 'opacity-40 cursor-not-allowed scale-95 grayscale-[0.5]' : ''}
+        ${!isDisabled && !disableHoverEffect ? 'cursor-pointer hover:-translate-y-4 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] shadow-lg' : 'shadow-lg'}
         ${!isPlayable && !isDisabled ? 'opacity-70' : ''}
       `}
     >

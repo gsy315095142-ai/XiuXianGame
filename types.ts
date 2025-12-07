@@ -121,7 +121,11 @@ export interface Card {
   description: string;
   rarity: 'common' | 'rare' | 'epic';
   reqLevel: number;
-  tags?: string[]; 
+  tags?: string[];
+  
+  // Runtime properties for Talismans in Combat
+  isTalisman?: boolean;
+  talismanItemId?: string;
 }
 
 export interface Stats {
@@ -162,6 +166,9 @@ export interface Player extends Entity {
 
   // Forge State
   learnedBlueprints: string[]; // List of Blueprint Item IDs
+
+  // Talisman Deck
+  talismansInDeck: Item[]; // Talismans equipped for combat
 }
 
 export interface Enemy extends Entity {

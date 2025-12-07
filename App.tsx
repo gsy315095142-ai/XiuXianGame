@@ -1,4 +1,6 @@
 
+
+
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap, Stats } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -181,13 +183,19 @@ export default function App() {
       setPlayer(prev => prev ? ({ ...prev, gold: prev.gold + Math.floor(item.price * 0.5), inventory: prev.inventory.filter(i => i.id !== item.id) }) : null);
   };
 
-  const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }) => {
+  const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }, updatedTalismans?: Item[]) => {
     setPlayer(prev => {
         if (!prev) return null;
         let updatedPlayer = { ...prev };
         updatedPlayer.exp += rewards.exp;
         updatedPlayer.gold += rewards.gold;
         if (rewards.drops.length > 0) updatedPlayer.inventory = [...updatedPlayer.inventory, ...rewards.drops];
+        
+        // Sync Talisman Durability
+        if (updatedTalismans) {
+            updatedPlayer.talismansInDeck = updatedTalismans.filter(t => (t.durability || 0) > 0);
+        }
+        
         return updatedPlayer;
     });
     const isBoss = activeEnemy?.name.includes('领主') || (activeEnemy?.difficulty || 0) > 100; // Simplified boss check
@@ -623,13 +631,15 @@ export default function App() {
       });
   };
 
-  const handleManageDeck = (action: 'TO_STORAGE' | 'TO_DECK', index: number) => {
+  const handleManageDeck = (action: 'TO_STORAGE' | 'TO_DECK' | 'TALISMAN_TO_DECK' | 'TALISMAN_TO_INVENTORY', index: number) => {
       if (!player) return;
       
       setPlayer(prev => {
           if (!prev) return null;
           const newDeck = [...prev.deck];
           const newStorage = [...prev.cardStorage];
+          const newTalismans = [...(prev.talismansInDeck || [])];
+          const newInventory = [...prev.inventory];
 
           if (action === 'TO_STORAGE') {
               if (newDeck.length <= 24) {
@@ -638,11 +648,23 @@ export default function App() {
               }
               const card = newDeck.splice(index, 1)[0];
               newStorage.push(card);
-          } else {
+          } else if (action === 'TO_DECK') {
               const card = newStorage.splice(index, 1)[0];
+              if (card.reqLevel > prev.level) {
+                  // Should be prevented by UI but safety check
+                  newStorage.splice(index, 0, card); // put back
+                  return prev;
+              }
               newDeck.push(card);
+          } else if (action === 'TALISMAN_TO_DECK') {
+              const item = newInventory.splice(index, 1)[0];
+              newTalismans.push(item);
+          } else if (action === 'TALISMAN_TO_INVENTORY') {
+              const item = newTalismans.splice(index, 1)[0];
+              newInventory.push(item);
           }
-          return { ...prev, deck: newDeck, cardStorage: newStorage };
+
+          return { ...prev, deck: newDeck, cardStorage: newStorage, talismansInDeck: newTalismans, inventory: newInventory };
       });
   };
 

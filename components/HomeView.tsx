@@ -1,4 +1,8 @@
 
+
+
+
+
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig, Card } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -48,7 +52,7 @@ interface HomeViewProps {
   onRefine: (recipeId: string, materials: {itemId: string, count: number}[]) => void;
   onCraft: (blueprintId: string, materials: {itemId: string, count: number}[]) => void;
   onCraftTalisman: (cardId: string, penId: string, paperId: string) => void; 
-  onManageDeck: (action: 'TO_STORAGE' | 'TO_DECK', index: number) => void; 
+  onManageDeck: (action: 'TO_STORAGE' | 'TO_DECK' | 'TALISMAN_TO_DECK' | 'TALISMAN_TO_INVENTORY', index: number) => void; 
   isRefining: boolean;
   itemsConfig: Item[];
   artifactConfigs?: ArtifactSlotConfig[];
@@ -65,7 +69,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedBlueprint, setSelectedBlueprint] = useState<Item | null>(null);
   
   // Deck Tab State
-  const [deckTab, setDeckTab] = useState<'active' | 'storage'>('active');
+  const [deckTab, setDeckTab] = useState<'active' | 'storage' | 'talisman'>('active');
 
   // Talisman State
   const [selectedTalismanCard, setSelectedTalismanCard] = useState<Card | null>(null);
@@ -107,6 +111,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const inventory = (player.inventory || []).filter(Boolean);
   const deck = (player.deck || []).filter(Boolean);
   const cardStorage = (player.cardStorage || []).filter(Boolean);
+  const talismansInDeck = (player.talismansInDeck || []).filter(Boolean);
   const artifacts = player.artifacts || [];
   const unlockedArtifactCount = player.unlockedArtifactCount || 0;
   const learnedRecipes = player.learnedRecipes || [];
@@ -149,6 +154,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Filter inventory for Talisman Crafting
   const availablePens = inventory.filter(i => i.type === 'TALISMAN_PEN');
   const availablePapers = inventory.filter(i => i.type === 'TALISMAN_PAPER');
+  const inventoryTalismans = inventory.filter(i => i.type === 'TALISMAN');
 
   const canCraftTalisman = selectedTalismanCard && selectedPen && selectedPaper &&
       selectedPen.reqLevel >= selectedTalismanCard.reqLevel &&
@@ -583,6 +589,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                 >
                                     卡牌仓库 ({cardStorage.length})
                                 </Button>
+                                <Button 
+                                    variant={deckTab === 'talisman' ? 'primary' : 'secondary'} 
+                                    onClick={() => setDeckTab('talisman')}
+                                >
+                                    符箓仓库 ({inventoryTalismans.length})
+                                </Button>
                             </div>
                         )}
                     </div>
@@ -681,44 +693,134 @@ export const HomeView: React.FC<HomeViewProps> = ({
                              <div className="flex flex-col gap-4">
                                  {deckTab === 'active' && (
                                     <div className="flex justify-between items-center text-slate-400 text-sm mb-2 px-4">
-                                        <span>最小卡组数量: 24</span>
+                                        <div className="flex gap-4">
+                                            <span>最小卡组数量: 24</span>
+                                            <span>|</span>
+                                            <span>出战符箓: {talismansInDeck.length}</span>
+                                        </div>
                                         <span className={deck.length < 24 ? 'text-red-500 font-bold' : 'text-emerald-500 font-bold'}>
-                                            当前数量: {deck.length}
+                                            当前卡牌数量: {deck.length}
                                         </span>
                                     </div>
                                  )}
                                  
+                                 {/* --- CARDS & TALISMANS GRID --- */}
                                  <div className="flex flex-wrap gap-4 justify-center">
-                                     {(deckTab === 'active' ? deck : cardStorage).map((card, idx) => {
-                                         if (!card || !card.type) return null; // STRICT CHECK
-                                         return (
-                                             <div key={`${card.id}_${idx}`} className="relative group flex flex-col gap-2">
-                                                 <div className="relative">
-                                                     <CardItem card={card} isPlayable={false} playerLevel={player.level} />
-                                                     {deckTab === 'active' && deck.length > 24 && (
-                                                         <button 
+                                     
+                                     {/* ACTIVE TAB: Show Cards + Talismans in Deck */}
+                                     {deckTab === 'active' && (
+                                         <>
+                                            {/* Render Cards */}
+                                            {deck.map((card, idx) => (
+                                                 <div key={`${card.id}_deck_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
+                                                     <CardItem card={card} isPlayable={false} playerLevel={player.level} disableHoverEffect={true} />
+                                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl z-20">
+                                                         <Button 
+                                                            variant="danger" 
+                                                            size="sm"
+                                                            disabled={deck.length <= 24}
                                                             onClick={() => onManageDeck('TO_STORAGE', idx)}
-                                                            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-red-500 z-20 font-bold"
-                                                            title="移至仓库"
                                                          >
-                                                             -
-                                                         </button>
-                                                     )}
-                                                     {deckTab === 'storage' && (
-                                                         <button 
+                                                             移出
+                                                         </Button>
+                                                     </div>
+                                                 </div>
+                                            ))}
+                                            {/* Render Talismans in Deck */}
+                                            {talismansInDeck.map((item, idx) => {
+                                                 // Map item to dummy card for display
+                                                 const dummyCard: Card = {
+                                                     id: item.id,
+                                                     name: item.name,
+                                                     type: 'ATTACK' as any, // Placeholder
+                                                     cost: 0,
+                                                     element: 'SWORD' as any,
+                                                     elementCost: 0,
+                                                     value: 0,
+                                                     description: `[符箓] ${item.description}`,
+                                                     rarity: item.rarity as any,
+                                                     reqLevel: item.reqLevel
+                                                 };
+                                                 return (
+                                                     <div key={`${item.id}_talisman_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
+                                                         {/* Custom minimal rendering for Talisman "Card" */}
+                                                         <div className="w-32 h-48 border-2 border-yellow-600 bg-yellow-900/40 rounded-xl p-2 flex flex-col select-none relative">
+                                                             <div className="absolute top-1 right-1 text-lg">📜</div>
+                                                             <div className="font-bold text-yellow-200 text-center text-sm truncate mt-2">{item.name}</div>
+                                                             <div className="flex-1 flex items-center justify-center text-4xl">⚡</div>
+                                                             <div className="text-[10px] text-center text-yellow-100 bg-black/30 p-1 rounded">
+                                                                 耐久: {item.durability}/{item.maxDurability}
+                                                             </div>
+                                                             <div className="text-[10px] text-center mt-1 text-slate-300">无需消耗灵力</div>
+                                                         </div>
+                                                         
+                                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl z-20">
+                                                             <Button 
+                                                                variant="danger" 
+                                                                size="sm"
+                                                                onClick={() => onManageDeck('TALISMAN_TO_INVENTORY', idx)}
+                                                             >
+                                                                 移出
+                                                             </Button>
+                                                         </div>
+                                                     </div>
+                                                 );
+                                            })}
+                                         </>
+                                     )}
+
+                                     {/* STORAGE TAB: Show Inactive Cards */}
+                                     {deckTab === 'storage' && cardStorage.map((card, idx) => {
+                                         const canAdd = player.level >= card.reqLevel;
+                                         return (
+                                             <div key={`${card.id}_storage_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
+                                                 <CardItem card={card} isPlayable={false} playerLevel={player.level} disableHoverEffect={true} />
+                                                 {canAdd && (
+                                                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl z-20">
+                                                         <Button 
+                                                            variant="primary" 
+                                                            size="sm"
                                                             onClick={() => onManageDeck('TO_DECK', idx)}
-                                                            className="absolute -top-2 -right-2 bg-emerald-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-emerald-500 z-20 font-bold"
-                                                            title="加入卡组"
                                                          >
-                                                             +
-                                                         </button>
-                                                     )}
+                                                             出战
+                                                         </Button>
+                                                     </div>
+                                                 )}
+                                             </div>
+                                         );
+                                     })}
+
+                                     {/* TALISMAN TAB: Show Talismans in Inventory */}
+                                     {deckTab === 'talisman' && inventoryTalismans.map((item, idx) => {
+                                         // Find actual index in main inventory to pass to handler
+                                         const realIdx = player.inventory.indexOf(item);
+                                         
+                                         return (
+                                             <div key={`${item.id}_inv_${idx}`} className="relative group w-32 h-48 border-2 border-slate-600 bg-slate-800 rounded-xl p-2 flex flex-col select-none transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl">
+                                                 <div className="font-bold text-white text-center text-sm truncate mt-2">{item.name}</div>
+                                                 <div className="flex-1 flex items-center justify-center text-4xl">{item.icon}</div>
+                                                 <div className="text-[10px] text-center text-slate-400 bg-black/30 p-1 rounded">
+                                                     耐久: {item.durability}/{item.maxDurability}
+                                                 </div>
+                                                 
+                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl z-20">
+                                                     <Button 
+                                                        variant="primary" 
+                                                        size="sm"
+                                                        onClick={() => onManageDeck('TALISMAN_TO_DECK', realIdx)}
+                                                     >
+                                                         出战
+                                                     </Button>
                                                  </div>
                                              </div>
                                          );
                                      })}
+
                                      {deckTab === 'storage' && cardStorage.length === 0 && (
                                          <div className="text-slate-500 py-20 text-xl font-bold">仓库为空</div>
+                                     )}
+                                     {deckTab === 'talisman' && inventoryTalismans.length === 0 && (
+                                         <div className="text-slate-500 py-20 text-xl font-bold">没有可用的符箓</div>
                                      )}
                                  </div>
                              </div>
