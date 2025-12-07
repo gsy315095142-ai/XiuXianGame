@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook } from '../constants';
@@ -62,7 +61,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   const [enemyHp, setEnemyHp] = useState(initialEnemy.stats.hp);
   const [enemyBlock, setEnemyBlock] = useState(0);
   const [enemySpirit, setEnemySpirit] = useState(initialEnemy.stats.spirit);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [enemyElements, setEnemyElements] = useState<Record<ElementType, number>>({...initialEnemy.stats.elementalAffinities});
   
   // Active Cards for Animation
@@ -234,12 +232,19 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                setPlayerMaxElements(prev => ({...prev, [element]: prev[element] + val}));
                setPlayerElements(prev => ({...prev, [element]: prev[element] + val}));
                addLog(`你使用${card.name}，${element}属性增强了 ${val} 点`);
+           } else {
+               const element = card.element;
+               setEnemyElements(prev => ({...prev, [element]: prev[element] + val}));
+               addLog(`敌人使用${card.name}，${element}属性增强了 ${val} 点`);
            }
       } else if (card.type === CardType.GROWTH) {
            if (isPlayer) {
                setPlayerMaxElements(prev => ({...prev, [card.element]: prev[card.element] + val}));
                setPlayerElements(prev => ({...prev, [card.element]: prev[card.element] + val}));
                addLog(`你使用${card.name}，${card.element}属性提升 ${val} 点`);
+           } else {
+               setEnemyElements(prev => ({...prev, [card.element]: prev[card.element] + val}));
+               addLog(`敌人使用${card.name}，${card.element}属性提升 ${val} 点`);
            }
       }
 
@@ -548,7 +553,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
              {/* LEFT: PLAYER INFO */}
              <div className="relative z-10 w-1/3 h-full flex flex-col items-center justify-center gap-6 border-r border-slate-700/30 pr-8">
                  <div className="relative">
-                    <img src={initialPlayer.avatarUrl} className="w-32 h-32 rounded-full border-4 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]" alt="Player" />
+                     {/* Player Stickman Avatar */}
+                     <div className="w-32 h-32 rounded-full border-4 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)] bg-slate-900 flex items-center justify-center overflow-hidden relative">
+                        <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+                             <circle cx="50" cy="30" r="10" stroke="white" strokeWidth="2" fill="none" />
+                             <line x1="50" y1="40" x2="50" y2="70" stroke="white" strokeWidth="2" />
+                             <line x1="50" y1="70" x2="30" y2="90" stroke="white" strokeWidth="2" />
+                             <line x1="50" y1="70" x2="70" y2="90" stroke="white" strokeWidth="2" />
+                             <line x1="50" y1="50" x2="20" y2="40" stroke="white" strokeWidth="2" />
+                             <line x1="50" y1="50" x2="80" y2="40" stroke="white" strokeWidth="2" />
+                             <circle cx="50" cy="50" r="40" stroke="#10b981" strokeWidth="1" strokeDasharray="4 2" className="animate-spin-slow" opacity="0.5" />
+                        </svg>
+                     </div>
                     <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-slate-800 text-emerald-300 px-3 py-1 rounded-full text-sm font-bold border border-emerald-500 whitespace-nowrap">
                         {initialPlayer.name}
                     </div>
@@ -640,7 +656,18 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
              {/* RIGHT: ENEMY INFO */}
              <div className="relative z-10 w-1/3 h-full flex flex-col items-center justify-center gap-6 border-l border-slate-700/30 pl-8">
                  <div className="relative">
-                    <img src={initialEnemy.avatarUrl || 'https://via.placeholder.com/150'} className="w-32 h-32 rounded-full border-4 border-red-500 shadow-[0_0_20px_red]" alt="Enemy" />
+                    {/* Enemy Stickman Avatar */}
+                    <div className="w-32 h-32 rounded-full border-4 border-red-500 shadow-[0_0_20px_red] bg-slate-900 flex items-center justify-center overflow-hidden relative">
+                         <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+                              <circle cx="50" cy="30" r="10" stroke="white" strokeWidth="2" fill="none" />
+                              <line x1="50" y1="40" x2="50" y2="70" stroke="white" strokeWidth="2" />
+                              <line x1="50" y1="70" x2="30" y2="90" stroke="white" strokeWidth="2" />
+                              <line x1="50" y1="70" x2="70" y2="90" stroke="white" strokeWidth="2" />
+                              <line x1="50" y1="50" x2="20" y2="30" stroke="white" strokeWidth="2" />
+                              <line x1="50" y1="50" x2="80" y2="30" stroke="white" strokeWidth="2" />
+                              <circle cx="50" cy="50" r="40" stroke="#ef4444" strokeWidth="1" strokeDasharray="4 2" className="animate-spin-slow" opacity="0.5" />
+                         </svg>
+                    </div>
                     <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-slate-800 text-red-300 px-3 py-1 rounded-full text-sm font-bold border border-red-500 whitespace-nowrap">
                         {initialEnemy.name} <span className="text-xs text-white ml-1">Lv.{initialEnemy.level}</span>
                     </div>
