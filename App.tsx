@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { GameView, Player, MapNode, NodeType, Enemy, GameConfig, Item, EquipmentSlot, ElementType, Card, GameMap } from './types';
 import { DEFAULT_GAME_CONFIG, generatePlayerFromConfig, getRandomEnemyFromConfig, getRealmName, SLOT_NAMES, createZeroElementStats, generateSkillBook } from './constants';
@@ -318,6 +316,57 @@ export default function App() {
       }, 3000);
   };
 
+  const handleCraftTalisman = (cardId: string, penId: string, paperId: string) => {
+      if (!player) return;
+      const card = player.deck.find(c => c.id === cardId);
+      const pen = player.inventory.find(i => i.id === penId);
+      const paper = player.inventory.find(i => i.id === paperId);
+
+      if (!card || !pen || !paper) { alert("材料丢失"); return; }
+      if ((pen.durability || 0) <= 0) { alert("符笔已损坏"); return; }
+
+      const realmRank = Math.ceil(card.reqLevel / 10); // Simple scaling: 1-10 -> 1, 11-20 -> 2
+      const talismanDurability = 1 + realmRank;
+
+      const newTalisman: Item = {
+          id: `talisman_${card.id}_${Date.now()}`,
+          name: `${card.name}符`,
+          type: 'TALISMAN',
+          icon: '📜',
+          description: `封印了【${card.name}】的符箓。效果与原卡牌一致，使用不消耗灵力。`,
+          rarity: card.rarity,
+          reqLevel: card.reqLevel,
+          price: 100,
+          talismanCardId: card.id,
+          maxDurability: talismanDurability,
+          durability: talismanDurability,
+          statBonus: { elementalAffinities: createZeroElementStats() }
+      };
+
+      setPlayer(prev => {
+          if(!prev) return null;
+          // Consume Pen Durability
+          const updatedPen = { ...pen, durability: (pen.durability || 1) - 1 };
+          
+          let newInventory = prev.inventory.filter(i => i.id !== paperId && i.id !== penId); // Remove paper and old pen
+          if (updatedPen.durability! > 0) {
+              newInventory.push(updatedPen);
+          }
+
+          // Consume Card (Remove specific instance? deck is just list of objects, we need to remove one matching ID)
+          // Wait, deck cards share IDs if duplicates? Usually unique IDs in runtime, config has static IDs.
+          // Let's assume player.deck has instances. If cards share IDs, findIndex removes the first one.
+          const cardIdx = prev.deck.findIndex(c => c.id === cardId);
+          const newDeck = [...prev.deck];
+          if (cardIdx > -1) newDeck.splice(cardIdx, 1);
+
+          newInventory.push(newTalisman);
+
+          return { ...prev, inventory: newInventory, deck: newDeck };
+      });
+      alert(`制作成功！获得了 ${newTalisman.name}`);
+  };
+
   const handleUseItem = (item: Item) => {
       if (!player) return;
       
@@ -538,6 +587,7 @@ export default function App() {
           onBreakthrough={handleBreakthrough}
           onRefine={handleRefine}
           onCraft={handleCraftArtifact}
+          onCraftTalisman={handleCraftTalisman}
           isRefining={isRefining}
           artifactConfigs={config.artifactSlotConfigs}
           onUnlockArtifactSlot={handleUnlockArtifactSlot}
@@ -560,6 +610,7 @@ export default function App() {
             enemy={activeEnemy}
             onWin={handleCombatWin}
             onLose={handleCombatLose}
+            cardsConfig={config.cards} // Pass config to resolve talisman IDs
         />
       )}
 

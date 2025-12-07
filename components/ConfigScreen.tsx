@@ -15,7 +15,7 @@ interface ConfigScreenProps {
 const createEmptyItem = (type: ItemType, level: number = 1): Item => ({
   id: `item_${Date.now()}`,
   name: '新物品',
-  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : '🏺', 
+  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : type === 'TALISMAN_PEN' ? '🖌️' : type === 'TALISMAN_PAPER' ? '🟨' : '🏺', 
   type: type,
   slot: type === 'EQUIPMENT' ? 'mainWeapon' : undefined,
   description: '描述...',
@@ -177,7 +177,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                 maxUsage: item.maxUsage || 0,
                 recipeResult: item.recipeResult || '',
                 successRate: item.successRate || 0,
-                recipeMaterials_json: item.recipeMaterials ? JSON.stringify(item.recipeMaterials) : ''
+                recipeMaterials_json: item.recipeMaterials ? JSON.stringify(item.recipeMaterials) : '',
+                durability: item.durability || 0,
+                maxDurability: item.maxDurability || 0
             };
             if (item.statBonus?.elementalAffinities) {
                 Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
@@ -319,7 +321,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         maxUsage: r.maxUsage || 0,
                         recipeResult: r.recipeResult || undefined,
                         successRate: r.successRate || 0,
-                        recipeMaterials: r.recipeMaterials_json ? JSON.parse(r.recipeMaterials_json) : undefined
+                        recipeMaterials: r.recipeMaterials_json ? JSON.parse(r.recipeMaterials_json) : undefined,
+                        durability: r.durability || 0,
+                        maxDurability: r.maxDurability || 0
                       }
                   });
               }
@@ -607,13 +611,13 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           {activeTab === 'items' && (
              <div className="flex flex-col h-full">
                  <div className="flex gap-2 mb-4 overflow-x-auto shrink-0 pb-2">
-                     {(['EQUIPMENT', 'CONSUMABLE', 'MATERIAL', 'RECIPE', 'PILL', 'ARTIFACT', 'FORGE_MATERIAL', 'FORGE_BLUEPRINT'] as ItemType[]).map(t => (
+                     {(['EQUIPMENT', 'CONSUMABLE', 'MATERIAL', 'RECIPE', 'PILL', 'ARTIFACT', 'FORGE_MATERIAL', 'FORGE_BLUEPRINT', 'TALISMAN_PEN', 'TALISMAN_PAPER', 'TALISMAN'] as ItemType[]).map(t => (
                          <button 
                             key={t} 
                             onClick={() => setItemSubTab(t)}
                             className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap ${itemSubTab === t ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
                          >
-                             {t === 'EQUIPMENT' ? '装备' : t === 'CONSUMABLE' ? '消耗品' : t === 'MATERIAL' ? '药材' : t === 'RECIPE' ? '丹方' : t === 'PILL' ? '丹药' : t === 'ARTIFACT' ? '法宝' : t === 'FORGE_MATERIAL' ? '器材' : '图纸'}
+                             {t === 'EQUIPMENT' ? '装备' : t === 'CONSUMABLE' ? '消耗品' : t === 'MATERIAL' ? '药材' : t === 'RECIPE' ? '丹方' : t === 'PILL' ? '丹药' : t === 'ARTIFACT' ? '法宝' : t === 'FORGE_MATERIAL' ? '器材' : t === 'FORGE_BLUEPRINT' ? '图纸' : t === 'TALISMAN_PEN' ? '符笔' : t === 'TALISMAN_PAPER' ? '符纸' : '符箓'}
                          </button>
                      ))}
                      <div className="ml-auto flex gap-2">
@@ -702,6 +706,21 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                                  </div>
                                              ))}
                                          </div>
+                                     )}
+
+                                     {(item.type === 'TALISMAN_PEN') && (
+                                          <div className="col-span-4 grid grid-cols-2 gap-2 bg-slate-900/50 p-2 rounded">
+                                              <div>
+                                                  <label className="text-[10px] text-slate-500 block">耐久度</label>
+                                                  <input type="number" className="bg-slate-800 w-full p-1 rounded text-xs" 
+                                                      value={item.maxDurability || 0} 
+                                                      onChange={e => {
+                                                          const newItems = localConfig.items.map(i => i.id === item.id ? {...i, maxDurability: parseInt(e.target.value), durability: parseInt(e.target.value)} : i);
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}
+                                                  />
+                                              </div>
+                                          </div>
                                      )}
 
                                      {(item.type === 'RECIPE' || item.type === 'FORGE_BLUEPRINT') && (

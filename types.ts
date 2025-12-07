@@ -68,8 +68,11 @@ export type ItemType =
     | 'MATERIAL' 
     | 'RECIPE' 
     | 'PILL'
-    | 'FORGE_BLUEPRINT' // New: Artifact Blueprint
-    | 'FORGE_MATERIAL'; // New: Artifact Material
+    | 'FORGE_BLUEPRINT' // Artifact Blueprint
+    | 'FORGE_MATERIAL'  // Artifact Material
+    | 'TALISMAN_PEN'    // New: Tool for crafting talismans
+    | 'TALISMAN_PAPER'  // New: Material for crafting talismans
+    | 'TALISMAN';       // New: The crafted talisman item
 
 export type EquipmentSlot = 
   | 'mainWeapon' 
@@ -100,6 +103,11 @@ export interface Item {
   recipeResult?: string; // For RECIPE/BLUEPRINT: The ID of the item (Pill/Artifact) it creates
   recipeMaterials?: { itemId: string; count: number }[]; // For RECIPE/BLUEPRINT: Materials required
   successRate?: number; // For RECIPE/BLUEPRINT: 0.0 - 1.0
+
+  // Talisman Fields
+  durability?: number; // For PEN and TALISMAN: Current durability
+  maxDurability?: number; // For PEN and TALISMAN: Max durability
+  talismanCardId?: string; // For TALISMAN: The ID of the Card this talisman mimics
 }
 
 export interface Card {

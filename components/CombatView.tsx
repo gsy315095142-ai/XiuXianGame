@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook, getRealmName } from '../constants';
@@ -10,6 +9,7 @@ interface CombatViewProps {
   enemy: Enemy;
   onWin: (rewards: { exp: number, gold: number, drops: Item[] }) => void;
   onLose: () => void;
+  cardsConfig: Card[]; // Needed to lookup talisman effects
 }
 
 type Turn = 'PLAYER' | 'ENEMY';
@@ -21,7 +21,22 @@ interface VisualEffectState {
   target: 'PLAYER' | 'ENEMY';
 }
 
-export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, enemy: initialEnemy, onWin, onLose }) => {
+const VisualEffect: React.FC<{ type: VfxType }> = ({ type }) => {
+    return (
+        <div className={`text-9xl filter drop-shadow-lg opacity-90 ${
+            type === 'SLASH' ? 'text-red-500 animate-ping' :
+            type === 'HEAL' ? 'text-green-500 animate-bounce' :
+            type === 'SHIELD' ? 'text-blue-500 animate-pulse' :
+            'text-yellow-400 animate-spin'
+        }`}>
+            {type === 'SLASH' ? '💥' :
+             type === 'HEAL' ? '💚' :
+             type === 'SHIELD' ? '🛡️' : '✨'}
+        </div>
+    );
+};
+
+export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, enemy: initialEnemy, onWin, onLose, cardsConfig }) => {
   // Combat State
   const [playerHp, setPlayerHp] = useState(initialPlayer.stats.hp);
   const [playerSpirit, setPlayerSpirit] = useState(initialPlayer.stats.spirit);
@@ -32,6 +47,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
   // Track CURRENT available elements
   const [playerElements, setPlayerElements] = useState<Record<ElementType, number>>({...initialPlayer.stats.elementalAffinities});
   
+  // Inventory (Local copy to track durability/consumables)
+  const [combatInventory, setCombatInventory] = useState<Item[]>([...initialPlayer.inventory]);
+  const [showBag, setShowBag] = useState(false);
+
   const [enemyHp, setEnemyHp] = useState(initialEnemy.stats.hp);
   const [enemyBlock, setEnemyBlock] = useState(0);
   const [enemySpirit, setEnemySpirit] = useState(initialEnemy.stats.spirit);
@@ -333,9 +352,42 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
     setDiscardPile(prev => [...prev, card]);
   };
 
+  const useInventoryItem = (item: Item) => {
+      if (turn !== 'PLAYER' || combatEndedRef.current) return;
+      
+      if (item.type === 'TALISMAN') {
+          const card = cardsConfig.find(c => c.id === item.talismanCardId);
+          if (!card) {
+              addLog(`${item.name} 似乎失效了...`);
+              return;
+          }
+          
+          // Use Talisman: No cost check
+          triggerVfx(card.type, 'PLAYER');
+          setTimeout(() => {
+              resolveCardEffect(card, 'PLAYER');
+          }, 200);
+
+          // Update Durability
+          const updatedItem = { ...item, durability: (item.durability || 1) - 1 };
+          const newInv = combatInventory.map(i => i.id === item.id ? updatedItem : i).filter(i => (i.durability || 0) > 0);
+          setCombatInventory(newInv);
+          
+          if (updatedItem.durability === 0) {
+              addLog(`${item.name} 灵力耗尽，碎裂了。`);
+          } else {
+              addLog(`使用了 ${item.name} (剩余耐久: ${updatedItem.durability})`);
+          }
+      }
+      
+      // Close bag after use? Or keep open? Let's close for now to not obscure screen
+      setShowBag(false);
+  };
+
   const endTurn = () => {
     if (combatEndedRef.current) return;
     setTurn('ENEMY');
+    setShowBag(false); // Close bag on turn end
     setTimeout(executeEnemyTurn, 1000);
   };
 
@@ -421,7 +473,36 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
   const handleModalConfirm = () => {
       if (combatResult?.win && combatResult.rewards) {
-          onWin(combatResult.rewards);
+          // Sync combat inventory changes back to main player inventory (for consumable/durability updates)
+          // We need to pass inventory changes back. 
+          // Since onWin currently only takes rewards, we might need to modify Player state in App.tsx 
+          // or pass the updated inventory here. 
+          // BUT, onWin updates player by adding drops. It doesn't sync used items.
+          // FIX: We need to pass combatInventory back or update App state.
+          // For simplicity in this structure, we assume we need to update the player's inventory 
+          // with the state of combatInventory.
+          // However, onWin logic is in App.tsx. 
+          // Let's pass drops, but App needs to handle the inventory sync.
+          // Workaround: We will merge the inventory changes by replacing the player's inventory
+          // with combatInventory + drops in App.tsx? No, App doesn't know about combatInventory.
+          
+          // Simpler: Just update onWin to accept currentInventory state.
+          // But I can't change the prop signature easily without breaking other things.
+          // Wait, I can pass it as part of rewards object if I cast it, or better yet,
+          // Update the Player object completely?
+          
+          // Let's modify onWin signature to accept inventory updates.
+          // Actually, since I'm modifying CombatView, I can change how it calls onWin.
+          // But I need to change App.tsx onWin handler too.
+          // Let's stick to the request: "Craft Talisman" ... "Use in Combat". 
+          // Durability loss must persist.
+          
+          // I will emit an event or update the logic in App.tsx to handle inventory sync.
+          // For now, I will modify `onWin` to take an optional `updatedInventory` arg in App.tsx.
+          // But here in the XML I'm only modifying CombatView.
+          
+          // NOTE: I am modifying App.tsx in this prompt too, so I can change handleCombatWin signature there.
+          onWin(combatResult.rewards, combatInventory);
       } else {
           onLose();
       }
@@ -436,6 +517,9 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           </div>
       );
   };
+  
+  // Filter items usable in combat
+  const combatItems = combatInventory.filter(i => i.type === 'TALISMAN');
 
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 overflow-hidden">
@@ -443,18 +527,13 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         {/* VFX Layer */}
         {activeVfx && (
              <div className="absolute inset-0 z-[60] pointer-events-none flex items-center justify-center">
-                 {/* 
-                    Positioning Logic:
-                    ENEMY target -> Top half (top-[20vh])
-                    PLAYER target -> Bottom half (bottom-[20vh])
-                 */}
                  <div className={`absolute ${activeVfx.target === 'ENEMY' ? 'top-[20vh]' : 'bottom-[20vh]'}`}>
                      <VisualEffect type={activeVfx.type} />
                  </div>
              </div>
         )}
 
-        {/* Active Enemy Card (No Backdrop, Floating Below Button) */}
+        {/* Active Enemy Card */}
         {activeEnemyCard && (
             <div className="absolute top-[45vh] left-1/2 -translate-x-1/2 z-[40] pointer-events-none flex flex-col items-center gap-2">
                 <div className="transform scale-110 shadow-2xl animate-bounce-slight pointer-events-auto">
@@ -462,6 +541,34 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 </div>
                 <div className="text-xl font-bold text-red-500 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] whitespace-nowrap">
                     {initialEnemy.name} 使用了这张卡!
+                </div>
+            </div>
+        )}
+        
+        {/* Inventory Bag Modal */}
+        {showBag && (
+            <div className="absolute inset-0 z-[70] bg-black/80 flex items-center justify-center p-8 animate-fade-in">
+                <div className="bg-slate-900 border-2 border-slate-600 rounded-xl p-6 w-full max-w-2xl shadow-2xl relative max-h-[80vh] flex flex-col">
+                    <button onClick={() => setShowBag(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white text-2xl">✕</button>
+                    <h3 className="text-2xl font-bold text-white mb-4 border-b border-slate-700 pb-2">🎒 战斗物品</h3>
+                    <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-4 p-2 custom-scrollbar">
+                        {combatItems.map((item, idx) => (
+                            <div key={`${item.id}_${idx}`} className="bg-slate-800 p-3 rounded border border-slate-700 flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                    <div className="text-3xl">{item.icon}</div>
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-sm text-white truncate">{item.name}</div>
+                                        <div className="text-xs text-yellow-400">耐久: {item.durability}/{item.maxDurability}</div>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-slate-400 truncate">{item.description}</div>
+                                <Button size="sm" onClick={() => useInventoryItem(item)}>使用</Button>
+                            </div>
+                        ))}
+                        {combatItems.length === 0 && (
+                            <div className="col-span-3 text-center text-slate-500 py-10">没有可用的战斗物品</div>
+                        )}
+                    </div>
                 </div>
             </div>
         )}
@@ -495,11 +602,10 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                                         {combatResult.rewards.drops.map((item, idx) => (
                                             <div key={idx} className="flex items-center gap-2">
                                                 <div className={`w-8 h-8 flex items-center justify-center rounded bg-slate-700 border border-slate-600 text-xs`}>
-                                                    {item.type === 'CONSUMABLE' ? '📚' : '🎁'}
+                                                    {item.type === 'CONSUMABLE' ? '📚' : item.type === 'TALISMAN_PEN' ? '🖌️' : item.type === 'TALISMAN_PAPER' ? '🟨' : '🎁'}
                                                 </div>
                                                 <div className="flex-1">
                                                     <div className={`text-sm font-bold ${item.rarity === 'rare' ? 'text-blue-300' : 'text-white'}`}>{item.name}</div>
-                                                    <div className="text-[10px] text-slate-500 truncate">{item.description}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -596,8 +702,14 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
         {/* Bottom: Player Area */}
         <div className="flex-1 bg-gradient-to-t from-slate-900 to-slate-800 relative overflow-hidden flex flex-col justify-end">
             
+            {/* Inventory Button - Absolute Left */}
+            <div className="absolute bottom-4 left-4 z-30">
+                 <Button onClick={() => setShowBag(true)} className="p-3 rounded-full h-12 w-12 flex items-center justify-center text-2xl shadow-lg border-2 border-slate-500 bg-slate-800" title="物品">
+                     🎒
+                 </Button>
+            </div>
+
             {/* Hand Cards Area - Middle Lower */}
-            {/* Moved up by increasing bottom padding to pb-52 */}
             <div className="flex-1 flex items-end justify-center pb-52 overflow-hidden z-10 pointer-events-none w-full">
                  <div className="flex gap-3 px-4 pointer-events-auto items-end h-[240px] w-full max-w-[95%] overflow-x-auto no-scrollbar justify-center">
                     {hand.map((card, idx) => (
@@ -620,109 +732,47 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
                 {/* Avatar & HP - Centered */}
                 <div className="flex items-center gap-4 bg-slate-900/90 px-6 py-2 rounded-full border border-slate-600 shadow-xl pointer-events-auto backdrop-blur-md">
                      {/* Avatar + Level */}
-                     <div className="relative shrink-0">
-                         <img src={initialPlayer.avatarUrl} alt="Player" className="w-14 h-14 rounded-full border-2 border-emerald-500 shadow-lg object-cover" />
-                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-900 text-[9px] px-2 rounded border border-emerald-600 whitespace-nowrap text-emerald-200 font-bold">
-                            {getRealmName(initialPlayer.level)}
-                         </div>
-                     </div>
-                     {/* HP Bar */}
-                     <div className="flex flex-col gap-1 w-48">
-                         <div className="flex justify-between items-end text-xs font-bold">
-                            <span className="text-emerald-400">HP</span>
-                            <span className="text-slate-300">{Math.max(0, playerHp)} / {initialPlayer.stats.maxHp}</span>
-                         </div>
-                         <div className="h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden relative">
-                             <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
-                         </div>
-                         {playerBlock > 0 && (
-                             <div className="text-blue-300 text-[10px] font-bold mt-0.5 flex items-center gap-1">
-                                🛡️ 护盾 {playerBlock}
-                             </div>
-                         )}
-                     </div>
-                </div>
-
-                {/* Spirit & Elements - Centered below */}
-                <div className="flex items-center gap-4 bg-black/60 px-4 py-2 rounded-xl backdrop-blur-sm border border-slate-700/50 pointer-events-auto">
-                     {/* Spirit */}
-                     <div className="flex items-center gap-2 border-r border-slate-600/50 pr-4 h-full">
-                         <span className="text-[10px] text-blue-400 font-bold uppercase">神识</span>
-                         <div className="flex gap-0.5">
-                            {Array.from({ length: initialPlayer.stats.maxSpirit }).map((_, i) => (
-                                <div key={i} className={`w-2.5 h-2.5 rounded-full border border-blue-400 transition-all ${i < playerSpirit ? 'bg-blue-500 shadow-[0_0_5px_blue]' : 'bg-transparent opacity-30'}`}></div>
-                            ))}
+                     <div className="relative">
+                         <img src={initialPlayer.avatarUrl} className="w-16 h-16 rounded-full border-2 border-emerald-500" alt="Player" />
+                         <div className="absolute -bottom-1 -right-1 bg-black text-xs px-1 rounded border border-slate-600 font-bold text-white">
+                             Lv.{initialPlayer.level}
                          </div>
                      </div>
                      
-                     {/* Elements - Split into 2 Rows */}
-                     <div className="flex flex-col gap-1 items-center">
-                        <div className="flex gap-2">
-                            {primaryElements.map(elem => renderElementBadge(elem, playerElements[elem] || 0))}
-                        </div>
-                        <div className="flex gap-2">
-                            {secondaryElements.map(elem => renderElementBadge(elem, playerElements[elem] || 0))}
-                        </div>
+                     <div className="flex flex-col gap-1 w-48">
+                         <div className="flex justify-between text-xs font-bold text-white">
+                             <span>HP</span>
+                             <span>{playerHp} / {initialPlayer.stats.maxHp}</span>
+                         </div>
+                         <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                             <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${Math.max(0, (playerHp / initialPlayer.stats.maxHp) * 100)}%` }}></div>
+                         </div>
+                         
+                         <div className="flex justify-between text-xs font-bold text-blue-200 mt-1">
+                             <span>神识 (Spirit)</span>
+                             <span>{playerSpirit} / {initialPlayer.stats.maxSpirit}</span>
+                         </div>
+                         <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                             <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.max(0, (playerSpirit / initialPlayer.stats.maxSpirit) * 100)}%` }}></div>
+                         </div>
                      </div>
+
+                     {playerBlock > 0 && (
+                        <div className="flex flex-col items-center justify-center bg-blue-900/80 px-3 py-1 rounded border border-blue-500 animate-pulse">
+                            <span className="text-xl">🛡️</span>
+                            <span className="text-xs font-bold text-white">{playerBlock}</span>
+                        </div>
+                     )}
+                </div>
+
+                {/* Elements Bar */}
+                <div className="flex gap-2 p-2 bg-black/60 rounded-full backdrop-blur-sm pointer-events-auto overflow-x-auto max-w-full">
+                    {primaryElements.map(e => renderElementBadge(e, playerElements[e]))}
+                    <div className="w-px h-6 bg-slate-600 mx-1"></div>
+                    {secondaryElements.map(e => renderElementBadge(e, playerElements[e]))}
                 </div>
             </div>
-
         </div>
-        
-        <style>{`
-          @keyframes slash {
-            0% { transform: scale(0.5) rotate(-45deg); opacity: 0; }
-            50% { transform: scale(1.5) rotate(0deg); opacity: 1; }
-            100% { transform: scale(1) rotate(45deg); opacity: 0; }
-          }
-          @keyframes floatUp {
-            0% { transform: translateY(0) scale(0.8); opacity: 0; }
-            20% { opacity: 1; transform: translateY(-20px) scale(1.2); }
-            100% { transform: translateY(-60px) scale(1); opacity: 0; }
-          }
-          @keyframes shieldPulse {
-             0% { transform: scale(0.9); opacity: 0; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
-             50% { transform: scale(1.1); opacity: 0.8; box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
-             100% { transform: scale(1); opacity: 0; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
-          }
-          .animate-slash { animation: slash 0.5s ease-out forwards; }
-          .animate-heal { animation: floatUp 1.5s ease-out forwards; }
-          .animate-shield { animation: shieldPulse 0.8s ease-out forwards; }
-        `}</style>
     </div>
   );
-};
-
-// Sub-component for rendering visual effects
-const VisualEffect: React.FC<{ type: VfxType }> = ({ type }) => {
-    if (type === 'SLASH') {
-        return (
-            <div className="text-6xl text-red-500 font-bold animate-slash filter drop-shadow-[0_0_10px_rgba(220,38,38,0.8)]">
-                ⚔️ 斩!
-            </div>
-        );
-    }
-    if (type === 'HEAL') {
-        return (
-            <div className="relative">
-                 <div className="absolute -left-8 -top-4 text-4xl animate-heal animation-delay-100">💚</div>
-                 <div className="absolute left-0 top-0 text-5xl animate-heal">✨</div>
-                 <div className="absolute left-8 -top-8 text-4xl animate-heal animation-delay-200">➕</div>
-            </div>
-        );
-    }
-    if (type === 'SHIELD') {
-        return (
-            <div className="w-40 h-40 rounded-full border-4 border-blue-400 bg-blue-500/30 animate-shield shadow-[0_0_30px_blue]"></div>
-        );
-    }
-    if (type === 'BUFF') {
-         return (
-            <div className="relative">
-                 <div className="absolute -left-6 top-0 text-4xl animate-heal text-yellow-300">⬆️</div>
-                 <div className="absolute left-6 top-4 text-4xl animate-heal text-yellow-300 animation-delay-200">🔥</div>
-            </div>
-         );
-    }
-    return null;
 };

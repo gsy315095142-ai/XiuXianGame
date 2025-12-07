@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig } from '../types';
+import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig, Card } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
 import { Button } from './Button';
 import { CardItem } from './CardItem';
@@ -17,6 +17,7 @@ interface HomeViewProps {
   onBreakthrough: () => void;
   onRefine: (recipeId: string, materials: {itemId: string, count: number}[]) => void;
   onCraft: (blueprintId: string, materials: {itemId: string, count: number}[]) => void;
+  onCraftTalisman: (cardId: string, penId: string, paperId: string) => void; // New prop
   isRefining: boolean;
   itemsConfig: Item[];
   // New props for artifacts
@@ -26,12 +27,17 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ 
-    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, onCraft, isRefining, itemsConfig,
+    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, onCraft, onCraftTalisman, isRefining, itemsConfig,
     artifactConfigs = [], onUnlockArtifactSlot, onUnequipArtifact
 }) => {
-  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'forge' | 'mapSelect'>('none');
+  const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'forge' | 'talisman' | 'mapSelect'>('none');
   const [selectedRecipe, setSelectedRecipe] = useState<Item | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<Item | null>(null);
+  
+  // Talisman State
+  const [selectedTalismanCard, setSelectedTalismanCard] = useState<Card | null>(null);
+  const [selectedPen, setSelectedPen] = useState<Item | null>(null);
+  const [selectedPaper, setSelectedPaper] = useState<Item | null>(null);
 
   const realmName = getRealmName(player.level, realms);
   
@@ -47,8 +53,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   
   const alchemyUnlockLevel = 5; // Qi Refining Layer 5
   const forgeUnlockLevel = 11; // Foundation (Zhuji) start
+  const talismanUnlockLevel = 4; // Qi Refining Layer 4
+
   const isAlchemyUnlocked = player.level >= alchemyUnlockLevel;
   const isForgeUnlocked = player.level >= forgeUnlockLevel;
+  const isTalismanUnlocked = player.level >= talismanUnlockLevel;
 
   const equipmentSlots: EquipmentSlot[] = [
     'mainWeapon', 'offWeapon', 
@@ -95,6 +104,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const currentBlueprintStatus = selectedBlueprint ? getMaterialStatus(selectedBlueprint) : null;
   const targetArtifact = selectedBlueprint ? itemsConfig.find(i => i.id === selectedBlueprint.recipeResult) : null;
+
+  // Filter inventory for Talisman Crafting
+  const availablePens = player.inventory.filter(i => i.type === 'TALISMAN_PEN');
+  const availablePapers = player.inventory.filter(i => i.type === 'TALISMAN_PAPER');
+
+  // Check Talisman constraints
+  const canCraftTalisman = selectedTalismanCard && selectedPen && selectedPaper &&
+      selectedPen.reqLevel >= selectedTalismanCard.reqLevel &&
+      selectedPaper.reqLevel >= selectedTalismanCard.reqLevel &&
+      (selectedPen.durability || 0) > 0;
 
   // Notification Logic
   const hasActionableItems = player.inventory.some(item => {
@@ -156,6 +175,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <span className="mr-3 text-2xl">🎴</span> 本命卡组
                 </Button>
                 <div className="h-px bg-slate-700 my-2"></div>
+                <Button 
+                    variant={activeMenu === 'talisman' ? 'primary' : 'secondary'} 
+                    onClick={() => isTalismanUnlocked ? setActiveMenu(activeMenu === 'talisman' ? 'none' : 'talisman') : null}
+                    className={`justify-start text-xl py-5 px-6 ${!isTalismanUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={!isTalismanUnlocked ? '需炼气四层解锁' : ''}
+                >
+                     <span className="mr-3 text-2xl">🖌️</span> 制符台 {!isTalismanUnlocked && <span className="text-sm ml-auto">🔒 4级解锁</span>}
+                </Button>
                 <Button 
                     variant={activeMenu === 'alchemy' ? 'primary' : 'secondary'} 
                     onClick={() => isAlchemyUnlocked ? setActiveMenu(activeMenu === 'alchemy' ? 'none' : 'alchemy') : null}
@@ -424,6 +451,132 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
           </div>
       )}
+
+      {/* Talisman Modal (Crafting) */}
+      {activeMenu === 'talisman' && (
+          <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-8 animate-fade-in">
+              <div className="w-full max-w-6xl h-[85vh] bg-slate-900 border-2 border-yellow-700 rounded-2xl flex flex-col overflow-hidden shadow-2xl relative">
+                  <button onClick={() => setActiveMenu('none')} className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl z-50">✕</button>
+                  
+                   <div className="bg-slate-950 p-6 border-b border-yellow-900/50 flex items-center gap-4">
+                        <span className="text-4xl">🖌️</span>
+                        <div>
+                            <h3 className="text-3xl font-bold text-yellow-200">制符台</h3>
+                            <p className="text-yellow-500/60 text-sm">笔走龙蛇，将灵力封印于符纸之中。</p>
+                        </div>
+                   </div>
+
+                   <div className="flex-1 flex overflow-hidden">
+                      {/* Step 1: Select Card from Deck */}
+                      <div className="w-80 border-r border-slate-700 bg-slate-800/40 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                           <h4 className="text-slate-500 font-bold mb-2 uppercase text-xs tracking-widest">1. 选择卡牌 (将被消耗)</h4>
+                           <div className="space-y-2">
+                              {player.deck.map((card, idx) => (
+                                  <button
+                                      key={`${card.id}_${idx}`}
+                                      onClick={() => setSelectedTalismanCard(card)}
+                                      className={`w-full text-left p-3 rounded-lg border flex flex-col gap-1 transition-all ${selectedTalismanCard === card ? 'bg-yellow-900/40 border-yellow-500' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
+                                  >
+                                      <div className="flex justify-between items-center font-bold text-white">
+                                          <span>{card.name}</span>
+                                          <span className="text-xs bg-slate-900 px-1 rounded">Lv.{card.reqLevel}</span>
+                                      </div>
+                                      <div className="text-xs text-slate-400 truncate">{card.description}</div>
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+
+                      {/* Center: Materials and Preview */}
+                      <div className="flex-1 flex flex-col bg-slate-900 p-6 items-center">
+                          <div className="flex gap-8 w-full max-w-4xl justify-center mb-8">
+                                {/* Step 2: Select Pen */}
+                                <div className="flex-1 bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-4">
+                                     <h4 className="text-slate-400 font-bold text-sm">2. 选择符笔</h4>
+                                     <div className="flex flex-col gap-2 overflow-y-auto max-h-48 custom-scrollbar">
+                                         {availablePens.map(pen => {
+                                             const valid = selectedTalismanCard ? pen.reqLevel >= selectedTalismanCard.reqLevel : true;
+                                             return (
+                                                 <button
+                                                     key={pen.id}
+                                                     onClick={() => valid && setSelectedPen(pen)}
+                                                     className={`p-2 rounded border flex justify-between items-center ${selectedPen?.id === pen.id ? 'border-yellow-500 bg-yellow-900/20' : 'border-slate-600 bg-slate-900'} ${!valid ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'}`}
+                                                 >
+                                                     <div className="flex items-center gap-2">
+                                                         <span>{pen.icon}</span>
+                                                         <span className="text-sm font-bold">{pen.name}</span>
+                                                     </div>
+                                                     <div className="text-xs text-slate-400">耐: {pen.durability}/{pen.maxDurability}</div>
+                                                 </button>
+                                             )
+                                         })}
+                                         {availablePens.length === 0 && <div className="text-slate-500 text-sm text-center">背包中没有符笔</div>}
+                                     </div>
+                                </div>
+
+                                {/* Step 3: Select Paper */}
+                                <div className="flex-1 bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-4">
+                                     <h4 className="text-slate-400 font-bold text-sm">3. 选择符纸</h4>
+                                     <div className="flex flex-col gap-2 overflow-y-auto max-h-48 custom-scrollbar">
+                                         {availablePapers.map(paper => {
+                                             // Group by type for simpler selection if needed, but here simple list
+                                             const valid = selectedTalismanCard ? paper.reqLevel >= selectedTalismanCard.reqLevel : true;
+                                             const count = player.inventory.filter(i => i.name === paper.name).length;
+                                             // Avoid duplicates in list if strictly distinct items, but inventory is list of items. 
+                                             // Simple hack: unique by name for display? Or just show all. Showing all.
+                                             
+                                             return (
+                                                 <button
+                                                     key={paper.id}
+                                                     onClick={() => valid && setSelectedPaper(paper)}
+                                                     className={`p-2 rounded border flex justify-between items-center ${selectedPaper?.id === paper.id ? 'border-yellow-500 bg-yellow-900/20' : 'border-slate-600 bg-slate-900'} ${!valid ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'}`}
+                                                 >
+                                                     <div className="flex items-center gap-2">
+                                                         <span>{paper.icon}</span>
+                                                         <span className="text-sm font-bold">{paper.name}</span>
+                                                     </div>
+                                                     <div className="text-xs text-slate-400">Lv.{paper.reqLevel}</div>
+                                                 </button>
+                                             )
+                                         })}
+                                         {availablePapers.length === 0 && <div className="text-slate-500 text-sm text-center">背包中没有符纸</div>}
+                                     </div>
+                                </div>
+                          </div>
+
+                          {/* Result Preview */}
+                          <div className="flex-1 w-full border-t border-slate-800 pt-6 flex flex-col items-center justify-center">
+                              {selectedTalismanCard && selectedPen && selectedPaper ? (
+                                  <div className="flex flex-col items-center gap-6">
+                                      <div className="text-4xl animate-bounce-slight">📜</div>
+                                      <div className="text-center">
+                                          <h3 className="text-2xl font-bold text-yellow-200">{selectedTalismanCard.name}符</h3>
+                                          <p className="text-slate-400 text-sm max-w-md mt-2">
+                                              将消耗 <span className="text-red-400">{selectedTalismanCard.name}</span>、
+                                              <span className="text-white"> {selectedPaper.name}</span> 和 
+                                              <span className="text-white"> 1点符笔耐久</span>。
+                                          </p>
+                                          <p className="text-emerald-400 text-sm mt-2 font-bold">
+                                              制作后符箓效果与卡牌一致，但战斗中使用不消耗灵力与元素。
+                                          </p>
+                                      </div>
+                                      <Button 
+                                          size="lg" 
+                                          className="px-12 py-4 text-xl"
+                                          onClick={() => onCraftTalisman(selectedTalismanCard.id, selectedPen.id, selectedPaper.id)}
+                                      >
+                                          ✨ 制作符箓
+                                      </Button>
+                                  </div>
+                              ) : (
+                                  <div className="text-slate-600 font-bold text-xl">请完成左侧所有选择步骤</div>
+                              )}
+                          </div>
+                      </div>
+                   </div>
+              </div>
+          </div>
+      )}
       
       {/* Alchemy Modal */}
       {activeMenu === 'alchemy' && (
@@ -654,11 +807,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                             item.type === 'FORGE_MATERIAL' ? '器材' :
                                                             item.type === 'RECIPE' ? '丹方' :
                                                             item.type === 'FORGE_BLUEPRINT' ? '图纸' :
-                                                            item.type === 'PILL' ? '丹药' : '道具'}
+                                                            item.type === 'PILL' ? '丹药' : 
+                                                            item.type === 'TALISMAN_PEN' ? '符笔' :
+                                                            item.type === 'TALISMAN_PAPER' ? '符纸' :
+                                                            item.type === 'TALISMAN' ? '符箓' : '道具'}
                                                     </div>
                                                 </div>
                                             </div>
                                             
+                                            {(item.type === 'TALISMAN_PEN' || item.type === 'TALISMAN') && item.maxDurability && (
+                                                <div className="mt-2 text-xs text-slate-400">
+                                                    耐久: {item.durability}/{item.maxDurability}
+                                                </div>
+                                            )}
+
                                             <div className="flex gap-2 mt-4 pt-3 border-t border-slate-700/50">
                                                 {isEquipable && (
                                                     <Button 
@@ -687,7 +849,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                 })}
                             </div>
                         )}
-                        {/* Deck View omitted for brevity */}
+                        {/* Deck View */}
+                        {activeMenu === 'deck' && (
+                             <div className="flex flex-wrap gap-4 justify-center">
+                                 {player.deck.map((card, idx) => (
+                                     <div key={idx} className="relative group">
+                                         <CardItem card={card} isPlayable={false} />
+                                     </div>
+                                 ))}
+                             </div>
+                        )}
                     </div>
                 </div>
           </div>

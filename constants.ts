@@ -319,6 +319,7 @@ const GENERATED_ITEMS: Item[] = [];
 const GENERATED_BOOKS: Item[] = [];
 const GENERATED_ALCHEMY_ITEMS: Item[] = [];
 const GENERATED_FORGE_ITEMS: Item[] = [];
+const GENERATED_TALISMAN_ITEMS: Item[] = [];
 
 // Adjusted Levels for New Realm Ranges
 const REALMS_GEN_CONFIG = [
@@ -662,10 +663,43 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
         GENERATED_FORGE_ITEMS.push(blueprint);
     });
 
+    // 7. Talisman (Pens and Papers)
+    
+    // 7a. Papers
+    const paper: Item = {
+        id: `paper_${realm.level}`,
+        name: `${realm.name}符纸`,
+        icon: '🟨',
+        type: 'TALISMAN_PAPER',
+        description: `产自${realm.name}的灵纸，可承载${realm.name}期的法术。`,
+        rarity: 'common',
+        reqLevel: realm.level,
+        price: 20 * Math.ceil(realm.level/5),
+        statBonus: { elementalAffinities: createZeroElementStats() }
+    };
+    GENERATED_TALISMAN_ITEMS.push(paper);
+
+    // 7b. Pens
+    const penDurability = 10 * (rIdx + 1);
+    const pen: Item = {
+        id: `pen_${realm.level}`,
+        name: `${realm.prefix}符笔`,
+        icon: '🖌️',
+        type: 'TALISMAN_PEN',
+        description: `${realm.name}修士常用的符笔。耐久度: ${penDurability}。`,
+        rarity: 'rare',
+        reqLevel: realm.level,
+        price: 500 * Math.ceil(realm.level/5),
+        maxDurability: penDurability,
+        durability: penDurability,
+        statBonus: { elementalAffinities: createZeroElementStats() }
+    };
+    GENERATED_TALISMAN_ITEMS.push(pen);
+
 });
 
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
-export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS, ...GENERATED_FORGE_ITEMS];
+export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS, ...GENERATED_FORGE_ITEMS, ...GENERATED_TALISMAN_ITEMS];
 
 // --- Procedural Generation: Enemies ---
 
