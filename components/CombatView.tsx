@@ -327,7 +327,6 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
 
       // End Enemy Turn
       setTurn('PLAYER');
-      setPlayerBlock(0);
       
       // Player Turn Start
       startPlayerTurn();
