@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Player, Enemy, Card, CardType, ElementType, Item } from '../types';
 import { MAX_HAND_SIZE, DRAW_COUNT_PER_TURN, ELEMENT_CONFIG, generateSkillBook } from '../constants';
@@ -228,8 +229,11 @@ export const CombatView: React.FC<CombatViewProps> = ({ player: initialPlayer, e
           }
       } else if (card.type === CardType.BUFF) {
            if (isPlayer) {
-               setPlayerSpirit(prev => Math.min(initialPlayer.stats.maxSpirit, prev + val));
-               addLog(`你使用${card.name}，恢复 ${val} 点神识`);
+               // Increase Element Affinity (Max and Current) for the duration of battle
+               const element = card.element;
+               setPlayerMaxElements(prev => ({...prev, [element]: prev[element] + val}));
+               setPlayerElements(prev => ({...prev, [element]: prev[element] + val}));
+               addLog(`你使用${card.name}，${element}属性增强了 ${val} 点`);
            }
       } else if (card.type === CardType.GROWTH) {
            if (isPlayer) {

@@ -216,7 +216,7 @@ export const MEDITATE: Card = {
   elementCost: 0, 
   type: CardType.BUFF,
   value: 2,
-  description: '恢复2点神识',
+  description: '本场战斗中，木属性提升2点',
   rarity: 'common',
   reqLevel: 1,
 };
@@ -322,7 +322,7 @@ export const JADE_PENDANT: Item = {
         cost: 0,
         element: ElementType.WATER,
         elementCost: 1,
-        description: '战斗中使用可恢复2点神识'
+        description: '本场战斗中，水属性提升2点'
     }
 };
 
