@@ -1,4 +1,5 @@
 
+
 import { Card, CardType, Item, Player, GameConfig, Enemy, EnemyTemplate, RealmRank, EquipmentSlot, Stats, ElementType, RealmLevelConfig } from './types';
 
 export const MAX_HAND_SIZE = 10;
@@ -65,6 +66,7 @@ export const DEFAULT_REALMS: RealmRank[] = [
       rangeEnd: 10, 
       minGoldDrop: 10, 
       maxGoldDrop: 50,
+      skillBookExp: 30,
       levels: generateLevels(
           10, 
           ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '大圆满'],
@@ -79,6 +81,7 @@ export const DEFAULT_REALMS: RealmRank[] = [
       rangeEnd: 14, 
       minGoldDrop: 50, 
       maxGoldDrop: 200,
+      skillBookExp: 150,
       levels: generateLevels(
           4,
           ['初期', '中期', '后期', '假丹'],
@@ -93,6 +96,7 @@ export const DEFAULT_REALMS: RealmRank[] = [
       rangeEnd: 18, 
       minGoldDrop: 200, 
       maxGoldDrop: 800,
+      skillBookExp: 600,
       levels: generateLevels(
           4,
           ['初期', '中期', '后期', '后期巅峰'],
@@ -107,6 +111,7 @@ export const DEFAULT_REALMS: RealmRank[] = [
       rangeEnd: 24, 
       minGoldDrop: 1000, 
       maxGoldDrop: 3000,
+      skillBookExp: 3000,
       levels: generateLevels(
           6,
           ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],
@@ -121,6 +126,7 @@ export const DEFAULT_REALMS: RealmRank[] = [
       rangeEnd: 30, 
       minGoldDrop: 5000, 
       maxGoldDrop: 10000,
+      skillBookExp: 15000,
       levels: generateLevels(
           6,
           ['初期', '初期巅峰', '中期', '中期巅峰', '后期', '后期巅峰'],

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -151,6 +150,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
             rangeEnd: r.rangeEnd,
             minGoldDrop: r.minGoldDrop,
             maxGoldDrop: r.maxGoldDrop,
+            skillBookExp: r.skillBookExp,
             levels_json: JSON.stringify(r.levels) 
         }));
         const wsRealms = XLSX.utils.json_to_sheet(realmsData);
@@ -284,6 +284,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                       rangeEnd: r.rangeEnd,
                       minGoldDrop: r.minGoldDrop,
                       maxGoldDrop: r.maxGoldDrop,
+                      skillBookExp: r.skillBookExp || Math.floor((r.levels_json ? JSON.parse(r.levels_json)[0]?.expReq : 100) * 0.3),
                       levels: r.levels_json ? JSON.parse(r.levels_json) : []
                   }));
               }
@@ -387,37 +388,54 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
               <div className="space-y-6">
                   {localConfig.realms.map((realm, rIdx) => (
                       <div key={rIdx} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                          <div className="bg-slate-900 p-3 border-b border-slate-700 flex flex-wrap gap-4 items-center">
-                              <h3 className="text-lg font-bold text-emerald-300">{realm.name}</h3>
-                              <div className="flex items-center gap-2 text-sm">
-                                  <label className="text-slate-500">范围:</label>
-                                  <input type="number" className="w-16 bg-slate-800 p-1 rounded" value={realm.rangeStart} onChange={e => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[rIdx].rangeStart = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }} />
-                                  <span>-</span>
-                                  <input type="number" className="w-16 bg-slate-800 p-1 rounded" value={realm.rangeEnd} onChange={e => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[rIdx].rangeEnd = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }} />
+                          {/* Realm Header */}
+                          <div className="bg-slate-900 p-4 border-b border-slate-700 flex flex-col gap-4">
+                              <div className="flex justify-between items-center">
+                                  <h3 className="text-xl font-bold text-emerald-300 tracking-wider">{realm.name}</h3>
+                                  <div className="flex items-center gap-2 text-sm bg-slate-800 px-3 py-1 rounded border border-slate-600">
+                                      <label className="text-slate-400">等级范围:</label>
+                                      <input type="number" className="w-12 bg-slate-900 p-1 rounded text-center font-bold" value={realm.rangeStart} onChange={e => {
+                                          const newRealms = [...localConfig.realms];
+                                          newRealms[rIdx].rangeStart = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, realms: newRealms});
+                                      }} />
+                                      <span className="text-slate-500">-</span>
+                                      <input type="number" className="w-12 bg-slate-900 p-1 rounded text-center font-bold" value={realm.rangeEnd} onChange={e => {
+                                          const newRealms = [...localConfig.realms];
+                                          newRealms[rIdx].rangeEnd = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, realms: newRealms});
+                                      }} />
+                                  </div>
                               </div>
-                              <div className="flex items-center gap-2 text-sm ml-auto">
-                                  <label className="text-slate-500">掉落灵石:</label>
-                                  <input type="number" className="w-20 bg-slate-800 p-1 rounded" value={realm.minGoldDrop} onChange={e => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[rIdx].minGoldDrop = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }} />
-                                  <span>-</span>
-                                  <input type="number" className="w-20 bg-slate-800 p-1 rounded" value={realm.maxGoldDrop} onChange={e => {
-                                      const newRealms = [...localConfig.realms];
-                                      newRealms[rIdx].maxGoldDrop = parseInt(e.target.value);
-                                      setLocalConfig({...localConfig, realms: newRealms});
-                                  }} />
+                              
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-2 bg-slate-800/50 rounded-lg">
+                                  <div className="flex flex-col gap-1">
+                                      <label className="text-xs text-slate-500">最小掉落灵石</label>
+                                      <input type="number" className="bg-slate-900 p-1 rounded text-sm w-full" value={realm.minGoldDrop} onChange={e => {
+                                          const newRealms = [...localConfig.realms];
+                                          newRealms[rIdx].minGoldDrop = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, realms: newRealms});
+                                      }} />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                      <label className="text-xs text-slate-500">最大掉落灵石</label>
+                                      <input type="number" className="bg-slate-900 p-1 rounded text-sm w-full" value={realm.maxGoldDrop} onChange={e => {
+                                          const newRealms = [...localConfig.realms];
+                                          newRealms[rIdx].maxGoldDrop = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, realms: newRealms});
+                                      }} />
+                                  </div>
+                                  <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
+                                      <label className="text-xs text-emerald-400 font-bold">📚 心法使用获得修为</label>
+                                      <input type="number" className="bg-slate-900 p-1 rounded text-sm font-bold text-emerald-300 w-full border border-emerald-900/50 focus:border-emerald-500" value={realm.skillBookExp || 0} onChange={e => {
+                                          const newRealms = [...localConfig.realms];
+                                          newRealms[rIdx].skillBookExp = parseInt(e.target.value);
+                                          setLocalConfig({...localConfig, realms: newRealms});
+                                      }} />
+                                  </div>
                               </div>
                           </div>
+                          
                           <div className="p-2 overflow-x-auto">
                               <table className="w-full text-xs text-left">
                                   <thead>

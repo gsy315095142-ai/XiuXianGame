@@ -57,6 +57,8 @@ export interface RealmRank {
   
   minGoldDrop: number; 
   maxGoldDrop: number;
+  
+  skillBookExp: number; // Experience gained when using a Skill Book of this realm
 
   levels: RealmLevelConfig[];
 }
