@@ -677,12 +677,12 @@ export default function App() {
       {/* --- Acquired Card Modal --- */}
       {acquiredCard && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur animate-fade-in">
-              <div className="flex flex-col items-center gap-6 p-8 animate-bounce-slight">
+              <div className="flex flex-col items-center gap-16 p-8 animate-bounce-slight">
                   <h2 className="text-4xl font-bold text-yellow-300 drop-shadow-[0_0_10px_orange]">✨ 领悟新功法 ✨</h2>
-                  <div className="transform scale-150">
+                  <div className="transform scale-150 my-4">
                       <CardItem card={acquiredCard} isPlayable={false} />
                   </div>
-                  <Button size="lg" onClick={() => setAcquiredCard(null)} className="mt-8 px-12 text-xl">
+                  <Button size="lg" onClick={() => setAcquiredCard(null)} className="px-12 text-xl">
                       收下
                   </Button>
               </div>

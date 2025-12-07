@@ -96,6 +96,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const currentBlueprintStatus = selectedBlueprint ? getMaterialStatus(selectedBlueprint) : null;
   const targetArtifact = selectedBlueprint ? itemsConfig.find(i => i.id === selectedBlueprint.recipeResult) : null;
 
+  // Notification Logic
+  const hasActionableItems = player.inventory.some(item => {
+      if (item.reqLevel > player.level) return false;
+      if (item.type === 'EQUIPMENT' || item.type === 'ARTIFACT') return true; // Can equip (or at least view detail/salvage potentially)
+      if (['CONSUMABLE', 'RECIPE', 'PILL', 'FORGE_BLUEPRINT'].includes(item.type)) return true; // Can use
+      return false;
+  });
+
   return (
     <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-6 space-y-6 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white min-w-[1200px] overflow-x-auto">
       {/* Header */}
@@ -133,9 +141,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <Button 
                     variant={activeMenu === 'bag' ? 'primary' : 'secondary'} 
                     onClick={() => setActiveMenu(activeMenu === 'bag' ? 'none' : 'bag')}
-                    className="justify-start text-xl py-5 px-6"
+                    className="justify-start text-xl py-5 px-6 relative"
                 >
                     <span className="mr-3 text-2xl">🎒</span> 储物袋
+                    {hasActionableItems && (
+                        <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></span>
+                    )}
                 </Button>
                 <Button 
                     variant={activeMenu === 'deck' ? 'primary' : 'secondary'} 
@@ -299,7 +310,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                             <div className="text-2xl">{item.icon}</div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                                                <div className="text-[9px] text-purple-300">点击卸下</div>
+                                                <div className="text--[9px] text-purple-300">点击卸下</div>
                                             </div>
                                         </>
                                     ) : (

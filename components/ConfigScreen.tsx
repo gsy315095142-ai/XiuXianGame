@@ -958,58 +958,99 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
 
           {/* --- PLAYER TAB --- */}
           {activeTab === 'player' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                      <h3 className="text-xl font-bold text-emerald-300 mb-4">初始属性</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                          {['maxHp', 'maxSpirit', 'attack', 'defense', 'speed'].map(stat => (
-                              <div key={stat} className="flex flex-col">
-                                  <label className="text-sm text-slate-500 uppercase">{stat}</label>
-                                  <input type="number" className="bg-slate-900 p-2 rounded text-white" 
-                                      // @ts-ignore
-                                      value={localConfig.playerInitialStats[stat]} 
-                                      onChange={e => {
-                                          const newStats = {...localConfig.playerInitialStats, [stat]: parseInt(e.target.value)};
-                                          setLocalConfig({...localConfig, playerInitialStats: newStats});
-                                      }}
-                                  />
-                              </div>
-                          ))}
-                      </div>
-                  </div>
-                  
-                  <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                      <h3 className="text-xl font-bold text-purple-300 mb-4">本命法宝栏位解锁</h3>
-                      <div className="space-y-2">
-                          {localConfig.artifactSlotConfigs.map((slot, idx) => (
-                              <div key={idx} className="flex items-center gap-4 bg-slate-900 p-2 rounded border border-slate-700">
-                                  <div className="w-8 h-8 flex items-center justify-center bg-slate-800 rounded font-bold text-slate-400">
-                                      {idx + 1}
+              <div className="flex flex-col gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                          <h3 className="text-xl font-bold text-emerald-300 mb-4">初始属性</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                              {['maxHp', 'maxSpirit', 'attack', 'defense', 'speed'].map(stat => (
+                                  <div key={stat} className="flex flex-col">
+                                      <label className="text-sm text-slate-500 uppercase">{stat}</label>
+                                      <input type="number" className="bg-slate-900 p-2 rounded text-white" 
+                                          // @ts-ignore
+                                          value={localConfig.playerInitialStats[stat]} 
+                                          onChange={e => {
+                                              const newStats = {...localConfig.playerInitialStats, [stat]: parseInt(e.target.value)};
+                                              setLocalConfig({...localConfig, playerInitialStats: newStats});
+                                          }}
+                                      />
                                   </div>
-                                  <div className="flex flex-col flex-1">
-                                      <label className="text-xs text-slate-500">解锁需求</label>
-                                      <div className="flex gap-2">
-                                          <select className="bg-slate-800 p-1 rounded text-xs w-24" value={slot.reqLevel} onChange={e => {
-                                              const newSlots = [...localConfig.artifactSlotConfigs];
-                                              newSlots[idx].reqLevel = parseInt(e.target.value);
-                                              setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
-                                          }}>
-                                              {levelOptions}
-                                          </select>
-                                          <input type="number" className="bg-slate-800 p-1 rounded text-xs w-24" value={slot.cost} placeholder="灵石消耗" onChange={e => {
-                                              const newSlots = [...localConfig.artifactSlotConfigs];
-                                              newSlots[idx].cost = parseInt(e.target.value);
-                                              setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
-                                          }} />
-                                          <span className="text-xs self-center text-yellow-500">灵石</span>
+                              ))}
+                          </div>
+                      </div>
+                      
+                      <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                          <h3 className="text-xl font-bold text-purple-300 mb-4">本命法宝栏位解锁</h3>
+                          <div className="space-y-2">
+                              {localConfig.artifactSlotConfigs.map((slot, idx) => (
+                                  <div key={idx} className="flex items-center gap-4 bg-slate-900 p-2 rounded border border-slate-700">
+                                      <div className="w-8 h-8 flex items-center justify-center bg-slate-800 rounded font-bold text-slate-400">
+                                          {idx + 1}
+                                      </div>
+                                      <div className="flex flex-col flex-1">
+                                          <label className="text-xs text-slate-500">解锁需求</label>
+                                          <div className="flex gap-2">
+                                              <select className="bg-slate-800 p-1 rounded text-xs w-24" value={slot.reqLevel} onChange={e => {
+                                                  const newSlots = [...localConfig.artifactSlotConfigs];
+                                                  newSlots[idx].reqLevel = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                                              }}>
+                                                  {levelOptions}
+                                              </select>
+                                              <input type="number" className="bg-slate-800 p-1 rounded text-xs w-24" value={slot.cost} placeholder="灵石消耗" onChange={e => {
+                                                  const newSlots = [...localConfig.artifactSlotConfigs];
+                                                  newSlots[idx].cost = parseInt(e.target.value);
+                                                  setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                                              }} />
+                                              <span className="text-xs self-center text-yellow-500">灵石</span>
+                                          </div>
                                       </div>
                                   </div>
-                              </div>
-                          ))}
-                          <Button size="sm" onClick={() => {
-                              const newSlots = [...localConfig.artifactSlotConfigs, {id: localConfig.artifactSlotConfigs.length, reqLevel: 1, cost: 1000}];
-                              setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
-                          }}>+ 增加栏位</Button>
+                              ))}
+                              <Button size="sm" onClick={() => {
+                                  const newSlots = [...localConfig.artifactSlotConfigs, {id: localConfig.artifactSlotConfigs.length, reqLevel: 1, cost: 1000}];
+                                  setLocalConfig({...localConfig, artifactSlotConfigs: newSlots});
+                              }}>+ 增加栏位</Button>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Initial Deck Configuration */}
+                  <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                      <h3 className="text-xl font-bold text-blue-300 mb-4">初始卡组</h3>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                          {localConfig.playerInitialDeckIds.map((cid, idx) => {
+                              const card = localConfig.cards.find(c => c.id === cid);
+                              return (
+                                  <div key={idx} className="bg-slate-700 px-3 py-1 rounded border border-slate-600 flex items-center gap-2">
+                                      <span className={card ? 'text-white' : 'text-red-400'}>{card ? card.name : cid}</span>
+                                      <button 
+                                          className="text-red-400 hover:text-red-200 font-bold"
+                                          onClick={() => {
+                                              const newDeck = [...localConfig.playerInitialDeckIds];
+                                              newDeck.splice(idx, 1);
+                                              setLocalConfig({...localConfig, playerInitialDeckIds: newDeck});
+                                          }}
+                                      >x</button>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                      <div className="flex gap-2 items-center">
+                          <select 
+                              className="bg-slate-900 p-2 rounded max-w-xs"
+                              onChange={(e) => {
+                                  if (e.target.value) {
+                                      setLocalConfig({...localConfig, playerInitialDeckIds: [...localConfig.playerInitialDeckIds, e.target.value]});
+                                      e.target.value = '';
+                                  }
+                              }}
+                          >
+                              <option value="">+ 添加卡牌</option>
+                              {localConfig.cards.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name} (Lv.{c.reqLevel})</option>
+                              ))}
+                          </select>
                       </div>
                   </div>
               </div>
