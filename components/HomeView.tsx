@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig, Card } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -8,11 +7,11 @@ import { Button } from './Button';
 import { CardItem } from './CardItem';
 
 const StatRow = ({ label, value, icon, color }: { label: string, value: string | number, icon: string, color: string }) => (
-  <div className="flex justify-between items-center bg-slate-800 p-2 rounded-lg border border-slate-700/50">
-    <span className="text-slate-400 font-bold flex items-center gap-2 text-sm">
-        <span className="text-lg">{icon}</span> {label}
+  <div className="flex justify-between items-center bg-slate-900 p-1.5 rounded border border-slate-700/50 min-w-[100px]">
+    <span className="text-slate-400 font-bold flex items-center gap-1 text-xs">
+        <span>{icon}</span> {label}
     </span>
-    <span className={`font-mono font-bold text-lg ${color}`}>{value}</span>
+    <span className={`font-mono font-bold text-sm ${color}`}>{value}</span>
   </div>
 );
 
@@ -235,125 +234,197 @@ export const HomeView: React.FC<HomeViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-6 space-y-6 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white min-w-[1200px] overflow-x-auto">
+    <div className="flex flex-col h-screen w-full bg-[#0a0a0a] p-4 space-y-4 animate-fade-in overflow-hidden selection:bg-emerald-500 selection:text-white min-w-[1200px] overflow-x-auto">
       {/* Header */}
-      <header className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-slate-700 shadow-2xl backdrop-blur z-20 shrink-0">
-        <div className="flex items-center gap-6">
+      <header className="flex items-center justify-between bg-slate-900/90 p-3 rounded-2xl border border-slate-700 shadow-xl backdrop-blur z-20 shrink-0">
+        <div className="flex items-center gap-4">
           <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-emerald-900 border-4 border-emerald-500 flex items-center justify-center text-4xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+            <div className="w-14 h-14 rounded-full bg-emerald-900 border-2 border-emerald-500 flex items-center justify-center text-2xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.5)]">
                 {player.name.charAt(0)}
             </div>
-            <div className="absolute -bottom-2 -right-2 bg-emerald-800 text-xs px-2 py-1 rounded-full border border-emerald-400 font-bold text-white">
+            <div className="absolute -bottom-1 -right-1 bg-emerald-800 text-[10px] px-2 py-0.5 rounded-full border border-emerald-400 font-bold text-white">
                 Lv.{player.level}
             </div>
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-emerald-100 tracking-wide">{player.name}</h1>
-            <div className="text-lg text-yellow-400 font-mono flex items-center gap-2 mt-1 font-bold">
-                <span>💰</span> {player.gold.toLocaleString()} 灵石
+            <h1 className="text-xl font-bold text-emerald-100 tracking-wide">{player.name}</h1>
+            <div className="text-sm text-yellow-400 font-mono flex items-center gap-1 font-bold">
+                <span>💰</span> {player.gold.toLocaleString()}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
-            <Button variant="danger" size="lg" onClick={onEndGame} className="px-8 py-3 text-lg font-bold shadow-lg">
+            <Button variant="danger" size="sm" onClick={onEndGame} className="px-6 py-2 font-bold shadow-lg">
                 退出游戏
             </Button>
         </div>
       </header>
+      
+      {/* Top Stats Dashboard */}
+      <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-3 shrink-0 flex flex-col md:flex-row gap-4 items-center shadow-lg backdrop-blur">
+            {/* Base Stats */}
+            <div className="flex gap-2">
+                <StatRow label="生命" value={`${player.stats.hp}/${player.stats.maxHp}`} icon="❤️" color="text-red-400" />
+                <StatRow label="神识" value={`${player.stats.spirit}/${player.stats.maxSpirit}`} icon="🌀" color="text-blue-400" />
+                <StatRow label="攻击" value={player.stats.attack} icon="⚔️" color="text-amber-400" />
+                <StatRow label="防御" value={player.stats.defense} icon="🛡️" color="text-slate-300" />
+                <StatRow label="速度" value={player.stats.speed} icon="👟" color="text-emerald-300" />
+            </div>
+            
+            <div className="w-px h-8 bg-slate-600 mx-2 hidden md:block"></div>
+
+            {/* Elemental Stats - Compact */}
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                 <div className="flex gap-1.5 flex-wrap">
+                    {primaryElements.map(elem => {
+                        const config = ELEMENT_CONFIG[elem];
+                        const val = player.stats.elementalAffinities[elem];
+                        return (
+                            <div key={elem} className={`flex items-center gap-1 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/30 text-xs`}>
+                                <span>{config.icon}</span> <span className={`${config.color} font-bold font-mono`}>{val}</span>
+                            </div>
+                        )
+                    })}
+                 </div>
+                 <div className="flex gap-1.5 flex-wrap">
+                    {secondaryElements.map(elem => {
+                        const config = ELEMENT_CONFIG[elem];
+                        const val = player.stats.elementalAffinities[elem];
+                        return (
+                             <div key={elem} className={`flex items-center gap-1 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/30 text-xs`}>
+                                <span>{config.icon}</span> <span className={`${config.color} font-bold font-mono`}>{val}</span>
+                            </div>
+                        )
+                    })}
+                 </div>
+            </div>
+      </div>
 
       {/* Main Layout */}
-      <div className="flex flex-1 gap-6 overflow-hidden relative">
+      <div className="flex flex-1 gap-4 overflow-hidden relative">
         
         {/* Left: Menus */}
-        <div className="w-80 flex flex-col gap-4 shrink-0 z-10">
-            <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700 flex flex-col gap-4 h-full shadow-xl">
-                <h3 className="text-slate-400 text-sm font-bold uppercase mb-2 tracking-widest border-b border-slate-600 pb-2">洞府管理</h3>
+        <div className="w-64 flex flex-col gap-4 shrink-0 z-10">
+            <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex flex-col gap-3 h-full shadow-xl overflow-y-auto">
+                <h3 className="text-slate-400 text-xs font-bold uppercase mb-2 tracking-widest border-b border-slate-600 pb-2">洞府管理</h3>
                 <Button 
                     variant={activeMenu === 'bag' ? 'primary' : 'secondary'} 
                     onClick={() => setActiveMenu(activeMenu === 'bag' ? 'none' : 'bag')}
-                    className="justify-start text-xl py-5 px-6 relative"
+                    className="justify-start text-lg py-4 px-4 relative"
                 >
-                    <span className="mr-3 text-2xl">🎒</span> 储物袋
+                    <span className="mr-2 text-xl">🎒</span> 储物袋
                     {hasActionableItems && (
-                        <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></span>
+                        <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_red]"></span>
                     )}
                 </Button>
                 <Button 
                     variant={activeMenu === 'deck' ? 'primary' : 'secondary'} 
                     onClick={() => setActiveMenu(activeMenu === 'deck' ? 'none' : 'deck')}
-                    className="justify-start text-xl py-5 px-6"
+                    className="justify-start text-lg py-4 px-4"
                 >
-                    <span className="mr-3 text-2xl">🎴</span> 本命卡组
+                    <span className="mr-2 text-xl">🎴</span> 本命卡组
                 </Button>
-                <div className="h-px bg-slate-700 my-2"></div>
+                <div className="h-px bg-slate-700 my-1"></div>
                 <Button 
                     variant={activeMenu === 'talisman' ? 'primary' : 'secondary'} 
                     onClick={() => isTalismanUnlocked ? setActiveMenu(activeMenu === 'talisman' ? 'none' : 'talisman') : null}
-                    className={`justify-start text-xl py-5 px-6 ${!isTalismanUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`justify-start text-lg py-4 px-4 ${!isTalismanUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title={!isTalismanUnlocked ? '需炼气四层解锁' : ''}
                 >
-                     <span className="mr-3 text-2xl">🖌️</span> 制符台 {!isTalismanUnlocked && <span className="text-sm ml-auto">🔒 4级解锁</span>}
+                     <span className="mr-2 text-xl">🖌️</span> 制符台 {!isTalismanUnlocked && <span className="text-[10px] ml-auto">🔒 4级</span>}
                 </Button>
                 <Button 
                     variant={activeMenu === 'alchemy' ? 'primary' : 'secondary'} 
                     onClick={() => isAlchemyUnlocked ? setActiveMenu(activeMenu === 'alchemy' ? 'none' : 'alchemy') : null}
-                    className={`justify-start text-xl py-5 px-6 ${!isAlchemyUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`justify-start text-lg py-4 px-4 ${!isAlchemyUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title={!isAlchemyUnlocked ? '需炼气五层解锁' : ''}
                 >
-                     <span className="mr-3 text-2xl">🔥</span> 炼丹房 {!isAlchemyUnlocked && <span className="text-sm ml-auto">🔒 5级解锁</span>}
+                     <span className="mr-2 text-xl">🔥</span> 炼丹房 {!isAlchemyUnlocked && <span className="text-[10px] ml-auto">🔒 5级</span>}
                 </Button>
                 <Button 
                     variant={activeMenu === 'forge' ? 'primary' : 'secondary'} 
                     onClick={() => isForgeUnlocked ? setActiveMenu(activeMenu === 'forge' ? 'none' : 'forge') : null}
-                    className={`justify-start text-xl py-5 px-6 ${!isForgeUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`justify-start text-lg py-4 px-4 ${!isForgeUnlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title={!isForgeUnlocked ? '需筑基期解锁' : ''}
                 >
-                     <span className="mr-3 text-2xl">⚒️</span> 炼器房 {!isForgeUnlocked && <span className="text-sm ml-auto">🔒 筑基解锁</span>}
+                     <span className="mr-2 text-xl">⚒️</span> 炼器房 {!isForgeUnlocked && <span className="text-[10px] ml-auto">🔒 筑基</span>}
                 </Button>
             </div>
         </div>
 
-        {/* Center: Visual Scene */}
+        {/* Center: Visual Scene - Meditating Stickman */}
         <div className="flex-1 relative rounded-3xl border-2 border-emerald-900 overflow-hidden bg-black flex flex-col items-center justify-center shadow-2xl group min-w-0">
             <img src="https://res.cloudinary.com/daily-now/image/upload/f_auto,q_auto/v1/posts/e424269229e3943e067f938c53df28d8?_a=BAMCkGwi0" alt="Dongfu" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[20s]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-slate-900/80"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/50"></div>
             
-            <div className="relative z-10 flex flex-col items-center animate-bounce-slight w-full max-w-2xl px-4">
-                <div className="relative">
-                     <img src={player.avatarUrl} alt="Player" className="w-96 h-96 object-cover rounded-full border-[6px] border-amber-500/50 shadow-[0_0_100px_rgba(245,158,11,0.3)] mb-8" />
-                     {canBreakthrough && (
-                         <div className="absolute -top-4 -right-4 text-6xl animate-bounce filter drop-shadow-[0_0_10px_yellow]">⚡</div>
+            <div className="relative z-10 flex flex-col items-center w-full max-w-2xl px-4 mt-auto mb-20">
+                {/* Stickman SVG */}
+                <div className="mb-8 animate-bounce-slight relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl animate-pulse"></div>
+                    <svg viewBox="0 0 200 200" className="w-64 h-64 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] filter brightness-110 contrast-125">
+                         <defs>
+                            <radialGradient id="auraGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                                <stop offset="0%" stopColor="cyan" stopOpacity="0.4" />
+                                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                            </radialGradient>
+                        </defs>
+                        <circle cx="100" cy="110" r="70" fill="url(#auraGrad)" className="animate-pulse" />
+                        
+                        {/* Stickman Drawing */}
+                        <g stroke="white" strokeWidth="4" strokeLinecap="round" fill="none">
+                            {/* Legs Crossed */}
+                            <path d="M70,140 L100,120 L130,140" />
+                            <path d="M60,135 L90,120" opacity="0.8" /> 
+                            <path d="M140,135 L110,120" opacity="0.8" />
+                            
+                            {/* Torso */}
+                            <line x1="100" y1="120" x2="100" y2="70" />
+                            
+                            {/* Arms */}
+                            <path d="M100,80 L70,100 L80,125" />
+                            <path d="M100,80 L130,100 L120,125" />
+                            
+                            {/* Hands Resting */}
+                            <circle cx="80" cy="125" r="3" fill="white" stroke="none" />
+                            <circle cx="120" cy="125" r="3" fill="white" stroke="none" />
+                        </g>
+                        
+                        {/* Head */}
+                        <circle cx="100" cy="55" r="14" fill="#0a0a0a" stroke="white" strokeWidth="2" />
+                    </svg>
+                    {canBreakthrough && (
+                         <div className="absolute -top-4 right-10 text-6xl animate-bounce filter drop-shadow-[0_0_10px_yellow]">⚡</div>
                      )}
                 </div>
                 
-                <div className="bg-black/70 rounded-2xl border border-emerald-500/50 backdrop-blur-md w-full p-8 flex flex-col items-center gap-4 shadow-2xl">
-                    <div className="text-emerald-200 text-5xl font-bold tracking-[0.2em] text-shadow-lg mb-2">
+                <div className="bg-black/80 rounded-2xl border border-emerald-500/50 backdrop-blur-md w-full p-6 flex flex-col items-center gap-3 shadow-2xl">
+                    <div className="text-emerald-200 text-4xl font-bold tracking-[0.2em] text-shadow-lg">
                         {realmName}
                     </div>
                     
-                    <div className="w-full relative h-8 bg-slate-800 rounded-full border-2 border-slate-600 overflow-hidden group shadow-inner">
+                    <div className="w-full relative h-6 bg-slate-800 rounded-full border border-slate-600 overflow-hidden group shadow-inner">
                         <div 
                             className={`absolute top-0 left-0 h-full transition-all duration-1000 ${canBreakthrough ? 'bg-gradient-to-r from-amber-600 to-yellow-400 animate-pulse' : 'bg-gradient-to-r from-emerald-900 via-emerald-600 to-emerald-400'}`}
                             style={{ width: `${expPercentage}%` }}
                         ></div>
-                        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white shadow-black drop-shadow-md z-10 tracking-widest">
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white shadow-black drop-shadow-md z-10 tracking-widest">
                             修为: {player.exp} / {player.maxExp}
                         </div>
                     </div>
 
                     {canBreakthrough && (
-                         <div className="mt-4 w-full flex flex-col items-center animate-fade-in-up">
+                         <div className="mt-2 w-full flex flex-col items-center animate-fade-in-up">
                             <Button 
                                 variant="primary" 
                                 size="lg" 
                                 onClick={onBreakthrough}
-                                className="w-full py-4 text-2xl bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.6)] font-bold tracking-[0.2em] hover:scale-105 transition-transform"
+                                className="w-full py-3 text-xl bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.6)] font-bold tracking-[0.2em] hover:scale-105 transition-transform"
                             >
                                 ⚡ 境界突破 ⚡
                             </Button>
-                            <div className="text-sm text-slate-300 mt-3 flex gap-6 bg-black/60 px-6 py-2 rounded-full border border-slate-700">
+                            <div className="text-xs text-slate-300 mt-2 flex gap-4 bg-black/60 px-4 py-1 rounded-full border border-slate-700">
                                 <span className="text-yellow-400 font-bold">消耗: {breakthroughCost} 灵石</span>
-                                <span className="w-px h-4 bg-slate-600"></span>
+                                <span className="w-px h-3 bg-slate-600"></span>
                                 <span className="text-blue-300 font-bold">成功率: {breakthroughChance.toFixed(0)}%</span>
                             </div>
                          </div>
@@ -362,53 +433,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
         </div>
 
-        {/* Right: Stats & Equipment */}
-        <div className="w-[450px] bg-slate-900/90 border border-slate-700 rounded-2xl p-6 flex flex-col gap-6 shrink-0 z-10 overflow-y-auto custom-scrollbar">
-            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                <h3 className="text-emerald-400 text-lg font-bold border-b border-emerald-800 pb-3 mb-4 flex items-center gap-2">
-                    <span>📊</span> 当前状态
-                </h3>
-                <div className="space-y-3 text-base">
-                    <StatRow label="生命" value={`${player.stats.hp}/${player.stats.maxHp}`} icon="❤️" color="text-red-400" />
-                    <StatRow label="神识" value={`${player.stats.spirit}/${player.stats.maxSpirit}`} icon="🌀" color="text-blue-400" />
-                    <StatRow label="攻击" value={player.stats.attack} icon="⚔️" color="text-amber-400" />
-                    <StatRow label="防御" value={player.stats.defense} icon="🛡️" color="text-slate-300" />
-                    <StatRow label="速度" value={player.stats.speed} icon="👟" color="text-emerald-300" />
-                </div>
-                
-                <h4 className="text-slate-400 font-bold text-sm mt-6 mb-3 border-b border-slate-700 pb-2">五行灵根 & 特殊亲和</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex flex-col gap-2">
-                        {primaryElements.map(elem => {
-                                const config = ELEMENT_CONFIG[elem];
-                                const val = player.stats.elementalAffinities[elem];
-                                return (
-                                <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
-                                    <span className={`flex items-center gap-2 ${config.color} font-bold`}>
-                                        <span className="text-lg">{config.icon}</span> {elem}
-                                    </span>
-                                    <span className="font-mono text-white font-bold">{val}</span>
-                                </div>
-                                )
-                        })}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {secondaryElements.map(elem => {
-                                const config = ELEMENT_CONFIG[elem];
-                                const val = player.stats.elementalAffinities[elem];
-                                return (
-                                <div key={elem} className="flex justify-between items-center bg-slate-800 px-2 py-1.5 rounded border border-slate-700/50">
-                                    <span className={`flex items-center gap-2 ${config.color} font-bold`}>
-                                        <span className="text-lg">{config.icon}</span> {elem}
-                                    </span>
-                                    <span className="font-mono text-white font-bold">{val}</span>
-                                </div>
-                                )
-                        })}
-                    </div>
-                </div>
-            </div>
-
+        {/* Right: Equipment & Artifacts (Stats moved up) */}
+        <div className="w-[420px] bg-slate-900/90 border border-slate-700 rounded-2xl p-4 flex flex-col gap-4 shrink-0 z-10 overflow-y-auto custom-scrollbar">
+            
             {/* Artifacts Section */}
             <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                 <h3 className="text-purple-400 text-lg font-bold border-b border-purple-800 pb-3 mb-4 flex items-center gap-2">
@@ -489,10 +516,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </div>
 
       {/* Bottom: Adventure Button */}
-      <div className="shrink-0 pt-2">
+      <div className="shrink-0 pt-1 pb-1">
          <Button 
             variant="primary" 
-            className="w-full py-6 text-3xl font-bold tracking-[0.5em] shadow-[0_0_30px_rgba(16,185,129,0.3)] border-emerald-500 hover:bg-emerald-700 hover:scale-[1.01] active:scale-[0.99] transition-all bg-gradient-to-r from-emerald-900 via-emerald-700 to-emerald-900"
+            className="w-full py-5 text-2xl font-bold tracking-[0.5em] shadow-[0_0_30px_rgba(16,185,129,0.3)] border-emerald-500 hover:bg-emerald-700 hover:scale-[1.01] active:scale-[0.99] transition-all bg-gradient-to-r from-emerald-900 via-emerald-700 to-emerald-900"
             onClick={() => setActiveMenu('mapSelect')}
          >
             🗡️ 外出历练 🗡️
