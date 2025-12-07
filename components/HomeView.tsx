@@ -1,8 +1,3 @@
-
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig, Card } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -19,20 +14,38 @@ const StatRow = ({ label, value, icon, color }: { label: string, value: string |
 );
 
 const EquipSlot: React.FC<{ label: string; item: Item | null }> = ({ label, item }) => (
-    <div className="flex items-center gap-3 bg-slate-800 p-2.5 rounded-xl border border-slate-600 shadow-sm hover:bg-slate-700/80 transition-colors cursor-help">
-        <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-500 text-2xl shrink-0 shadow-inner">
+    <div className="flex items-center gap-3 bg-slate-800 p-2.5 rounded-xl border border-slate-600 shadow-sm hover:bg-slate-700/80 transition-colors cursor-help group min-h-[72px]">
+        <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-500 text-2xl shrink-0 shadow-inner group-hover:border-emerald-500 transition-colors">
             {item ? (item.icon || '🛡️') : <span className="text-xs text-slate-600 font-bold text-center leading-tight opacity-50">{label.slice(0,2)}</span>}
         </div>
-        <div className="flex-1 overflow-hidden min-w-0">
+        <div className="flex-1 overflow-hidden min-w-0 flex flex-col justify-center">
             {item ? (
-                <div>
-                    <div className={`font-bold text-sm truncate ${item.rarity === 'legendary' ? 'text-amber-400' : 'text-white'}`}>{item.name}</div>
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                        {item.statBonus?.attack ? `攻+${item.statBonus.attack} ` : ''}
-                        {item.statBonus?.defense ? `防+${item.statBonus.defense} ` : ''}
-                        {!item.statBonus?.attack && !item.statBonus?.defense && '特殊属性'}
+                <>
+                    <div className={`font-bold text-sm truncate ${item.rarity === 'legendary' ? 'text-amber-400' : item.rarity === 'epic' ? 'text-purple-400' : item.rarity === 'rare' ? 'text-blue-300' : 'text-white'}`}>
+                        {item.name} <span className="text-[10px] text-slate-500 font-normal ml-1">Lv.{item.reqLevel}</span>
                     </div>
-                </div>
+                    
+                    {/* Detailed Stats Display */}
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
+                        {!!item.statBonus?.attack && <span className="text-[10px] font-mono text-amber-400">攻+{item.statBonus.attack}</span>}
+                        {!!item.statBonus?.defense && <span className="text-[10px] font-mono text-slate-300">防+{item.statBonus.defense}</span>}
+                        {!!item.statBonus?.maxHp && <span className="text-[10px] font-mono text-red-400">血+{item.statBonus.maxHp}</span>}
+                        {!!item.statBonus?.maxSpirit && <span className="text-[10px] font-mono text-blue-400">神+{item.statBonus.maxSpirit}</span>}
+                        {!!item.statBonus?.speed && <span className="text-[10px] font-mono text-emerald-400">速+{item.statBonus.speed}</span>}
+                        
+                        {item.statBonus?.elementalAffinities && Object.entries(item.statBonus.elementalAffinities).map(([key, value]) => {
+                            const val = value as number;
+                            if (val <= 0) return null;
+                            const elem = key as ElementType;
+                            const config = ELEMENT_CONFIG[elem];
+                            return (
+                                <span key={key} className={`text-[10px] font-mono flex items-center gap-0.5 ${config?.color || 'text-white'}`}>
+                                    {config?.icon} {val}
+                                </span>
+                            );
+                        })}
+                    </div>
+                </>
             ) : (
                 <div className="text-slate-500 text-xs font-bold">{label} - 空</div>
             )}
@@ -70,6 +83,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   
   // Deck Tab State
   const [deckTab, setDeckTab] = useState<'active' | 'storage' | 'talisman'>('active');
+  const [deckSortMode, setDeckSortMode] = useState<'DEFAULT' | 'ELEMENT' | 'LEVEL'>('DEFAULT');
 
   // Talisman State
   const [selectedTalismanCard, setSelectedTalismanCard] = useState<Card | null>(null);
@@ -117,6 +131,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const learnedRecipes = player.learnedRecipes || [];
   const learnedBlueprints = player.learnedBlueprints || [];
 
+  // Sorting Helper
+  const sortCards = (cards: Card[]) => {
+      const sorted = [...cards];
+      if (deckSortMode === 'ELEMENT') {
+          sorted.sort((a, b) => a.element.localeCompare(b.element));
+      } else if (deckSortMode === 'LEVEL') {
+          sorted.sort((a, b) => b.reqLevel - a.reqLevel); // Descending Level
+      }
+      return sorted;
+  };
+
+  const displayedDeck = sortCards(deck);
+  const displayedStorage = sortCards(cardStorage);
+
   const learnedRecipesList = learnedRecipes
     .map(rid => itemsConfig.find(i => i.id === rid))
     .filter((i): i is Item => !!i);
@@ -146,10 +174,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   const currentRecipeStatus = selectedRecipe ? getMaterialStatus(selectedRecipe) : null;
-  const targetPill = selectedRecipe ? itemsConfig.find(i => i.id === selectedRecipe.recipeResult) : null;
-
   const currentBlueprintStatus = selectedBlueprint ? getMaterialStatus(selectedBlueprint) : null;
-  const targetArtifact = selectedBlueprint ? itemsConfig.find(i => i.id === selectedBlueprint.recipeResult) : null;
 
   // Filter inventory for Talisman Crafting
   const availablePens = inventory.filter(i => i.type === 'TALISMAN_PEN');
@@ -564,7 +589,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
       )}
 
-      {/* Bag / Deck Modal - FIXED */}
+      {/* Bag / Deck Modal */}
       {(activeMenu === 'bag' || activeMenu === 'deck') && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 animate-fade-in bg-black/80">
                 <div className="w-full max-w-7xl h-[85vh] bg-slate-900 border-2 border-slate-600 rounded-2xl flex flex-col p-8 shadow-2xl relative">
@@ -576,25 +601,43 @@ export const HomeView: React.FC<HomeViewProps> = ({
                             {activeMenu === 'bag' ? '储物袋' : '本命卡组'}
                         </h3>
                         {activeMenu === 'deck' && (
-                            <div className="ml-auto flex gap-4">
-                                <Button 
-                                    variant={deckTab === 'active' ? 'primary' : 'secondary'} 
-                                    onClick={() => setDeckTab('active')}
-                                >
-                                    出战卡组 ({deck.length})
-                                </Button>
-                                <Button 
-                                    variant={deckTab === 'storage' ? 'primary' : 'secondary'} 
-                                    onClick={() => setDeckTab('storage')}
-                                >
-                                    卡牌仓库 ({cardStorage.length})
-                                </Button>
-                                <Button 
-                                    variant={deckTab === 'talisman' ? 'primary' : 'secondary'} 
-                                    onClick={() => setDeckTab('talisman')}
-                                >
-                                    符箓仓库 ({inventoryTalismans.length})
-                                </Button>
+                            <div className="ml-auto flex flex-col md:flex-row gap-4 items-end md:items-center">
+                                {/* Sort Controls */}
+                                <div className="flex gap-2 mr-4 bg-slate-800 p-1 rounded-lg">
+                                    <button 
+                                        className={`px-3 py-1 rounded text-xs font-bold ${deckSortMode === 'DEFAULT' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
+                                        onClick={() => setDeckSortMode('DEFAULT')}
+                                    >默认</button>
+                                    <button 
+                                        className={`px-3 py-1 rounded text-xs font-bold ${deckSortMode === 'ELEMENT' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
+                                        onClick={() => setDeckSortMode('ELEMENT')}
+                                    >按元素</button>
+                                    <button 
+                                        className={`px-3 py-1 rounded text-xs font-bold ${deckSortMode === 'LEVEL' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
+                                        onClick={() => setDeckSortMode('LEVEL')}
+                                    >按境界</button>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <Button 
+                                        variant={deckTab === 'active' ? 'primary' : 'secondary'} 
+                                        onClick={() => setDeckTab('active')}
+                                    >
+                                        出战卡组 ({deck.length})
+                                    </Button>
+                                    <Button 
+                                        variant={deckTab === 'storage' ? 'primary' : 'secondary'} 
+                                        onClick={() => setDeckTab('storage')}
+                                    >
+                                        卡牌仓库 ({cardStorage.length})
+                                    </Button>
+                                    <Button 
+                                        variant={deckTab === 'talisman' ? 'primary' : 'secondary'} 
+                                        onClick={() => setDeckTab('talisman')}
+                                    >
+                                        符箓仓库 ({inventoryTalismans.length})
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -711,7 +754,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                      {deckTab === 'active' && (
                                          <>
                                             {/* Render Cards */}
-                                            {deck.map((card, idx) => (
+                                            {displayedDeck.map((card, idx) => {
+                                                // Find original index in source deck for correct removal
+                                                const originalIdx = deck.indexOf(card);
+                                                return (
                                                  <div key={`${card.id}_deck_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
                                                      <CardItem card={card} isPlayable={false} playerLevel={player.level} disableHoverEffect={true} />
                                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl z-20">
@@ -719,28 +765,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                             variant="danger" 
                                                             size="sm"
                                                             disabled={deck.length <= 24}
-                                                            onClick={() => onManageDeck('TO_STORAGE', idx)}
+                                                            onClick={() => onManageDeck('TO_STORAGE', originalIdx)}
                                                          >
                                                              移出
                                                          </Button>
                                                      </div>
                                                  </div>
-                                            ))}
+                                                )
+                                            })}
                                             {/* Render Talismans in Deck */}
                                             {talismansInDeck.map((item, idx) => {
                                                  // Map item to dummy card for display
-                                                 const dummyCard: Card = {
-                                                     id: item.id,
-                                                     name: item.name,
-                                                     type: 'ATTACK' as any, // Placeholder
-                                                     cost: 0,
-                                                     element: 'SWORD' as any,
-                                                     elementCost: 0,
-                                                     value: 0,
-                                                     description: `[符箓] ${item.description}`,
-                                                     rarity: item.rarity as any,
-                                                     reqLevel: item.reqLevel
-                                                 };
                                                  return (
                                                      <div key={`${item.id}_talisman_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
                                                          {/* Custom minimal rendering for Talisman "Card" */}
@@ -770,8 +805,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                      )}
 
                                      {/* STORAGE TAB: Show Inactive Cards */}
-                                     {deckTab === 'storage' && cardStorage.map((card, idx) => {
+                                     {deckTab === 'storage' && displayedStorage.map((card, idx) => {
                                          const canAdd = player.level >= card.reqLevel;
+                                         // Find original index
+                                         const originalIdx = cardStorage.indexOf(card);
+                                         
                                          return (
                                              <div key={`${card.id}_storage_${idx}`} className="relative group transition-transform duration-200 hover:-translate-y-4 hover:shadow-xl rounded-xl">
                                                  <CardItem card={card} isPlayable={false} playerLevel={player.level} disableHoverEffect={true} />
@@ -780,7 +818,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                          <Button 
                                                             variant="primary" 
                                                             size="sm"
-                                                            onClick={() => onManageDeck('TO_DECK', idx)}
+                                                            onClick={() => onManageDeck('TO_DECK', originalIdx)}
                                                          >
                                                              出战
                                                          </Button>
