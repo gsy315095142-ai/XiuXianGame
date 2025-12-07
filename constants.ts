@@ -314,6 +314,16 @@ export const JADE_PENDANT: Item = {
     rarity: 'rare',
     reqLevel: 3,
     price: 300,
+    maxDurability: 50,
+    durability: 50,
+    combatEffect: {
+        type: CardType.BUFF,
+        value: 2,
+        cost: 0,
+        element: ElementType.WATER,
+        elementCost: 1,
+        description: '战斗中使用可恢复2点神识'
+    }
 };
 
 const MANUAL_ITEMS = [WOODEN_SWORD, IRON_SWORD, LEATHER_ARMOR, JADE_PENDANT];
@@ -326,6 +336,7 @@ const GENERATED_BOOKS: Item[] = [];
 const GENERATED_ALCHEMY_ITEMS: Item[] = [];
 const GENERATED_FORGE_ITEMS: Item[] = [];
 const GENERATED_TALISMAN_ITEMS: Item[] = [];
+const GENERATED_REPAIR_ITEMS: Item[] = [];
 
 // Adjusted Levels for New Realm Ranges
 const REALMS_GEN_CONFIG = [
@@ -640,18 +651,34 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
             attack: randInt(1, realm.limit),
             defense: randInt(1, Math.ceil(realm.limit/2))
         };
+        
+        // Determine Combat Effect
+        const effectType = randPick([CardType.ATTACK, CardType.DEFEND, CardType.HEAL, CardType.BUFF]);
+        const effectVal = randInt(Math.max(1, Math.floor(realm.limit * 0.4)), realm.limit);
+        const effectElem = Object.values(ElementType)[randInt(0, 10)];
+        const dur = 40 + (rIdx * 20); // Scale durability by realm (40, 60, 80, 100, 120)
 
         const artifact: Item = {
             id: artId,
             name: `${realm.prefix}·${an}`,
             icon: ARTIFACT_ICONS[idx],
             type: 'ARTIFACT',
-            slot: 'accessory', // Just a default, artifacts use special slots anyway
+            slot: 'accessory', 
             description: `炼制而成的${realm.name}本命法宝，威力不俗。`,
             rarity: 'epic',
             reqLevel: realm.level,
             price: 2000 * Math.ceil(realm.level / 5),
-            statBonus: statBonus
+            statBonus: statBonus,
+            maxDurability: dur,
+            durability: dur,
+            combatEffect: {
+                type: effectType,
+                value: effectVal,
+                cost: Math.ceil(realm.level / 5), // Small spirit cost
+                element: effectElem,
+                elementCost: 1,
+                description: `[法宝] ${effectType === CardType.ATTACK ? '攻击' : effectType === CardType.HEAL ? '恢复' : '效果'} ${effectVal}`
+            }
         };
         GENERATED_FORGE_ITEMS.push(artifact);
 
@@ -716,10 +743,25 @@ REALMS_GEN_CONFIG.forEach((realm, rIdx) => {
     };
     GENERATED_TALISMAN_ITEMS.push(pen);
 
+    // 8. Artifact Repair Items
+    const repairItem: Item = {
+        id: `repair_${realm.level}`,
+        name: `${realm.name}修补石`,
+        icon: '🔧',
+        type: 'ARTIFACT_REPAIR',
+        description: `可修复${realm.name}法宝的耐久度。`,
+        rarity: 'rare',
+        reqLevel: realm.level,
+        price: 200 * Math.ceil(realm.level/5),
+        repairAmount: 20 + (rIdx * 10), // 20, 30, 40...
+        statBonus: { elementalAffinities: createZeroElementStats() }
+    };
+    GENERATED_REPAIR_ITEMS.push(repairItem);
+
 });
 
 export const INITIAL_CARDS = [...MANUAL_CARDS, ...GENERATED_CARDS];
-export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS, ...GENERATED_FORGE_ITEMS, ...GENERATED_TALISMAN_ITEMS];
+export const INITIAL_ITEMS = [...MANUAL_ITEMS, ...GENERATED_ITEMS, ...GENERATED_BOOKS, ...GENERATED_ALCHEMY_ITEMS, ...GENERATED_FORGE_ITEMS, ...GENERATED_TALISMAN_ITEMS, ...GENERATED_REPAIR_ITEMS];
 
 // --- Procedural Generation: Enemies ---
 

@@ -74,7 +74,8 @@ export type ItemType =
     | 'FORGE_MATERIAL'  // Artifact Material
     | 'TALISMAN_PEN'    // New: Tool for crafting talismans
     | 'TALISMAN_PAPER'  // New: Material for crafting talismans
-    | 'TALISMAN';       // New: The crafted talisman item
+    | 'TALISMAN'        // New: The crafted talisman item
+    | 'ARTIFACT_REPAIR'; // New: Consumable to repair artifacts
 
 export type EquipmentSlot = 
   | 'mainWeapon' 
@@ -87,6 +88,15 @@ export type EquipmentSlot =
   | 'neck' 
   | 'accessory' 
   | 'ring';
+
+export interface CombatEffect {
+    type: CardType;
+    value: number;
+    cost: number; // Spirit Cost
+    element: ElementType;
+    elementCost: number;
+    description: string;
+}
 
 export interface Item {
   id: string;
@@ -106,10 +116,16 @@ export interface Item {
   recipeMaterials?: { itemId: string; count: number }[]; // For RECIPE/BLUEPRINT: Materials required
   successRate?: number; // For RECIPE/BLUEPRINT: 0.0 - 1.0
 
-  // Talisman Fields
-  durability?: number; // For PEN and TALISMAN: Current durability
-  maxDurability?: number; // For PEN and TALISMAN: Max durability
+  // Talisman & Artifact Fields
+  durability?: number; // For PEN, TALISMAN, ARTIFACT: Current durability
+  maxDurability?: number; // For PEN, TALISMAN, ARTIFACT: Max durability
   talismanCardId?: string; // For TALISMAN: The ID of the Card this talisman mimics
+  
+  // Artifact Combat
+  combatEffect?: CombatEffect; // For ARTIFACT: The card-like effect it has in combat
+  
+  // Repair Item
+  repairAmount?: number; // For ARTIFACT_REPAIR
 }
 
 export interface Card {
@@ -125,9 +141,11 @@ export interface Card {
   reqLevel: number;
   tags?: string[];
   
-  // Runtime properties for Talismans in Combat
+  // Runtime properties for Talismans/Artifacts in Combat
   isTalisman?: boolean;
   talismanItemId?: string;
+  isArtifact?: boolean;
+  artifactId?: string;
 }
 
 export interface Stats {

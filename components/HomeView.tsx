@@ -1,3 +1,6 @@
+
+
+
 import React, { useState, useEffect } from 'react';
 import { Player, Item, RealmRank, EquipmentSlot, ElementType, GameMap, ArtifactSlotConfig, Card } from '../types';
 import { getRealmName, SLOT_NAMES, ELEMENT_CONFIG } from '../constants';
@@ -66,6 +69,7 @@ interface HomeViewProps {
   onCraft: (blueprintId: string, materials: {itemId: string, count: number}[]) => void;
   onCraftTalisman: (cardId: string, penId: string, paperId: string) => void; 
   onManageDeck: (action: 'TO_STORAGE' | 'TO_DECK' | 'TALISMAN_TO_DECK' | 'TALISMAN_TO_INVENTORY', index: number) => void; 
+  onRepairArtifact: (artifactIndex: number, repairItemId: string) => void;
   isRefining: boolean;
   itemsConfig: Item[];
   artifactConfigs?: ArtifactSlotConfig[];
@@ -74,13 +78,16 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ 
-    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, onCraft, onCraftTalisman, onManageDeck, isRefining, itemsConfig,
+    player, realms, maps, onStartAdventure, onEquipItem, onUseItem, onEndGame, onBreakthrough, onRefine, onCraft, onCraftTalisman, onManageDeck, onRepairArtifact, isRefining, itemsConfig,
     artifactConfigs = [], onUnlockArtifactSlot, onUnequipArtifact
 }) => {
   const [activeMenu, setActiveMenu] = useState<'none' | 'bag' | 'deck' | 'alchemy' | 'forge' | 'talisman' | 'mapSelect'>('none');
   const [selectedRecipe, setSelectedRecipe] = useState<Item | null>(null);
   const [selectedBlueprint, setSelectedBlueprint] = useState<Item | null>(null);
   
+  // Inventory Filtering
+  const [bagCategory, setBagCategory] = useState<'ALL' | 'EQUIP' | 'CONSUMABLE' | 'MATERIAL'>('ALL');
+
   // Deck Tab State
   const [deckTab, setDeckTab] = useState<'active' | 'storage' | 'talisman'>('active');
   const [deckSortMode, setDeckSortMode] = useState<'DEFAULT' | 'ELEMENT' | 'LEVEL'>('DEFAULT');
@@ -89,6 +96,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedTalismanCard, setSelectedTalismanCard] = useState<Card | null>(null);
   const [selectedPen, setSelectedPen] = useState<Item | null>(null);
   const [selectedPaper, setSelectedPaper] = useState<Item | null>(null);
+
+  // Repair Modal State
+  const [repairModalItem, setRepairModalItem] = useState<Item | null>(null); // The repair stone being used
 
   const realmName = getRealmName(player.level, realms);
   
@@ -202,8 +212,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
       if (!item) return false; 
       if ((item.reqLevel || 999) > player.level) return false;
       if (item.type === 'EQUIPMENT' || item.type === 'ARTIFACT') return true; 
-      if (['CONSUMABLE', 'RECIPE', 'PILL', 'FORGE_BLUEPRINT'].includes(item.type)) return true;
+      if (['CONSUMABLE', 'RECIPE', 'PILL', 'FORGE_BLUEPRINT', 'ARTIFACT_REPAIR'].includes(item.type)) return true;
       return false;
+  });
+
+  const handleUseItemWrapper = (item: Item) => {
+      if (item.type === 'ARTIFACT_REPAIR') {
+          setRepairModalItem(item);
+      } else {
+          onUseItem(item);
+      }
+  };
+
+  // Filter Logic for Inventory Grid
+  const filteredInventory = inventory.filter(item => {
+      if (!item || !item.type) return false;
+      if (bagCategory === 'ALL') return true;
+      if (bagCategory === 'EQUIP') return item.type === 'EQUIPMENT' || item.type === 'ARTIFACT';
+      if (bagCategory === 'CONSUMABLE') return ['CONSUMABLE', 'PILL', 'TALISMAN', 'ARTIFACT_REPAIR'].includes(item.type);
+      if (bagCategory === 'MATERIAL') return ['MATERIAL', 'RECIPE', 'FORGE_MATERIAL', 'FORGE_BLUEPRINT', 'TALISMAN_PEN', 'TALISMAN_PAPER'].includes(item.type);
+      return true;
   });
 
   return (
@@ -397,7 +425,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                             <div 
                                 key={index} 
                                 className={`
-                                    relative p-2 rounded-lg border-2 min-h-[60px] flex items-center justify-center gap-2 transition-all
+                                    relative p-2 rounded-lg border-2 min-h-[60px] flex items-center justify-center gap-2 transition-all overflow-hidden
                                     ${isUnlocked 
                                         ? 'bg-slate-800 border-slate-600 hover:border-purple-500 cursor-pointer' 
                                         : 'bg-black/40 border-slate-800 opacity-70'}
@@ -418,6 +446,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-xs font-bold text-white truncate">{item.name}</div>
                                                 <div className="text-[9px] text-purple-300">点击卸下</div>
+                                                {/* Durability Bar */}
+                                                <div className="w-full h-1 bg-slate-700 mt-1 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-blue-400" 
+                                                        style={{ width: `${Math.min(100, Math.max(0, ((item.durability || 0) / (item.maxDurability || 1)) * 100))}%` }}
+                                                    ></div>
+                                                </div>
                                             </div>
                                         </>
                                     ) : (
@@ -601,6 +636,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
       )}
 
+      {/* Repair Artifact Modal */}
+      {repairModalItem && (
+          <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-8 animate-fade-in">
+              <div className="bg-slate-900 border-2 border-blue-600 rounded-xl p-6 w-full max-w-lg shadow-2xl relative flex flex-col">
+                  <h3 className="text-xl font-bold text-blue-300 mb-4 border-b border-blue-900 pb-2">选择要修复的法宝</h3>
+                  <div className="flex-1 overflow-y-auto max-h-[60vh] space-y-2">
+                       {artifacts.map((art, idx) => {
+                           if (!art) return null;
+                           const maxDur = art.maxDurability || 1;
+                           const curDur = art.durability || 0;
+                           const missing = maxDur - curDur;
+                           const canRepair = missing > 0;
+                           
+                           return (
+                               <div key={idx} className={`p-3 border rounded flex items-center gap-3 ${canRepair ? 'bg-slate-800 border-slate-600 cursor-pointer hover:bg-slate-700' : 'bg-slate-900 border-slate-800 opacity-50'}`}
+                                    onClick={() => {
+                                        if (canRepair) {
+                                            onRepairArtifact(idx, repairModalItem.id);
+                                            setRepairModalItem(null);
+                                        }
+                                    }}
+                               >
+                                   <div className="text-2xl">{art.icon}</div>
+                                   <div className="flex-1">
+                                       <div className="font-bold text-sm text-white">{art.name}</div>
+                                       <div className="text-xs text-blue-400">耐久: {curDur}/{maxDur}</div>
+                                   </div>
+                                   {canRepair ? <div className="text-xs text-green-400 font-bold">可修复</div> : <div className="text-xs text-slate-500">无需修复</div>}
+                               </div>
+                           );
+                       })}
+                       {artifacts.every(a => !a) && <div className="text-slate-500 text-center py-4">没有装备法宝</div>}
+                  </div>
+                  <Button variant="secondary" className="mt-4" onClick={() => setRepairModalItem(null)}>取消</Button>
+              </div>
+          </div>
+      )}
+
       {/* Bag / Deck Modal */}
       {(activeMenu === 'bag' || activeMenu === 'deck') && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 animate-fade-in bg-black/80">
@@ -612,6 +685,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         <h3 className="text-4xl font-bold text-white tracking-wider">
                             {activeMenu === 'bag' ? '储物袋' : '本命卡组'}
                         </h3>
+                        
+                        {/* BAG FILTER TABS */}
+                        {activeMenu === 'bag' && (
+                            <div className="ml-auto flex gap-2">
+                                {(['ALL', 'EQUIP', 'CONSUMABLE', 'MATERIAL'] as const).map(cat => (
+                                    <button 
+                                        key={cat}
+                                        onClick={() => setBagCategory(cat)}
+                                        className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${bagCategory === cat ? 'bg-emerald-600 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                    >
+                                        {cat === 'ALL' ? '全部' : cat === 'EQUIP' ? '装备法宝' : cat === 'CONSUMABLE' ? '丹药符箓' : '材料杂物'}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {activeMenu === 'deck' && (
                             <div className="ml-auto flex flex-col md:flex-row gap-4 items-end md:items-center">
                                 {/* Sort Controls */}
@@ -657,12 +746,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                         {activeMenu === 'bag' && (
                             <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6">
-                                {inventory.map((item, idx) => {
+                                {filteredInventory.map((item, idx) => {
                                     if (!item || !item.type) return null; // STRICT CHECK
                                     const canEquip = player.level >= (item.reqLevel || 0);
                                     const isArtifact = item.type === 'ARTIFACT';
                                     const isEquipable = item.type === 'EQUIPMENT' || isArtifact;
-                                    const isConsumable = ['CONSUMABLE', 'RECIPE', 'PILL', 'FORGE_BLUEPRINT'].includes(item.type);
+                                    const isConsumable = ['CONSUMABLE', 'RECIPE', 'PILL', 'FORGE_BLUEPRINT', 'ARTIFACT_REPAIR'].includes(item.type);
                                     
                                     return (
                                         <div key={idx} className="bg-slate-800 p-4 rounded-xl border border-slate-600 flex flex-col justify-between hover:bg-slate-700/80 transition-colors shadow-lg group">
@@ -675,6 +764,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                     <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                                                         {item.type === 'EQUIPMENT' ? `装备 · ${item.slot ? SLOT_NAMES[item.slot] : '未知'}` : 
                                                             item.type === 'ARTIFACT' ? '本命法宝' : 
+                                                            item.type === 'ARTIFACT_REPAIR' ? '修补石' :
                                                             item.type}
                                                     </div>
                                                 </div>
@@ -708,7 +798,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                 </div>
                                             )}
                                             
-                                            {(item.type === 'TALISMAN_PEN' || item.type === 'TALISMAN') && (
+                                            {(item.type === 'TALISMAN_PEN' || item.type === 'TALISMAN' || item.type === 'ARTIFACT') && (
                                                 <div className="mt-2 text-xs text-slate-400">
                                                     耐久: {item.durability}/{item.maxDurability}
                                                 </div>
@@ -731,7 +821,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                         size="md"
                                                         variant="primary"
                                                         className="flex-1 text-sm font-bold"
-                                                        onClick={() => onUseItem(item)}
+                                                        onClick={() => handleUseItemWrapper(item)}
                                                     >
                                                         使用
                                                     </Button>

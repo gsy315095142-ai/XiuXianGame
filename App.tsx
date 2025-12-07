@@ -217,7 +217,7 @@ const App: React.FC = () => {
       setInteraction(null);
   };
 
-  const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }, updatedTalismans?: Item[]) => {
+  const handleCombatWin = (rewards: { exp: number, gold: number, drops: Item[] }, updatedTalismans?: Item[], updatedArtifacts?: (Item | null)[]) => {
       if (!player) return;
       
       let newExp = player.exp + rewards.exp;
@@ -228,19 +228,27 @@ const App: React.FC = () => {
       if (updatedTalismans) {
           newTalismanDeck = updatedTalismans.filter(t => (t.durability || 0) > 0);
       }
+      
+      // Sync artifacts (handle destruction)
+      let newPlayerArtifacts = player.artifacts;
+      if (updatedArtifacts) {
+          newPlayerArtifacts = updatedArtifacts;
+          // Check for destroyed artifacts to show toast
+          const oldIds = player.artifacts.map(a => a?.id).filter(Boolean);
+          const newIds = newPlayerArtifacts.map(a => a?.id).filter(Boolean);
+          if (newIds.length < oldIds.length) {
+              showToast("⚠️ 战斗中损毁了部分法宝！");
+          }
+      }
 
       setPlayer({
           ...player,
           exp: newExp,
           gold: newGold,
           inventory: newInventory,
-          talismansInDeck: newTalismanDeck
+          talismansInDeck: newTalismanDeck,
+          artifacts: newPlayerArtifacts
       });
-
-      // alert(`战斗胜利！获得 ${rewards.exp} 修为, ${rewards.gold} 灵石${rewards.drops.length > 0 ? `, ${rewards.drops.length} 件物品` : ''}`);
-      // Use interaction state to show victory modal if needed, or just let CombatView handle the "Win" click which calls this.
-      // CombatView already shows a result modal. This function is called AFTER user clicks "Collect".
-      // So we just transition.
       
       if (currentMap) {
           setView(GameView.ADVENTURE);
@@ -374,8 +382,6 @@ const App: React.FC = () => {
       
       if (validCards.length > 0 && Math.random() < 0.7) { 
           const newCard = validCards[Math.floor(Math.random() * validCards.length)];
-          // Check if already learned? Duplicates allowed in storage for now, or convert to exp/gold?
-          // Let's just add to storage.
           
           // Show Acquired Card Modal
           setAcquiredCard(newCard);
@@ -389,16 +395,9 @@ const App: React.FC = () => {
           ...player,
           exp: player.exp + expGain,
           inventory: newInventory,
-          cardStorage: newCardStorage // Logic for saving card is in 'acquiredCard' modal confirm or here? 
-                                      // Actually if I use setAcquiredCard, I should probably handle the addition there to avoid sync issues.
-                                      // But 'setAcquiredCard' is just visual. Let's add it here.
+          cardStorage: newCardStorage 
       });
-      
-      if (validCards.length > 0) {
-           // We already added logic above inside if block? 
-           // Wait, setPlayer updates state. If I setAcquiredCard, I just show it.
-           // The storage update is already in setPlayer above.
-      }
+      setReadingItem(null); // Auto close modal
   };
 
   const handleUseItem = (item: Item) => {
@@ -448,8 +447,6 @@ const App: React.FC = () => {
           }
       }
       
-      // Blueprints/Recipes learning handled inside HomeView->App via separate props? 
-      // No, HomeView calls onRefine/onCraft. But learning is 'Use'.
       if (item.type === 'RECIPE') {
           if (!player.learnedRecipes.includes(item.id)) {
               const newInv = player.inventory.filter(i => i !== item);
@@ -525,8 +522,6 @@ const App: React.FC = () => {
      
      setTimeout(() => {
          setIsRefining(false);
-         // Consume materials logic... (Simplified reuse)
-         // Assuming check passed in UI
          let newInventory = [...player.inventory];
          
          for (const mat of materials) {
@@ -683,10 +678,6 @@ const App: React.FC = () => {
       });
       showToast("栏位解锁成功！");
   };
-
-  const handleEquipArtifact = (item: Item, slotIndex: number) => {
-       // Assuming specific logic integrated via handleEquipItem wrapper
-  };
   
   const handleUnequipArtifact = (index: number) => {
       if (!player) return;
@@ -738,6 +729,36 @@ const App: React.FC = () => {
           handleEquipItem(item);
       }
   };
+  
+  const handleRepairArtifact = (artifactIndex: number, repairItemId: string) => {
+       if (!player) return;
+       const artifact = player.artifacts[artifactIndex];
+       const repairItem = player.inventory.find(i => i.id === repairItemId);
+       
+       if (!artifact || !repairItem) return;
+       
+       const restore = repairItem.repairAmount || 0;
+       const currentDurability = artifact.durability || 0;
+       const maxDurability = artifact.maxDurability || 1;
+       const newDurability = Math.min(maxDurability, currentDurability + restore);
+       
+       const newArtifacts = [...player.artifacts];
+       newArtifacts[artifactIndex] = { ...artifact, durability: newDurability };
+       
+       const repairItemIndex = player.inventory.findIndex(i => i.id === repairItemId);
+       const newInventory = [...player.inventory];
+       if (repairItemIndex > -1) {
+           newInventory.splice(repairItemIndex, 1);
+       }
+       
+       setPlayer({
+           ...player,
+           artifacts: newArtifacts,
+           inventory: newInventory
+       });
+       
+       showToast(`修复了 ${artifact.name}，耐久恢复至 ${newDurability}`);
+  };
 
   return (
     <div className="font-sans text-gray-200">
@@ -779,6 +800,7 @@ const App: React.FC = () => {
               onCraft={handleCraft}
               onCraftTalisman={handleCraftTalisman}
               onManageDeck={handleManageDeck}
+              onRepairArtifact={handleRepairArtifact}
               isRefining={isRefining}
               itemsConfig={config.items}
               artifactConfigs={config.artifactSlotConfigs}
@@ -793,14 +815,6 @@ const App: React.FC = () => {
                          <h3 className="text-3xl font-bold text-emerald-300 drop-shadow-md">领悟新招式！</h3>
                          
                          <div className="transform scale-125 my-4 shadow-2xl rotate-3 transition-transform hover:rotate-0 duration-500">
-                             {/* Import CardItem locally if needed or just mock display since CardItem is in HomeView scope. 
-                                 Actually App.tsx doesn't import CardItem. I need to make a simple display or move CardItem to separate file. 
-                                 CardItem is in components/CardItem.tsx. I should import it.
-                             */}
-                             {/* Mock Card Display for now as CardItem import was in HomeView previously. 
-                                 Wait, CardItem IS imported in CombatView but not App? 
-                                 I'll add the CardItem import to App.tsx top.
-                             */}
                              <div className="w-32 h-48 border-2 border-emerald-500 bg-emerald-900/50 rounded-xl p-2 flex flex-col items-center justify-center text-center">
                                  <div className="text-4xl mb-2">⚡</div>
                                  <div className="font-bold text-emerald-200">{acquiredCard.name}</div>
@@ -1006,4 +1020,3 @@ const ReadingModal: React.FC<{ item: Item, onComplete: () => void }> = ({ item, 
 };
 
 export default App;
-

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef } from 'react';
 import { GameConfig, Card, Item, EnemyTemplate, CardType, ItemType, EquipmentSlot, ElementType, RealmLevelConfig, GameMap } from '../types';
 import { getRealmName, SLOT_NAMES, createZeroElementStats } from '../constants';
@@ -13,7 +15,7 @@ interface ConfigScreenProps {
 const createEmptyItem = (type: ItemType, level: number = 1): Item => ({
   id: `item_${Date.now()}`,
   name: '新物品',
-  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : type === 'TALISMAN_PEN' ? '🖌️' : type === 'TALISMAN_PAPER' ? '🟨' : type === 'TALISMAN' ? '🏺' : '📦', 
+  icon: type === 'EQUIPMENT' ? '⚔️' : type === 'CONSUMABLE' ? '💊' : type === 'MATERIAL' ? '🌿' : type === 'PILL' ? '💊' : type === 'RECIPE' ? '📜' : type === 'FORGE_MATERIAL' ? '🧱' : type === 'FORGE_BLUEPRINT' ? '🗺️' : type === 'TALISMAN_PEN' ? '🖌️' : type === 'TALISMAN_PAPER' ? '🟨' : type === 'TALISMAN' ? '🏺' : type === 'ARTIFACT_REPAIR' ? '🔧' : '📦', 
   type: type,
   slot: type === 'EQUIPMENT' ? 'mainWeapon' : undefined,
   description: '描述...',
@@ -178,7 +180,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                 successRate: item.successRate || 0,
                 recipeMaterials_json: item.recipeMaterials ? JSON.stringify(item.recipeMaterials) : '',
                 durability: item.durability || 0,
-                maxDurability: item.maxDurability || 0
+                maxDurability: item.maxDurability || 0,
+                combatEffect_json: item.combatEffect ? JSON.stringify(item.combatEffect) : '',
+                repairAmount: item.repairAmount || 0
             };
             if (item.statBonus?.elementalAffinities) {
                 Object.entries(item.statBonus.elementalAffinities).forEach(([k, v]) => {
@@ -323,7 +327,9 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                         successRate: r.successRate || 0,
                         recipeMaterials: r.recipeMaterials_json ? JSON.parse(r.recipeMaterials_json) : undefined,
                         durability: r.durability || 0,
-                        maxDurability: r.maxDurability || 0
+                        maxDurability: r.maxDurability || 0,
+                        combatEffect: r.combatEffect_json ? JSON.parse(r.combatEffect_json) : undefined,
+                        repairAmount: r.repairAmount || 0
                       }
                   });
               }
@@ -628,13 +634,13 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
           {activeTab === 'items' && (
              <div className="flex flex-col h-full">
                  <div className="flex gap-2 mb-4 overflow-x-auto shrink-0 pb-2">
-                     {(['EQUIPMENT', 'CONSUMABLE', 'MATERIAL', 'RECIPE', 'PILL', 'ARTIFACT', 'FORGE_MATERIAL', 'FORGE_BLUEPRINT', 'TALISMAN_PEN', 'TALISMAN_PAPER', 'TALISMAN'] as ItemType[]).map(t => (
+                     {(['EQUIPMENT', 'CONSUMABLE', 'MATERIAL', 'RECIPE', 'PILL', 'ARTIFACT', 'FORGE_MATERIAL', 'FORGE_BLUEPRINT', 'TALISMAN_PEN', 'TALISMAN_PAPER', 'TALISMAN', 'ARTIFACT_REPAIR'] as ItemType[]).map(t => (
                          <button 
                             key={t} 
                             onClick={() => setItemSubTab(t)}
                             className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap ${itemSubTab === t ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
                          >
-                             {t === 'EQUIPMENT' ? '装备' : t === 'CONSUMABLE' ? '消耗品' : t === 'MATERIAL' ? '药材' : t === 'RECIPE' ? '丹方' : t === 'PILL' ? '丹药' : t === 'ARTIFACT' ? '法宝' : t === 'FORGE_MATERIAL' ? '器材' : t === 'FORGE_BLUEPRINT' ? '图纸' : t === 'TALISMAN_PEN' ? '符笔' : t === 'TALISMAN_PAPER' ? '符纸' : '符箓'}
+                             {t === 'EQUIPMENT' ? '装备' : t === 'CONSUMABLE' ? '消耗品' : t === 'MATERIAL' ? '药材' : t === 'RECIPE' ? '丹方' : t === 'PILL' ? '丹药' : t === 'ARTIFACT' ? '法宝' : t === 'FORGE_MATERIAL' ? '器材' : t === 'FORGE_BLUEPRINT' ? '图纸' : t === 'TALISMAN_PEN' ? '符笔' : t === 'TALISMAN_PAPER' ? '符纸' : t === 'TALISMAN' ? '符箓' : '修补石'}
                          </button>
                      ))}
                      <div className="ml-auto flex gap-2">
@@ -725,7 +731,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                          </div>
                                      )}
 
-                                     {(item.type === 'TALISMAN_PEN') && (
+                                     {(item.type === 'TALISMAN_PEN' || item.type === 'ARTIFACT') && (
                                           <div className="col-span-4 grid grid-cols-2 gap-2 bg-slate-900/50 p-2 rounded">
                                               <div>
                                                   <label className="text-[10px] text-slate-500 block">耐久度</label>
@@ -735,6 +741,97 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({ config, onSave, onCa
                                                           const newItems = localConfig.items.map(i => i.id === item.id ? {...i, maxDurability: parseInt(e.target.value), durability: parseInt(e.target.value)} : i);
                                                           setLocalConfig({...localConfig, items: newItems});
                                                       }}
+                                                  />
+                                              </div>
+                                          </div>
+                                     )}
+
+                                     {item.type === 'ARTIFACT_REPAIR' && (
+                                          <div className="col-span-4 bg-slate-900/50 p-2 rounded">
+                                               <label className="text-[10px] text-slate-500 block">修复耐久量</label>
+                                               <input type="number" className="bg-slate-800 w-24 p-1 rounded text-xs" 
+                                                      value={item.repairAmount || 0} 
+                                                      onChange={e => {
+                                                          const newItems = localConfig.items.map(i => i.id === item.id ? {...i, repairAmount: parseInt(e.target.value)} : i);
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}
+                                               />
+                                          </div>
+                                     )}
+
+                                     {item.type === 'ARTIFACT' && (
+                                          <div className="col-span-4 bg-purple-900/20 p-2 rounded border border-purple-500/30">
+                                              <div className="text-xs font-bold text-purple-300 mb-2">战斗技能效果</div>
+                                              <div className="grid grid-cols-6 gap-2">
+                                                  <div className="col-span-1">
+                                                      <label className="text-[9px] text-slate-500">类型</label>
+                                                      <select className="bg-slate-800 w-full text-[10px] p-1 rounded" 
+                                                          value={item.combatEffect?.type || CardType.ATTACK}
+                                                          onChange={e => {
+                                                              const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 10, cost: 1, element: ElementType.SWORD, elementCost: 1, description: 'Effect'}), type: e.target.value as CardType };
+                                                              const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                              setLocalConfig({...localConfig, items: newItems});
+                                                          }}
+                                                      >
+                                                          {Object.values(CardType).map(t => <option key={t} value={t}>{t}</option>)}
+                                                      </select>
+                                                  </div>
+                                                  <div className="col-span-1">
+                                                      <label className="text-[9px] text-slate-500">数值</label>
+                                                      <input type="number" className="bg-slate-800 w-full p-1 rounded text-[10px]" 
+                                                          value={item.combatEffect?.value || 0}
+                                                          onChange={e => {
+                                                              const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 0, cost: 1, element: ElementType.SWORD, elementCost: 1, description: 'Effect'}), value: parseInt(e.target.value) };
+                                                              const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                              setLocalConfig({...localConfig, items: newItems});
+                                                          }}
+                                                      />
+                                                  </div>
+                                                  <div className="col-span-1">
+                                                      <label className="text-[9px] text-slate-500">神识消耗</label>
+                                                      <input type="number" className="bg-slate-800 w-full p-1 rounded text-[10px]" 
+                                                          value={item.combatEffect?.cost || 0}
+                                                          onChange={e => {
+                                                              const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 0, cost: 0, element: ElementType.SWORD, elementCost: 1, description: 'Effect'}), cost: parseInt(e.target.value) };
+                                                              const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                              setLocalConfig({...localConfig, items: newItems});
+                                                          }}
+                                                      />
+                                                  </div>
+                                                  <div className="col-span-1">
+                                                      <label className="text-[9px] text-slate-500">元素</label>
+                                                      <select className="bg-slate-800 w-full text-[10px] p-1 rounded" 
+                                                          value={item.combatEffect?.element || ElementType.SWORD}
+                                                          onChange={e => {
+                                                              const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 0, cost: 1, element: ElementType.SWORD, elementCost: 1, description: 'Effect'}), element: e.target.value as ElementType };
+                                                              const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                              setLocalConfig({...localConfig, items: newItems});
+                                                          }}
+                                                      >
+                                                          {Object.values(ElementType).map(t => <option key={t} value={t}>{t}</option>)}
+                                                      </select>
+                                                  </div>
+                                                  <div className="col-span-1">
+                                                      <label className="text-[9px] text-slate-500">元素消耗</label>
+                                                      <input type="number" className="bg-slate-800 w-full p-1 rounded text-[10px]" 
+                                                          value={item.combatEffect?.elementCost || 0}
+                                                          onChange={e => {
+                                                              const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 0, cost: 0, element: ElementType.SWORD, elementCost: 0, description: 'Effect'}), elementCost: parseInt(e.target.value) };
+                                                              const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                              setLocalConfig({...localConfig, items: newItems});
+                                                          }}
+                                                      />
+                                                  </div>
+                                              </div>
+                                              <div className="mt-1">
+                                                  <input className="bg-slate-800 w-full p-1 rounded text-[10px] text-slate-300" 
+                                                      value={item.combatEffect?.description || ''}
+                                                      onChange={e => {
+                                                          const newEffect = { ...(item.combatEffect || {type: CardType.ATTACK, value: 0, cost: 1, element: ElementType.SWORD, elementCost: 1, description: ''}), description: e.target.value };
+                                                          const newItems = localConfig.items.map(i => i.id === item.id ? {...i, combatEffect: newEffect} : i);
+                                                          setLocalConfig({...localConfig, items: newItems});
+                                                      }}
+                                                      placeholder="技能描述"
                                                   />
                                               </div>
                                           </div>
